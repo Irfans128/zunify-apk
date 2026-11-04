@@ -351,6 +351,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       : () => player.playSong(
                             _moodSongs.first,
                             customQueue: _moodSongs,
+                            contextName: 'Mix $_selectedMood',
                           ),
                   accent: accent,
                 ),
@@ -390,6 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       : () => player.playSong(
                             _trendingIndo.first,
                             customQueue: _trendingIndo,
+                            contextName: 'Populer di Indonesia',
                           ),
                   accent: accent,
                 ),
@@ -398,6 +400,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       (entry) => ZunifySongTile(
                         song: entry.value,
                         queueContext: _trendingIndo,
+                        contextName: 'Populer di Indonesia',
                         rank: entry.key + 1,
                       ),
                     ),
@@ -411,6 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       : () => player.playSong(
                             _trendingGlobal.first,
                             customQueue: _trendingGlobal,
+                            contextName: 'Top Global',
                           ),
                   accent: accent,
                 ),
@@ -419,6 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       (entry) => ZunifySongTile(
                         song: entry.value,
                         queueContext: _trendingGlobal,
+                        contextName: 'Top Global',
                         rank: entry.key + 1,
                       ),
                     ),

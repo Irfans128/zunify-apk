@@ -422,7 +422,11 @@ class _LibraryScreenState extends State<LibraryScreen>
                     ),
                     onPressed: () {
                       if (pl.songs.isNotEmpty) {
-                        player.playSong(pl.songs.first, customQueue: pl.songs);
+                        player.playSong(
+                          pl.songs.first,
+                          customQueue: pl.songs,
+                          contextName: pl.name,
+                        );
                       } else {
                         showPlaylistDetailSheet(context, pl.id);
                       }
@@ -767,6 +771,7 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                       return ZunifySongTile(
                         song: song,
                         queueContext: playlist.songs,
+                        contextName: playlist.name,
                         rank: index + 1,
                         playlistIdForRemoval: playlist.id,
                       );

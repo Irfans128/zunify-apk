@@ -44,20 +44,26 @@ class EqualizerSheet extends StatelessWidget {
                 children: [
                   Icon(Icons.equalizer_rounded, color: accent, size: 26),
                   const SizedBox(width: 10),
-                  const Column(
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Zunify Hardware Equalizer',
+                      const Text(
+                        'Equalizer',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       Text(
-                        'Android DSP • 5-Band EQ + Bass Boost',
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        player.eqEnabled
+                            ? 'Aktif • ${player.selectedEqPresetName}'
+                            : 'Nonaktif (Suara Original)',
+                        style: TextStyle(
+                          color: player.eqEnabled ? accent : Colors.white54,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ],
                   ),
@@ -95,9 +101,12 @@ class EqualizerSheet extends StatelessWidget {
                   side: BorderSide(
                     color: isSelected ? accent : Colors.white12,
                   ),
-                  onSelected: player.eqEnabled
-                      ? (_) => player.selectEqPreset(preset)
-                      : null,
+                  onSelected: (_) async {
+                    if (!player.eqEnabled) {
+                      await player.setEqualizerEnabled(true);
+                    }
+                    await player.selectEqPreset(preset);
+                  },
                 );
               },
             ),

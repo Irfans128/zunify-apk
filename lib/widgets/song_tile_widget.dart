@@ -13,6 +13,7 @@ import 'vinyl_disc_widget.dart';
 class ZunifySongTile extends StatelessWidget {
   final ZunifySong song;
   final List<ZunifySong> queueContext;
+  final String? contextName;
   final int? rank;
   final String? playlistIdForRemoval;
   final VoidCallback? onTapOverride;
@@ -21,6 +22,7 @@ class ZunifySongTile extends StatelessWidget {
     super.key,
     required this.song,
     required this.queueContext,
+    this.contextName,
     this.rank,
     this.playlistIdForRemoval,
     this.onTapOverride,
@@ -41,7 +43,11 @@ class ZunifySongTile extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: onTapOverride ??
-          () => player.playSong(song, customQueue: queueContext),
+          () => player.playSong(
+                song,
+                customQueue: queueContext,
+                contextName: contextName,
+              ),
       onLongPress: () => showSongActionSheet(
         context,
         song: song,
@@ -396,7 +402,8 @@ void showSongActionSheet(
                       lyrics: player.currentSong?.videoId == song.videoId
                           ? player.currentLyrics
                           : null,
-                      initialLyricIndex: player.activeLyricIndex,
+                      initialLyricIndex:
+                          player.activeLyricIndex < 0 ? 0 : player.activeLyricIndex,
                     ),
                   );
                 },

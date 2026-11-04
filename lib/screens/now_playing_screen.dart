@@ -1,6 +1,7 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/lyric_model.dart';
@@ -24,28 +25,58 @@ class NowPlayingScreen extends StatefulWidget {
 class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _showLyricsView = false;
   final ScrollController _lyricsScrollController = ScrollController();
-  int _lastScrolledLyricIdx = -1;
+  int _lastScrolledLyricIdx = -2;
   String? _lastSongId;
+  bool _userScrollingLyrics = false;
+  Timer? _resumeAutoScrollTimer;
 
   @override
   void dispose() {
+    _resumeAutoScrollTimer?.cancel();
     _lyricsScrollController.dispose();
     super.dispose();
   }
 
+  void _onUserScrollNotification(UserScrollNotification notification) {
+    if (notification.direction != ScrollDirection.idle) {
+      _resumeAutoScrollTimer?.cancel();
+      if (!_userScrollingLyrics) {
+        setState(() => _userScrollingLyrics = true);
+      }
+      _resumeAutoScrollTimer = Timer(const Duration(milliseconds: 3500), () {
+        if (!mounted) return;
+        setState(() {
+          _userScrollingLyrics = false;
+          _lastScrolledLyricIdx = -2;
+        });
+      });
+    }
+  }
+
   void _autoScrollLyrics(String videoId, int activeIdx, int totalLines) {
-    if (!_showLyricsView) return;
+    if (!_showLyricsView || _userScrollingLyrics) return;
     if (_lastSongId == videoId && activeIdx == _lastScrolledLyricIdx) return;
     _lastSongId = videoId;
     _lastScrolledLyricIdx = activeIdx;
+
+    if (activeIdx < 0) {
+      if (_lyricsScrollController.hasClients) {
+        _lyricsScrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+        );
+      }
+      return;
+    }
 
     final itemKey = GlobalObjectKey('lyric_${videoId}_$activeIdx');
     final ctx = itemKey.currentContext;
     if (ctx != null) {
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.34,
-        duration: const Duration(milliseconds: 420),
+        alignment: 0.30,
+        duration: const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
       return;
@@ -57,7 +88,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ((activeIdx / totalLines) * maxExtent).clamp(0.0, maxExtent);
       _lyricsScrollController.animateTo(
         approxOffset,
-        duration: const Duration(milliseconds: 420),
+        duration: const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
     }
@@ -73,7 +104,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       builder: (_) => ShareCardModal(
         song: song,
         lyrics: player.currentLyrics,
-        initialLyricIndex: player.activeLyricIndex,
+        initialLyricIndex:
+            player.activeLyricIndex < 0 ? 0 : player.activeLyricIndex,
       ),
     );
   }
@@ -117,7 +149,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             padding: const EdgeInsets.fromLTRB(22, 6, 22, 10),
             child: Column(
               children: [
-                // Clean Top Navigation Bar: Collapse • Segmented Mode Pill • More Menu
+                // Clean Top Navigation Bar: Collapse • Segmented Mode Pill ("Musik" | "Lirik") • More Menu
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -153,7 +185,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             onTap: () {
                               setState(() {
                                 _showLyricsView = true;
-                                _lastScrolledLyricIdx = -1;
+                                _userScrollingLyrics = false;
+                                _lastScrolledLyricIdx = -2;
                               });
                             },
                           ),
@@ -185,7 +218,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           !_showLyricsView) {
                         setState(() {
                           _showLyricsView = true;
-                          _lastScrolledLyricIdx = -1;
+                          _userScrollingLyrics = false;
+                          _lastScrolledLyricIdx = -2;
                         });
                       } else if ((details.primaryVelocity ?? 0) > 280 &&
                           _showLyricsView) {
@@ -193,9 +227,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       }
                     },
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 280),
+                      duration: const Duration(milliseconds: 260),
                       child: _showLyricsView
-                          ? _buildSmoothKaraokeLyricsView(
+                          ? _buildSmoothLyricsView(
                               song.videoId,
                               player,
                               accent,
@@ -203,8 +237,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           : LayoutBuilder(
                               key: const ValueKey('vinyl_view'),
                               builder: (context, constraints) {
-                                // Reserve ~108px for the Live Lyrics card + spacing,
-                                // and subtract 46px for the outer spectrum ring inside VinylDiscWidget
                                 final availableForVinyl =
                                     (constraints.maxHeight - 148)
                                         .clamp(150.0, 224.0);
@@ -294,10 +326,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   builder: (context, snapshot) {
                     final position = snapshot.data ?? Duration.zero;
                     final total = player.audioPlayer.duration ?? song.duration;
-                    final maxSec =
-                        total.inSeconds > 0 ? total.inSeconds.toDouble() : 1.0;
-                    final curSec =
-                        position.inSeconds.toDouble().clamp(0.0, maxSec);
+                    final maxMs = total.inMilliseconds > 0
+                        ? total.inMilliseconds.toDouble()
+                        : 1.0;
+                    final curMs =
+                        position.inMilliseconds.toDouble().clamp(0.0, maxMs);
 
                     return Column(
                       children: [
@@ -315,11 +348,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ),
                           ),
                           child: Slider(
-                            value: curSec,
+                            value: curMs,
                             min: 0,
-                            max: maxSec,
-                            onChanged: (v) =>
-                                player.seekTo(Duration(seconds: v.round())),
+                            max: maxMs,
+                            onChanged: (v) => player.seekTo(
+                              Duration(milliseconds: v.round()),
+                            ),
                           ),
                         ),
                         Padding(
@@ -431,7 +465,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // Clean Bottom Utility Bar (Uniform 1-word labels so nothing wraps!)
+                // Clean Bottom Utility Bar (Label: "Lirik", "Equalizer", "Timer", "Unduh", "Antrean")
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -454,7 +488,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         accent: accent,
                         onTap: () => setState(() {
                           _showLyricsView = !_showLyricsView;
-                          _lastScrolledLyricIdx = -1;
+                          _userScrollingLyrics = false;
+                          _lastScrolledLyricIdx = -2;
                         }),
                       ),
                       _dockIcon(
@@ -518,7 +553,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       _dockIcon(
                         icon: Icons.queue_music_rounded,
                         label: 'Antrean',
-                        badgeText: '${player.queue.length}',
+                        badgeText: '${player.upcomingCount}',
                         active: false,
                         accent: accent,
                         onTap: () =>
@@ -543,7 +578,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return GestureDetector(
       onTap: () => setState(() {
         _showLyricsView = true;
-        _lastScrolledLyricIdx = -1;
+        _userScrollingLyrics = false;
+        _lastScrolledLyricIdx = -2;
       }),
       child: Container(
         width: double.infinity,
@@ -630,7 +666,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             const SizedBox(height: 6),
             if (isLoading)
               const Text(
-                'Memuat lirik tersinkronisasi...',
+                'Memuat lirik...',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(color: Colors.white60, fontSize: 12.5),
@@ -645,55 +681,81 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             else
               Builder(
                 builder: (context) {
-                  final idx =
-                      player.activeLyricIndex.clamp(0, lyrics.lines.length - 1);
+                  final rawIdx = player.activeLyricIndex;
+                  final isIntro = rawIdx < 0;
+                  final idx = rawIdx.clamp(0, lyrics.lines.length - 1);
                   final activeLine = lyrics.lines[idx];
-                  final nextLine = idx + 1 < lyrics.lines.length
+                  final nextLine = !isIntro && idx + 1 < lyrics.lines.length
                       ? lyrics.lines[idx + 1]
                       : null;
 
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        activeLine.originalText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (player.showTranslation &&
-                          lyrics.shouldShowTranslation &&
-                          activeLine.translatedIndoText != null) ...[
-                        const SizedBox(height: 2),
+                  return AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    transitionBuilder: (child, anim) =>
+                        FadeTransition(opacity: anim, child: child),
+                    child: Column(
+                      key: ValueKey('preview_${rawIdx}_${player.showTranslation}'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          activeLine.translatedIndoText!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.dmSans(
-                            color: accent,
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ] else if (nextLine != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          nextLine.originalText,
+                          isIntro
+                              ? '♪ Intro Musik...'
+                              : (activeLine.originalText.isEmpty
+                                  ? '♪ • • • ♪'
+                                  : activeLine.originalText),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white38,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 14,
                           ),
                         ),
+                        if (!isIntro &&
+                            player.showTranslation &&
+                            lyrics.shouldShowTranslation &&
+                            activeLine.translatedIndoText != null &&
+                            activeLine.translatedIndoText!.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            activeLine.translatedIndoText!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.dmSans(
+                              color: accent,
+                              fontSize: 12,
+                              fontStyle: FontStyle.italic,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ] else if (isIntro) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            activeLine.originalText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white38,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ] else if (nextLine != null &&
+                            nextLine.originalText.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            nextLine.originalText,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white38,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   );
                 },
               ),
@@ -703,8 +765,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// Clean Apple Music / Spotify Style 120fps Karaoke Lyrics View
-  Widget _buildSmoothKaraokeLyricsView(
+  /// Smooth, Beat-Accurate, Clean Lyrics View (Spotify / Apple Music Style)
+  Widget _buildSmoothLyricsView(
     String videoId,
     PlayerProvider player,
     Color accent,
@@ -718,7 +780,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             CircularProgressIndicator(color: accent),
             const SizedBox(height: 12),
             const Text(
-              'Mencari lirik sinkronisasi terbaik...',
+              'Memuat lirik lagu...',
               style: TextStyle(color: Colors.white70, fontSize: 13.5),
             ),
           ],
@@ -735,7 +797,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
 
     return Column(
-      key: const ValueKey('smooth_karaoke_lyrics_view'),
+      key: const ValueKey('smooth_lyrics_view'),
       children: [
         // Symmetrical Top Toolbar: Manual Translate Button (Left) • Sync Offset (Right)
         Padding(
@@ -804,7 +866,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               else
                 const SizedBox.shrink(),
 
-              // Sync Offset Pill
+              // Sync Offset Pill (-0.25s / +0.25s for fine beat matching)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                 decoration: BoxDecoration(
@@ -815,11 +877,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     GestureDetector(
-                      onTap: () => player.adjustLyricsOffset(-500),
+                      onTap: () => player.adjustLyricsOffset(-250),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         child: Text(
-                          '-0.5s',
+                          '-0.25s',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 10.5,
@@ -833,7 +895,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         child: Text(
-                          '${(player.lyricsOffsetMs / 1000).toStringAsFixed(1)}s',
+                          '${(player.lyricsOffsetMs / 1000).toStringAsFixed(2)}s',
                           style: TextStyle(
                             color: player.lyricsOffsetMs == 0
                                 ? Colors.white54
@@ -845,11 +907,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                     ),
                     GestureDetector(
-                      onTap: () => player.adjustLyricsOffset(500),
+                      onTap: () => player.adjustLyricsOffset(250),
                       child: const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         child: Text(
-                          '+0.5s',
+                          '+0.25s',
                           style: TextStyle(
                             color: Colors.white70,
                             fontSize: 10.5,
@@ -865,83 +927,173 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
 
-        // Clean Apple Music / Spotify Synced Lyrics Scroll List
+        // Smooth Synced Lyrics Scroll List
         Expanded(
-          child: ListView.builder(
-            controller: _lyricsScrollController,
-            physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: 100),
-            itemCount: lyrics.lines.length,
-            itemBuilder: (context, index) {
-              final line = lyrics.lines[index];
-              final isActive = index == player.activeLyricIndex;
-              final distance = (index - player.activeLyricIndex).abs();
-              final itemOpacity = isActive
-                  ? 1.0
-                  : (distance == 1
-                      ? 0.45
-                      : (distance == 2 ? 0.26 : 0.16));
+          child: Stack(
+            children: [
+              NotificationListener<UserScrollNotification>(
+                onNotification: (n) {
+                  _onUserScrollNotification(n);
+                  return false;
+                },
+                child: ListView.builder(
+                  controller: _lyricsScrollController,
+                  physics: const BouncingScrollPhysics(),
+                  padding: const EdgeInsets.only(top: 28, bottom: 130),
+                  itemCount: lyrics.lines.length,
+                  itemBuilder: (context, index) {
+                    final line = lyrics.lines[index];
+                    final activeIdx = player.activeLyricIndex;
+                    final isActive = index == activeIdx;
+                    final isPassed = activeIdx >= 0 && index < activeIdx;
+                    final distance =
+                        activeIdx < 0 ? (index + 1) : (index - activeIdx).abs();
 
-              return GestureDetector(
-                key: GlobalObjectKey('lyric_${videoId}_$index'),
-                onTap: () => player.seekTo(line.timestamp),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 6,
-                  ),
-                  child: AnimatedScale(
-                    scale: isActive ? 1.02 : 0.96,
-                    alignment: Alignment.centerLeft,
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeOutCubic,
-                    child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 260),
-                      opacity: itemOpacity,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            line.originalText,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontSize: isActive ? 23 : 19,
-                              fontWeight:
-                                  isActive ? FontWeight.w800 : FontWeight.w700,
-                              height: 1.32,
-                              letterSpacing: -0.3,
-                              shadows: isActive
-                                  ? [
-                                      Shadow(
-                                        color: accent.withOpacity(0.45),
-                                        blurRadius: 16,
-                                      ),
-                                    ]
-                                  : null,
+                    final double itemOpacity = isActive
+                        ? 1.0
+                        : (distance == 1
+                            ? 0.50
+                            : (distance == 2
+                                ? 0.32
+                                : (isPassed ? 0.20 : 0.24)));
+
+                    final displayText = line.originalText.isEmpty
+                        ? '•   •   •'
+                        : line.originalText;
+
+                    return InkWell(
+                      key: GlobalObjectKey('lyric_${videoId}_$index'),
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        setState(() => _userScrollingLyrics = false);
+                        player.seekTo(line.timestamp);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 260),
+                        curve: Curves.easeOutCubic,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                          horizontal: 10,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? Colors.white.withOpacity(0.06)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: AnimatedScale(
+                          scale: isActive ? 1.0 : 0.96,
+                          alignment: Alignment.centerLeft,
+                          duration: const Duration(milliseconds: 280),
+                          curve: Curves.easeOutCubic,
+                          child: AnimatedOpacity(
+                            duration: const Duration(milliseconds: 240),
+                            opacity: itemOpacity,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  displayText,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: isActive ? Colors.white : Colors.white,
+                                    fontSize: isActive ? 22 : 18.5,
+                                    fontWeight: isActive
+                                        ? FontWeight.w800
+                                        : FontWeight.w700,
+                                    height: 1.35,
+                                    letterSpacing: -0.3,
+                                    shadows: isActive
+                                        ? [
+                                            Shadow(
+                                              color: accent.withOpacity(0.45),
+                                              blurRadius: 16,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                ),
+                                if (player.showTranslation &&
+                                    lyrics.shouldShowTranslation &&
+                                    line.translatedIndoText != null &&
+                                    line.translatedIndoText!.isNotEmpty) ...[
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    line.translatedIndoText!,
+                                    style: GoogleFonts.dmSans(
+                                      color: isActive ? accent : Colors.white70,
+                                      fontSize: isActive ? 15 : 13.5,
+                                      fontStyle: FontStyle.italic,
+                                      fontWeight: FontWeight.w600,
+                                      height: 1.3,
+                                    ),
+                                  ),
+                                ],
+                              ],
                             ),
                           ),
-                          if (player.showTranslation &&
-                              lyrics.shouldShowTranslation &&
-                              line.translatedIndoText != null) ...[
-                            const SizedBox(height: 5),
-                            Text(
-                              line.translatedIndoText!,
-                              style: GoogleFonts.dmSans(
-                                color: isActive ? accent : Colors.white70,
-                                fontSize: isActive ? 15.5 : 13.5,
-                                fontStyle: FontStyle.italic,
-                                fontWeight: FontWeight.w600,
-                                height: 1.3,
-                              ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // "Ikuti Lagu" button when user scrolls manually
+              if (_userScrollingLyrics)
+                Positioned(
+                  right: 8,
+                  bottom: 12,
+                  child: GestureDetector(
+                    onTap: () {
+                      _resumeAutoScrollTimer?.cancel();
+                      setState(() {
+                        _userScrollingLyrics = false;
+                        _lastScrolledLyricIdx = -2;
+                      });
+                      _autoScrollLyrics(
+                        videoId,
+                        player.activeLyricIndex,
+                        lyrics.lines.length,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(18),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.4),
+                            blurRadius: 10,
+                          ),
+                        ],
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.my_location_rounded,
+                            color: Colors.black,
+                            size: 14,
+                          ),
+                          SizedBox(width: 5),
+                          Text(
+                            'Ikuti Lirik',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
                             ),
-                          ],
+                          ),
                         ],
                       ),
                     ),
                   ),
                 ),
-              );
-            },
+            ],
           ),
         ),
       ],
@@ -1038,7 +1190,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// Spotify-style Interactive Queue Bottom Sheet with Drag-and-Drop Reordering
+  /// Authentic Spotify-style Interactive Queue Bottom Sheet
+  /// Shows:
+  /// - SEDANG DIPUTAR
+  /// - BERIKUTNYA DI ANTREAN (User added via "Putar Berikutnya" / "Tambah ke Antrean")
+  /// - BERIKUTNYA DARI: [Context Name] (Playlist / Chart / Album)
+  /// - REKOMENDASI OTOMATIS (Smart Autoplay Algorithm)
   void _showQueueBottomSheet(
     BuildContext context,
     PlayerProvider player,
@@ -1054,13 +1211,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       builder: (_) {
         return DraggableScrollableSheet(
           expand: false,
-          initialChildSize: 0.72,
+          initialChildSize: 0.78,
           minChildSize: 0.45,
           maxChildSize: 0.92,
           builder: (ctx, scrollCtrl) {
             return Consumer<PlayerProvider>(
               builder: (context, livePlayer, _) {
                 final currentSong = livePlayer.currentSong;
+                final curIdx = livePlayer.currentIndex;
+                final total = livePlayer.queue.length;
+                final upcomingCount =
+                    (total - curIdx - 1).clamp(0, total);
+
+                bool hasUserAddedItems = false;
+                for (int k = curIdx + 1; k < total; k++) {
+                  if (livePlayer.sourceAt(k) == QueueSource.user) {
+                    hasUserAddedItems = true;
+                    break;
+                  }
+                }
+
                 return Padding(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
                   child: Column(
@@ -1077,24 +1247,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                       ),
                       const SizedBox(height: 14),
+
+                      // Header + Autoplay Toggle + Shuffle
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Column(
+                          Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                'Antrean Lagu',
+                              const Text(
+                                'Antrean Pemutaran',
                                 style: TextStyle(
                                   color: Colors.white,
                                   fontSize: 18.5,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
-                              SizedBox(height: 2),
+                              const SizedBox(height: 2),
                               Text(
-                                'Geser ikon ≡ untuk mengatur urutan lagu',
-                                style: TextStyle(
+                                livePlayer.contextName.isNotEmpty
+                                    ? 'Dari: ${livePlayer.contextName}'
+                                    : 'Tahan & geser ≡ untuk ubah urutan',
+                                style: const TextStyle(
                                   color: Colors.white54,
                                   fontSize: 11.5,
                                 ),
@@ -1103,36 +1277,72 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ),
                           Row(
                             children: [
+                              // Smart Autoplay Toggle Pill
+                              GestureDetector(
+                                onTap: () => livePlayer.setAutoplayEnabled(
+                                  !livePlayer.autoplayEnabled,
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: livePlayer.autoplayEnabled
+                                        ? accent.withOpacity(0.18)
+                                        : Colors.white.withOpacity(0.07),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: livePlayer.autoplayEnabled
+                                          ? accent.withOpacity(0.45)
+                                          : Colors.white12,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.auto_awesome_rounded,
+                                        size: 13,
+                                        color: livePlayer.autoplayEnabled
+                                            ? accent
+                                            : Colors.white54,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        'Autoplay',
+                                        style: TextStyle(
+                                          color: livePlayer.autoplayEnabled
+                                              ? accent
+                                              : Colors.white54,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
                               IconButton(
+                                visualDensity: VisualDensity.compact,
                                 tooltip: 'Acak Antrean',
                                 icon: Icon(
                                   Icons.shuffle_rounded,
                                   color: livePlayer.shuffleEnabled
                                       ? accent
                                       : Colors.white60,
+                                  size: 20,
                                 ),
                                 onPressed: () => livePlayer.toggleShuffle(),
                               ),
-                              if (livePlayer.queue.length >
-                                  livePlayer.currentIndex + 1)
-                                TextButton(
-                                  onPressed: () =>
-                                      livePlayer.clearUpcomingQueue(),
-                                  child: Text(
-                                    'Bersihkan',
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ],
                       ),
                       const SizedBox(height: 10),
 
+                      // SEDANG DIPUTAR Card
                       if (currentSong != null) ...[
                         Text(
                           'SEDANG DIPUTAR',
@@ -1198,120 +1408,205 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ],
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 10),
                       ],
 
-                      const Text(
-                        'BERIKUTNYA DI ANTREAN',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-
+                      // Upcoming Queue List (Spotify Sections: User Queue -> Context -> Autoplay)
                       Expanded(
-                        child: ReorderableListView.builder(
-                          scrollController: scrollCtrl,
-                          buildDefaultDragHandles: false,
-                          proxyDecorator: (child, index, animation) {
-                            return Material(
-                              color: const Color(0xFF181D2C),
-                              borderRadius: BorderRadius.circular(14),
-                              elevation: 8,
-                              child: child,
-                            );
-                          },
-                          itemCount: livePlayer.queue.length,
-                          onReorder: (oldIdx, newIdx) {
-                            livePlayer.reorderQueue(oldIdx, newIdx);
-                          },
-                          itemBuilder: (ctx, i) {
-                            final item = livePlayer.queue[i];
-                            final isCurrent = i == livePlayer.currentIndex;
-                            return Container(
-                              key: ValueKey('queue_${i}_${item.videoId}'),
-                              margin: const EdgeInsets.symmetric(vertical: 3),
-                              decoration: BoxDecoration(
-                                color: isCurrent
-                                    ? accent.withOpacity(0.10)
-                                    : Colors.white.withOpacity(0.04),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: ListTile(
-                                dense: true,
-                                contentPadding: const EdgeInsets.only(
-                                  left: 10,
-                                  right: 4,
+                        child: upcomingCount == 0
+                            ? Center(
+                                child: Text(
+                                  livePlayer.isFetchingAutoplay
+                                      ? 'Menyiapkan rekomendasi lagu serupa...'
+                                      : 'Antrean berikutnya kosong.',
+                                  style: const TextStyle(color: Colors.white54),
                                 ),
-                                leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: CachedNetworkImage(
-                                    imageUrl: item.thumbnailUrl,
-                                    width: 40,
-                                    height: 40,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                                title: Text(
-                                  item.title,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: isCurrent ? accent : Colors.white,
-                                    fontWeight: isCurrent
-                                        ? FontWeight.w800
-                                        : FontWeight.w600,
-                                    fontSize: 13.5,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  item.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 11.5,
-                                  ),
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    if (!isCurrent &&
-                                        livePlayer.queue.length > 1)
-                                      IconButton(
-                                        visualDensity: VisualDensity.compact,
-                                        icon: const Icon(
-                                          Icons.close_rounded,
-                                          color: Colors.white38,
-                                          size: 18,
-                                        ),
-                                        onPressed: () =>
-                                            livePlayer.removeFromQueue(i),
-                                      ),
-                                    ReorderableDragStartListener(
-                                      index: i,
-                                      child: const Padding(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 8,
-                                        ),
-                                        child: Icon(
-                                          Icons.drag_handle_rounded,
-                                          color: Colors.white54,
-                                          size: 20,
-                                        ),
-                                      ),
+                              )
+                            : ReorderableListView.builder(
+                                scrollController: scrollCtrl,
+                                buildDefaultDragHandles: false,
+                                proxyDecorator: (child, index, animation) {
+                                  return Material(
+                                    color: const Color(0xFF181D2C),
+                                    borderRadius: BorderRadius.circular(14),
+                                    elevation: 8,
+                                    child: child,
+                                  );
+                                },
+                                itemCount: upcomingCount,
+                                onReorder: (oldRel, newRel) {
+                                  final base = curIdx + 1;
+                                  livePlayer.reorderQueue(
+                                    base + oldRel,
+                                    base + newRel,
+                                  );
+                                },
+                                itemBuilder: (ctx, relIdx) {
+                                  final qIdx = curIdx + 1 + relIdx;
+                                  final item = livePlayer.queue[qIdx];
+                                  final source = livePlayer.sourceAt(qIdx);
+                                  final prevSource = relIdx > 0
+                                      ? livePlayer.sourceAt(qIdx - 1)
+                                      : null;
+                                  final showSectionHeader =
+                                      relIdx == 0 || source != prevSource;
+
+                                  String? sectionTitle;
+                                  if (showSectionHeader) {
+                                    switch (source) {
+                                      case QueueSource.user:
+                                        sectionTitle = 'BERIKUTNYA DI ANTREAN';
+                                        break;
+                                      case QueueSource.context:
+                                        sectionTitle = livePlayer
+                                                .contextName.isNotEmpty
+                                            ? 'BERIKUTNYA DARI: ${livePlayer.contextName.toUpperCase()}'
+                                            : 'BERIKUTNYA DARI DAFTAR PUTAR';
+                                        break;
+                                      case QueueSource.autoplay:
+                                        sectionTitle =
+                                            'REKOMENDASI OTOMATIS (AUTOPLAY)';
+                                        break;
+                                    }
+                                  }
+
+                                  return Column(
+                                    key: ValueKey(
+                                      'upcoming_${qIdx}_${item.videoId}',
                                     ),
-                                  ],
-                                ),
-                                onTap: () => livePlayer.jumpToQueueIndex(i),
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      if (sectionTitle != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 10,
+                                            bottom: 6,
+                                            left: 4,
+                                            right: 4,
+                                          ),
+                                          child: Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceBetween,
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  sectionTitle,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: TextStyle(
+                                                    color: source ==
+                                                            QueueSource.user
+                                                        ? accent
+                                                        : Colors.white54,
+                                                    fontSize: 10.5,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: 0.7,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (source == QueueSource.user &&
+                                                  hasUserAddedItems)
+                                                GestureDetector(
+                                                  onTap: () => livePlayer
+                                                      .clearUserQueue(),
+                                                  child: Text(
+                                                    'Bersihkan',
+                                                    style: TextStyle(
+                                                      color: accent,
+                                                      fontSize: 11.5,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      Container(
+                                        margin: const EdgeInsets.symmetric(
+                                          vertical: 2.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.04),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        child: ListTile(
+                                          dense: true,
+                                          contentPadding:
+                                              const EdgeInsets.only(
+                                            left: 10,
+                                            right: 4,
+                                          ),
+                                          leading: ClipRRect(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                            child: CachedNetworkImage(
+                                              imageUrl: item.thumbnailUrl,
+                                              width: 40,
+                                              height: 40,
+                                              fit: BoxFit.cover,
+                                            ),
+                                          ),
+                                          title: Text(
+                                            item.title,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 13.5,
+                                            ),
+                                          ),
+                                          subtitle: Text(
+                                            item.artist,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                              color: Colors.white54,
+                                              fontSize: 11.5,
+                                            ),
+                                          ),
+                                          trailing: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              IconButton(
+                                                visualDensity:
+                                                    VisualDensity.compact,
+                                                icon: const Icon(
+                                                  Icons.close_rounded,
+                                                  color: Colors.white38,
+                                                  size: 18,
+                                                ),
+                                                onPressed: () => livePlayer
+                                                    .removeFromQueue(qIdx),
+                                              ),
+                                              ReorderableDragStartListener(
+                                                index: relIdx,
+                                                child: const Padding(
+                                                  padding: EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 8,
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.drag_handle_rounded,
+                                                    color: Colors.white54,
+                                                    size: 20,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          onTap: () => livePlayer
+                                              .jumpToQueueIndex(qIdx),
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                },
                               ),
-                            );
-                          },
-                        ),
                       ),
                     ],
                   ),

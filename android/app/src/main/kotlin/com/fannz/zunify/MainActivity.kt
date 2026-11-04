@@ -1,16 +1,19 @@
 package com.fannz.zunify
 
+import android.content.Intent
 import android.media.audiofx.BassBoost
 import android.media.audiofx.Equalizer
 import android.media.audiofx.Virtualizer
+import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 /**
  * Zunify MainActivity - Crafted with ❤️ by Fannz
  * Bridges Flutter audioSessionId directly to Android's hardware DSP Equalizer,
- * BassBoost, and Virtualizer without external heavy dependencies.
+ * BassBoost, Virtualizer, and native APK update installer.
  */
 class MainActivity : AudioServiceFragmentActivity() {
     private val CHANNEL = "com.fannz.zunify/equalizer"
@@ -27,7 +30,7 @@ class MainActivity : AudioServiceFragmentActivity() {
             when (call.method) {
                 "initAudioEffects" -> {
                     val sessionId = call.argument<Int>("sessionId") ?: 0
-                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    val enabled = call.argument<Boolean>("enabled") ?: false
                     try {
                         initEffects(sessionId, enabled)
                         result.success(getEqualizerInfo())
@@ -36,7 +39,7 @@ class MainActivity : AudioServiceFragmentActivity() {
                     }
                 }
                 "setEnabled" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: true
+                    val enabled = call.argument<Boolean>("enabled") ?: false
                     equalizer?.enabled = enabled
                     bassBoost?.enabled = enabled
                     virtualizer?.enabled = enabled
@@ -72,6 +75,30 @@ class MainActivity : AudioServiceFragmentActivity() {
                         result.success(true)
                     } catch (e: Exception) {
                         result.error("VIRT_ERR", e.message, null)
+                    }
+                }
+                "installApk" -> {
+                    val filePath = call.argument<String>("filePath")
+                    if (filePath.isNullOrEmpty()) {
+                        result.success(false)
+                    } else {
+                        try {
+                            val file = File(filePath)
+                            val uri = FileProvider.getUriForFile(
+                                this,
+                                "$packageName.fileprovider",
+                                file
+                            )
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(uri, "application/vnd.android.package-archive")
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.error("INSTALL_ERR", e.message, null)
+                        }
                     }
                 }
                 else -> result.notImplemented()

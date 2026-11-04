@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../app_version.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/equalizer_sheet.dart';
+import '../widgets/update_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -223,6 +225,21 @@ class SettingsScreen extends StatelessWidget {
                     onChanged: (v) => player.setHighQualityAudio(v),
                   ),
                   const Divider(color: Colors.white12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Autoplay Rekomendasi Pintar',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text(
+                      'Putar lagu serupa otomatis saat antrean habis',
+                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                    value: player.autoplayEnabled,
+                    activeColor: accent,
+                    onChanged: (v) => player.setAutoplayEnabled(v),
+                  ),
+                  const Divider(color: Colors.white12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.equalizer_rounded, color: accent),
@@ -231,8 +248,13 @@ class SettingsScreen extends StatelessWidget {
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      player.selectedEqPresetName,
-                      style: TextStyle(color: accent, fontSize: 12),
+                      player.eqEnabled
+                          ? 'Aktif • ${player.selectedEqPresetName}'
+                          : 'Nonaktif (Default)',
+                      style: TextStyle(
+                        color: player.eqEnabled ? accent : Colors.white54,
+                        fontSize: 12,
+                      ),
                     ),
                     trailing: const Icon(
                       Icons.chevron_right_rounded,
@@ -248,6 +270,47 @@ class SettingsScreen extends StatelessWidget {
                     },
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Aplikasi & Update
+            _sectionLabel('Aplikasi & Pembaruan'),
+            const SizedBox(height: 10),
+            _glassCard(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.system_update_rounded, color: accent),
+                title: const Text(
+                  'Cek Update Aplikasi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                subtitle: const Text(
+                  'Versi saat ini: v$kAppVersion',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Cek',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                onTap: () => runManualUpdateCheck(context),
               ),
             ),
             const SizedBox(height: 20),

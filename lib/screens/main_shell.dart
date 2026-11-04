@@ -6,8 +6,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/update_service.dart';
 import '../services/ytmusic_service.dart';
 import '../widgets/liquid_background_widget.dart';
+import '../widgets/update_sheet.dart';
 import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
 import 'home_screen.dart';
@@ -34,7 +36,20 @@ class _MainShellState extends State<MainShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkSunday18WIBRapotPopup();
+      _checkBackgroundUpdate();
     });
+  }
+
+  Future<void> _checkBackgroundUpdate() async {
+    // Wait 3.5s after app UI renders so startup is 100% instant with zero lag
+    await Future.delayed(const Duration(milliseconds: 3500));
+    if (!mounted) return;
+    try {
+      final info = await UpdateService().checkForUpdate(manual: false);
+      if (info != null && mounted) {
+        await showUpdateSheet(context, info);
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkSunday18WIBRapotPopup() async {
