@@ -6,6 +6,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
+import 'library_screen.dart';
 
 class SearchScreen extends StatefulWidget {
   final YTMusicService ytMusicService;
@@ -158,7 +159,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 );
                                 if (!ctx.mounted) return;
                                 Navigator.pop(ctx);
-                                if (imported != null) {
+                                if (imported != null && context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       backgroundColor: accent,
@@ -171,6 +172,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                       ),
                                     ),
                                   );
+                                  showPlaylistDetailSheet(context, imported.id);
                                 }
                               } catch (e) {
                                 setModalState(() {
@@ -317,6 +319,32 @@ class _SearchScreenState extends State<SearchScreen> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
+                                      tooltip: 'Tambah ke Antrean',
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                        Icons.playlist_add_rounded,
+                                        color: Colors.white60,
+                                        size: 21,
+                                      ),
+                                      onPressed: () {
+                                        player.addToQueue(song);
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(
+                                            backgroundColor: accent,
+                                            duration: const Duration(seconds: 1),
+                                            content: Text(
+                                              'Ditambahkan ke antrean: ${song.title}',
+                                              style: const TextStyle(
+                                                color: Colors.black,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
                                       icon: Icon(
                                         isFav
                                             ? Icons.favorite_rounded
@@ -327,12 +355,13 @@ class _SearchScreenState extends State<SearchScreen> {
                                       onPressed: () => library.toggleFavorite(song),
                                     ),
                                     IconButton(
+                                      visualDensity: VisualDensity.compact,
                                       icon: Icon(
                                         isDown
                                             ? Icons.offline_pin_rounded
                                             : Icons.download_for_offline_outlined,
                                         color: isDown ? accent : Colors.white54,
-                                        size: 22,
+                                        size: 21,
                                       ),
                                       onPressed: () {
                                         if (!isDown) {

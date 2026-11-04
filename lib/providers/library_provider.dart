@@ -195,6 +195,35 @@ class LibraryProvider extends ChangeNotifier {
     await _savePlaylists();
   }
 
+  Future<void> removeSongFromPlaylist(String playlistId, String videoId) async {
+    final idx = _playlists.indexWhere((p) => p.id == playlistId);
+    if (idx < 0) return;
+
+    final existing = _playlists[idx];
+    final updatedSongs = existing.songs.where((s) => s.videoId != videoId).toList();
+    _playlists[idx] = existing.copyWith(songs: updatedSongs);
+    notifyListeners();
+    await _savePlaylists();
+  }
+
+  Future<void> reorderPlaylistSongs(String playlistId, int oldIndex, int newIndex) async {
+    final idx = _playlists.indexWhere((p) => p.id == playlistId);
+    if (idx < 0) return;
+
+    final existing = _playlists[idx];
+    if (oldIndex < 0 || oldIndex >= existing.songs.length) return;
+    if (newIndex > oldIndex) newIndex -= 1;
+    if (newIndex < 0 || newIndex >= existing.songs.length) return;
+
+    final updatedSongs = List<ZunifySong>.from(existing.songs);
+    final item = updatedSongs.removeAt(oldIndex);
+    updatedSongs.insert(newIndex, item);
+
+    _playlists[idx] = existing.copyWith(songs: updatedSongs);
+    notifyListeners();
+    await _savePlaylists();
+  }
+
   Future<void> deletePlaylist(String playlistId) async {
     _playlists.removeWhere((p) => p.id == playlistId);
     notifyListeners();

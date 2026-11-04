@@ -34,6 +34,7 @@ jobs:
           rm -rf android
           flutter create --org com.fannz --project-name zunify --platforms=android .
           cp /tmp/zunify_android_backup/app/build.gradle android/app/build.gradle
+          cp /tmp/zunify_android_backup/app/zunify-release.p12 android/app/zunify-release.p12
           cp /tmp/zunify_android_backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/kotlin/com/fannz/zunify
           cp /tmp/zunify_android_backup/app/src/main/kotlin/com/fannz/zunify/MainActivity.kt android/app/src/main/kotlin/com/fannz/zunify/MainActivity.kt

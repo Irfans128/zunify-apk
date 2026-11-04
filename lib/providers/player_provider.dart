@@ -47,7 +47,7 @@ class PlayerProvider extends ChangeNotifier {
   bool _isLoadingLyrics = false;
   bool _isTranslatingLyrics = false;
   int _activeLyricIndex = 0;
-  bool _showTranslation = true;
+  bool _showTranslation = false; // Manual translation button (OFF by default until tapped)
   int _lyricsOffsetMs = 0; // Adjustable offset in milliseconds (-3000 to +3000)
 
   // Sleep Timer State
@@ -132,7 +132,7 @@ class PlayerProvider extends ChangeNotifier {
     _eqEnabled = prefs.getBool('eq_enabled') ?? true;
     _selectedEqPresetName =
         prefs.getString('eq_preset_name') ?? 'Bass Boost 🔥';
-    _showTranslation = prefs.getBool('show_translation') ?? true;
+    _showTranslation = false;
     _shuffleEnabled = prefs.getBool('shuffle_enabled') ?? false;
     _repeatMode = prefs.getInt('repeat_mode') ?? 0;
     notifyListeners();
@@ -197,11 +197,111 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  void toggleTranslationDisplay() async {
-    _showTranslation = !_showTranslation;
+  /// Triggered when the user taps the "Terjemahkan" button on the lyrics screen
+  Future<void> toggleTranslationDisplay() async {
+    if (_showTranslation) {
+      _showTranslation = false;
+      notifyListeners();
+      return;
+    }
+
+    _showTranslation = true;
     notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('show_translation', _showTranslation);
+
+    final lyrics = _currentLyrics;
+    if (lyrics == null ||
+        lyrics.isOriginalIndonesian ||
+        lyrics.lines.length <= 1) {
+      return;
+    }
+
+    final alreadyTranslated =
+        lyrics.lines.any((l) => l.translatedIndoText != null);
+    if (!alreadyTranslated && !_isTranslatingLyrics) {
+      _isTranslatingLyrics = true;
+      notifyListeners();
+
+      final targetVideoId = lyrics.videoId;
+      final translated =
+          await _lyricsService.translateLyricsToIndonesian(lyrics);
+      if (_currentSong?.videoId == targetVideoId) {
+        _currentLyrics = translated;
+      }
+      _isTranslatingLyrics = false;
+      notifyListeners();
+    }
+  }
+
+  /// Spotify-style Queue Management: Add to end of Queue
+  void addToQueue(ZunifySong song) {
+    if (_currentSong == null || _queue.isEmpty) {
+      playSong(song);
+      return;
+    }
+    _queue.add(song);
+    notifyListeners();
+  }
+
+  /// Spotify-style Queue Management: Play Next (Right after current song)
+  void playNextInQueue(ZunifySong song) {
+    if (_currentSong == null || _queue.isEmpty) {
+      playSong(song);
+      return;
+    }
+    final insertIdx = (_currentIndex + 1).clamp(0, _queue.length);
+    _queue.insert(insertIdx, song);
+    notifyListeners();
+  }
+
+  /// Spotify-style Queue Management: Drag & Drop Reorder
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= _queue.length) return;
+    if (newIndex > oldIndex) newIndex -= 1;
+    newIndex = newIndex.clamp(0, _queue.length - 1);
+    if (oldIndex == newIndex) return;
+
+    final currentSongId = _currentSong?.videoId;
+    final moved = _queue.removeAt(oldIndex);
+    _queue.insert(newIndex, moved);
+
+    if (currentSongId != null) {
+      final updatedIdx = _queue.indexWhere((s) => s.videoId == currentSongId);
+      if (updatedIdx >= 0) {
+        _currentIndex = updatedIdx;
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Spotify-style Queue Management: Remove track at index
+  void removeFromQueue(int index) {
+    if (index < 0 || index >= _queue.length) return;
+    if (index == _currentIndex && _queue.length <= 1) return;
+
+    final removingCurrent = index == _currentIndex;
+    _queue.removeAt(index);
+    if (index < _currentIndex) {
+      _currentIndex--;
+    } else if (removingCurrent) {
+      _currentIndex = _currentIndex.clamp(0, _queue.length - 1);
+      playSong(_queue[_currentIndex], customQueue: _queue);
+      return;
+    }
+    notifyListeners();
+  }
+
+  /// Clears upcoming songs after the currently playing song
+  void clearUpcomingQueue() {
+    if (_queue.length <= _currentIndex + 1) return;
+    _queue.removeRange(_currentIndex + 1, _queue.length);
+    notifyListeners();
+  }
+
+  /// Jumps directly to a specific index in the current queue
+  Future<void> jumpToQueueIndex(int index) async {
+    if (index < 0 || index >= _queue.length) return;
+    _currentIndex = index;
+    await playSong(_queue[_currentIndex], customQueue: _queue);
   }
 
   void adjustLyricsOffset(int deltaMs) {
@@ -350,12 +450,13 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  /// 2-Stage Instant Lyrics Loader:
-  /// Stage 1: Shows synced lyrics in < 400ms from SimpMusic / Apple Music / LRCLIB / YTM.
-  /// Stage 2: Translates into Bahasa Indonesia asynchronously in background.
+  /// Instant Synced Lyrics Loader:
+  /// Shows synced lyrics in < 400ms from SimpMusic / Apple Music / LRCLIB / YTM.
+  /// Translation is ONLY triggered when the user taps the "Terjemahkan" button!
   Future<void> _loadLyricsForSong(ZunifySong song) async {
     _isLoadingLyrics = true;
     _isTranslatingLyrics = false;
+    _showTranslation = false;
     _currentLyrics = null;
     notifyListeners();
 
@@ -375,7 +476,7 @@ class PlayerProvider extends ChangeNotifier {
       return;
     }
 
-    // Stage 1: Fetch raw synced lyrics immediately
+    // Fetch raw synced lyrics immediately
     final rawLyrics = await _lyricsService.fetchRawLyricsInstant(song);
     if (_currentSong?.videoId != song.videoId) return;
 
@@ -383,20 +484,6 @@ class PlayerProvider extends ChangeNotifier {
     _isLoadingLyrics = false;
     _updateActiveLyricLine(_audioPlayer.position);
     notifyListeners();
-
-    // Stage 2: Translate non-Indonesian lyrics in background without blocking UI
-    if (!rawLyrics.isOriginalIndonesian && rawLyrics.lines.length > 1) {
-      _isTranslatingLyrics = true;
-      notifyListeners();
-
-      final translated =
-          await _lyricsService.translateLyricsToIndonesian(rawLyrics);
-      if (_currentSong?.videoId != song.videoId) return;
-
-      _currentLyrics = translated;
-      _isTranslatingLyrics = false;
-      notifyListeners();
-    }
   }
 
   Future<void> _populateRadioRecommendations(ZunifySong seedSong) async {
