@@ -189,22 +189,28 @@ class PlayerProvider extends ChangeNotifier {
     try {
       // Check if song is downloaded in Private Vault first!
       final offlineCopy = _libraryProvider.getDownloadedSong(song.videoId);
-      AudioSource source;
+      final mediaItemTag = MediaItem(
+        id: song.videoId,
+        album: song.album,
+        title: song.title,
+        artist: song.artist,
+        duration: song.duration,
+        artUri: offlineCopy?.localArtPath != null
+            ? Uri.file(offlineCopy!.localArtPath!)
+            : Uri.parse(song.highResArtUrl),
+      );
 
       if (offlineCopy != null && offlineCopy.localFilePath != null) {
-        source = AudioSource.uri(
-          Uri.file(offlineCopy.localFilePath!),
-          tag: MediaItem(
-            id: song.videoId,
-            album: song.album,
-            title: song.title,
-            artist: song.artist,
-            duration: song.duration,
-            artUri: offlineCopy.localArtPath != null
-                ? Uri.file(offlineCopy.localArtPath!)
-                : Uri.parse(song.highResArtUrl),
-          ),
-        );
+        try {
+          await _audioPlayer.setAudioSource(
+            AudioSource.uri(
+              Uri.file(offlineCopy.localFilePath!),
+              tag: mediaItemTag,
+            ),
+          );
+        } catch (_) {
+          await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
+        }
       } else {
         if (_offlineModeEnabled) {
           _isLoadingTrack = false;
@@ -220,35 +226,38 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
-        source = AudioSource.uri(
-          resolvedStream.url,
-          headers: resolvedStream.headers,
-          tag: MediaItem(
-            id: song.videoId,
-            album: song.album,
-            title: song.title,
-            artist: song.artist,
-            duration: song.duration,
-            artUri: Uri.parse(song.highResArtUrl),
-          ),
-        );
-      }
 
-      try {
-        await _audioPlayer.setAudioSource(source);
-      } catch (_) {
-        // Fallback if MediaItem notification fails on strict OEM ROMs
-        if (offlineCopy != null && offlineCopy.localFilePath != null) {
-          await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
-        } else {
-          final fallbackStream = await _ytMusicService.resolveAudioStream(
-            song.videoId,
-            highQuality: _highQualityAudio,
+        try {
+          await _audioPlayer.setAudioSource(
+            AudioSource.uri(
+              resolvedStream.url,
+              headers: resolvedStream.headers,
+              tag: mediaItemTag,
+            ),
           );
-          if (fallbackStream != null) {
+        } catch (_) {
+          try {
             await _audioPlayer.setAudioSource(
-              AudioSource.uri(fallbackStream.url, headers: fallbackStream.headers),
+              AudioSource.uri(
+                resolvedStream.url,
+                tag: mediaItemTag,
+              ),
             );
+          } catch (_) {
+            if (resolvedStream.hlsUrl != null) {
+              try {
+                await _audioPlayer.setAudioSource(
+                  AudioSource.uri(
+                    resolvedStream.hlsUrl!,
+                    tag: mediaItemTag,
+                  ),
+                );
+              } catch (_) {
+                await _audioPlayer.setUrl(resolvedStream.url.toString());
+              }
+            } else {
+              await _audioPlayer.setUrl(resolvedStream.url.toString());
+            }
           }
         }
       }

@@ -1,18 +1,24 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/song_model.dart';
 
 class ResolvedAudioStream {
   final Uri url;
+  final Uri? hlsUrl;
   final Map<String, String> headers;
   final int bitrateKbps;
   final String mimeType;
+  final int contentLength;
 
   const ResolvedAudioStream({
     required this.url,
+    this.hlsUrl,
     required this.headers,
     required this.bitrateKbps,
     required this.mimeType,
+    this.contentLength = 0,
   });
 }
 
@@ -23,9 +29,9 @@ class _CachedStreamEntry {
   bool get isValid => DateTime.now().isBefore(expiresAt);
 }
 
-/// Zunify v1.1 Direct YouTube Music (`WEB_REMIX` / `ytmusicapi` protocol)
-/// + `visitorData` InnerTube Audio Stream Engine.
-/// Verified HTTP 200/206 playback without login.
+/// Zunify v1.2 Direct YouTube Music (`WEB_REMIX`) + `VISIONOS` (`AusDMusic` NewPipe/SmartTube)
+/// InnerTube Audio Stream Engine.
+/// Verified HTTP 200/206 ExoPlayer playback without PoToken/403 blocks or login.
 class YTMusicService {
   static const String _ytmSearchUrl =
       'https://music.youtube.com/youtubei/v1/search?prettyPrint=false';
@@ -33,17 +39,13 @@ class YTMusicService {
       'https://music.youtube.com/youtubei/v1/next?prettyPrint=false';
   static const String _ytmBrowseUrl =
       'https://music.youtube.com/youtubei/v1/browse?prettyPrint=false';
-  static const String _ytPlayerUrl =
-      'https://www.youtube.com/youtubei/v1/player?prettyPrint=false';
+  static const String _ytVisionOsPlayerBaseUrl =
+      'https://youtubei.googleapis.com/youtubei/v1/player?prettyPrint=false';
   static const String _swJsDataUrl = 'https://www.youtube.com/sw.js_data';
 
-  static const String _androidClientVersion = '20.03.35';
-  static const String _androidUserAgent =
-      'com.google.android.youtube/20.03.35 (Linux; U; Android 14) gzip';
-
-  static const String _iosClientVersion = '20.03.02';
-  static const String _iosUserAgent =
-      'com.google.ios.youtube/20.03.02 (iPhone16,2; U; CPU iOS 18_2_1 like Mac OS X;)';
+  static const String _alphaNumChars =
+      'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  final Random _random = Random();
 
   String? _cachedVisitorData;
   DateTime? _visitorDataFetchedAt;
@@ -51,8 +53,23 @@ class YTMusicService {
   final Map<String, _CachedStreamEntry> _streamCache = {};
   final Map<String, List<ZunifySong>> _searchCache = {};
 
-  /// Fetches fresh `visitorData` token from YouTube `sw.js_data`
-  /// Required by YouTube InnerTube in 2025/2026 to avoid `LOGIN_REQUIRED`
+  String _generateRandomToken(int length) {
+    final sb = StringBuffer();
+    for (int i = 0; i < length; i++) {
+      sb.write(_alphaNumChars[_random.nextInt(_alphaNumChars.length)]);
+    }
+    return sb.toString();
+  }
+
+  void _captureVisitorDataFromResponse(Map<String, dynamic> data) {
+    final token = data['responseContext']?['visitorData']?.toString();
+    if (token != null && token.isNotEmpty) {
+      _cachedVisitorData = token;
+      _visitorDataFetchedAt = DateTime.now();
+    }
+  }
+
+  /// Fetches fresh `visitorData` token from YouTube `sw.js_data` or cached responseContext
   Future<String?> _getVisitorData() async {
     if (_cachedVisitorData != null &&
         _visitorDataFetchedAt != null &&
@@ -123,6 +140,7 @@ class YTMusicService {
       if (res.statusCode != 200) return [];
 
       final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      _captureVisitorDataFromResponse(data);
       final songs = _parseWebRemixSearchItems(data, limit: limit);
       if (songs.isNotEmpty) {
         _searchCache[cacheKey] = songs;
@@ -257,6 +275,7 @@ class YTMusicService {
 
       if (res.statusCode == 200) {
         final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        _captureVisitorDataFromResponse(data);
         final tabs = data['contents']?['singleColumnMusicWatchNextResultsRenderer']
                 ?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']
             as List<dynamic>?;
@@ -312,7 +331,9 @@ class YTMusicService {
     return searchSongs('${seedSong.artist} populer', limit: 12);
   }
 
-  /// Resolves direct playable Audio Stream (`HTTP 206`) using `visitorData` + `ANDROID` / `IOS` InnerTube
+  /// Resolves direct playable Audio Stream (`HTTP 200/206`) using `AusDMusic`'s
+  /// `VISIONOS` (`1.04` / `1.02`) InnerTube Client + `visitorData` + `cpn` + `range=0-contentLength`.
+  /// Bypasses PoToken/SABR HTTP 403 on `googlevideo.com` with ExoPlayer (`just_audio`).
   Future<ResolvedAudioStream?> resolveAudioStream(
     String videoId, {
     required bool highQuality,
@@ -325,53 +346,71 @@ class YTMusicService {
 
     final visitorData = await _getVisitorData();
 
-    // Try ANDROID client first, then IOS client fallback
-    final clients = [
+    // AusDMusic's verified VISIONOS clients (SmartTube 1.04 & NewPipe 1.02)
+    final visionOsClients = [
       {
-        'clientName': 'ANDROID',
-        'clientVersion': _androidClientVersion,
-        'androidSdkVersion': 34,
-        'userAgent': _androidUserAgent,
+        'clientVersion': '1.04',
+        'deviceModel': 'RealityDevice17,1',
+        'osVersion': '26.6.0.23O770',
+        'userAgent':
+            'com.google.visionos.youtube/1.04(RealityDevice17,1; U; CPU visionOS 26_6_0 like Mac OS X; US)',
       },
       {
-        'clientName': 'IOS',
-        'clientVersion': _iosClientVersion,
-        'deviceMake': 'Apple',
-        'deviceModel': 'iPhone16,2',
-        'osName': 'iPhone',
-        'osVersion': '18.2.1.22C161',
-        'userAgent': _iosUserAgent,
+        'clientVersion': '1.02',
+        'deviceModel': 'RealityDevice14,1',
+        'osVersion': '25.6.0.23O471',
+        'userAgent':
+            'com.google.visionos.youtube/1.02(RealityDevice14,1; U; CPU visionOS 25_6_0 like Mac OS X; US)',
       },
     ];
 
-    for (final client in clients) {
+    for (final client in visionOsClients) {
       try {
-        final ua = client['userAgent'] as String;
-        final clientContext = Map<String, dynamic>.from(client)..remove('userAgent');
-        clientContext['hl'] = 'id';
-        clientContext['gl'] = 'ID';
-        if (visitorData != null) {
+        final ua = client['userAgent']!;
+        final tParam = _generateRandomToken(12);
+        final cpn = _generateRandomToken(16);
+
+        final clientContext = <String, dynamic>{
+          'clientName': 'VISIONOS',
+          'clientVersion': client['clientVersion'],
+          'clientScreen': 'WATCH',
+          'platform': 'MOBILE',
+          'deviceMake': 'Apple',
+          'deviceModel': client['deviceModel'],
+          'osName': 'visionOS',
+          'osVersion': client['osVersion'],
+          'hl': 'en-GB',
+          'gl': 'US',
+          'utcOffsetMinutes': 0,
+        };
+        if (visitorData != null && visitorData.isNotEmpty) {
           clientContext['visitorData'] = visitorData;
         }
 
         final payload = {
+          'context': {'client': clientContext},
           'videoId': videoId,
+          'cpn': cpn,
           'contentCheckOk': true,
           'racyCheckOk': true,
-          'context': {'client': clientContext},
         };
 
         final headers = <String, String>{
           'Content-Type': 'application/json',
           'User-Agent': ua,
+          'X-Goog-Api-Format-Version': '2',
         };
-        if (visitorData != null) {
+        if (visitorData != null && visitorData.isNotEmpty) {
           headers['X-Goog-Visitor-Id'] = visitorData;
         }
 
+        final playerUri = Uri.parse(
+          '$_ytVisionOsPlayerBaseUrl&t=$tParam&id=$videoId',
+        );
+
         final res = await http
             .post(
-              Uri.parse(_ytPlayerUrl),
+              playerUri,
               headers: headers,
               body: jsonEncode(payload),
             )
@@ -379,56 +418,139 @@ class YTMusicService {
 
         if (res.statusCode != 200) continue;
 
-        final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-        final adaptive =
-            data['streamingData']?['adaptiveFormats'] as List<dynamic>? ?? [];
+        final data =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        _captureVisitorDataFromResponse(data);
 
-        final audioFormats = <Map<String, dynamic>>[];
-        for (final f in adaptive) {
+        final streamingData =
+            data['streamingData'] as Map<String, dynamic>? ?? {};
+        final hlsManifestUrl = streamingData['hlsManifestUrl']?.toString();
+        final adaptive =
+            streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
+        final formats = streamingData['formats'] as List<dynamic>? ?? [];
+
+        final mp4AudioFormats = <Map<String, dynamic>>[];
+        final otherAudioFormats = <Map<String, dynamic>>[];
+
+        for (final f in [...adaptive, ...formats]) {
           final map = f as Map<String, dynamic>;
           final mime = map['mimeType']?.toString() ?? '';
           final url = map['url']?.toString();
           if (mime.startsWith('audio/') && url != null && url.isNotEmpty) {
-            audioFormats.add(map);
+            if (mime.contains('mp4')) {
+              mp4AudioFormats.add(map);
+            } else {
+              otherAudioFormats.add(map);
+            }
           }
         }
 
-        if (audioFormats.isEmpty) continue;
-
-        // Sort: Prefer audio/mp4 (AAC M4A - itag 140/139) first for universal Android hardware decoding!
-        audioFormats.sort((a, b) {
-          final aIsMp4 = (a['mimeType']?.toString() ?? '').contains('mp4') ? 1 : 0;
-          final bIsMp4 = (b['mimeType']?.toString() ?? '').contains('mp4') ? 1 : 0;
-          if (aIsMp4 != bIsMp4) return aIsMp4.compareTo(bIsMp4);
-          final aBr = (a['bitrate'] as num?)?.toInt() ?? 0;
-          final bBr = (b['bitrate'] as num?)?.toInt() ?? 0;
-          return aBr.compareTo(bBr);
-        });
-
-        Map<String, dynamic> chosen;
-        if (highQuality) {
-          // Pick highest bitrate mp4 (itag 140 ~130kbps) or opus (itag 251 ~160kbps)
-          chosen = audioFormats.last;
-        } else {
-          // Pick lower bitrate stream (~50-96kbps) for Hemat Kuota
-          chosen = audioFormats.first;
+        final candidateFormats =
+            mp4AudioFormats.isNotEmpty ? mp4AudioFormats : otherAudioFormats;
+        if (candidateFormats.isEmpty &&
+            (hlsManifestUrl == null || hlsManifestUrl.isEmpty)) {
+          continue;
         }
 
-        final resolved = ResolvedAudioStream(
-          url: Uri.parse(chosen['url'].toString()),
-          headers: {'User-Agent': ua},
-          bitrateKbps: (((chosen['bitrate'] as num?)?.toInt() ?? 128000) / 1000).round(),
-          mimeType: chosen['mimeType']?.toString() ?? 'audio/mp4',
-        );
+        // Fire non-blocking YouTube playback telemetry ping (same as AusDMusic initPlayback)
+        unawaited(_initPlaybackTelemetry(data, cpn: cpn, visitorData: visitorData));
 
-        _streamCache[cacheKey] = _CachedStreamEntry(
-          resolved,
-          DateTime.now().add(const Duration(hours: 2)),
-        );
-        return resolved;
+        if (candidateFormats.isNotEmpty) {
+          candidateFormats.sort((a, b) {
+            final aBr = (a['bitrate'] as num?)?.toInt() ?? 0;
+            final bBr = (b['bitrate'] as num?)?.toInt() ?? 0;
+            return aBr.compareTo(bBr);
+          });
+
+          final chosen =
+              highQuality ? candidateFormats.last : candidateFormats.first;
+
+          String streamUrl = chosen['url'].toString();
+          final contentLen =
+              int.tryParse(chosen['contentLength']?.toString() ?? '') ?? 0;
+
+          if (!streamUrl.contains('&cpn=')) {
+            streamUrl = '$streamUrl&cpn=$cpn';
+          }
+          if (contentLen > 0 && !streamUrl.contains('&range=')) {
+            streamUrl = '$streamUrl&range=0-$contentLen';
+          }
+
+          final resolved = ResolvedAudioStream(
+            url: Uri.parse(streamUrl),
+            hlsUrl: hlsManifestUrl != null && hlsManifestUrl.isNotEmpty
+                ? Uri.parse(hlsManifestUrl)
+                : null,
+            headers: {'User-Agent': ua},
+            bitrateKbps:
+                (((chosen['bitrate'] as num?)?.toInt() ?? 128000) / 1000)
+                    .round(),
+            mimeType: chosen['mimeType']?.toString() ?? 'audio/mp4',
+            contentLength: contentLen,
+          );
+
+          _streamCache[cacheKey] = _CachedStreamEntry(
+            resolved,
+            DateTime.now().add(const Duration(hours: 2)),
+          );
+          return resolved;
+        } else if (hlsManifestUrl != null && hlsManifestUrl.isNotEmpty) {
+          final hlsUri = Uri.parse(hlsManifestUrl);
+          final resolved = ResolvedAudioStream(
+            url: hlsUri,
+            hlsUrl: hlsUri,
+            headers: {'User-Agent': ua},
+            bitrateKbps: 128,
+            mimeType: 'application/x-mpegURL',
+          );
+          _streamCache[cacheKey] = _CachedStreamEntry(
+            resolved,
+            DateTime.now().add(const Duration(hours: 1)),
+          );
+          return resolved;
+        }
       } catch (_) {}
     }
     return null;
+  }
+
+  /// Non-blocking playback tracking ping matching `AusDMusic` (`StreamRepositoryImpl.initPlayback`)
+  Future<void> _initPlaybackTelemetry(
+    Map<String, dynamic> playerData, {
+    required String cpn,
+    String? visitorData,
+  }) async {
+    try {
+      final tracking =
+          playerData['playbackTracking'] as Map<String, dynamic>? ?? {};
+      final playbackUrl = tracking['videostatsPlaybackUrl']?['baseUrl']
+          ?.toString()
+          .replaceFirst('https://s.youtube.com', 'https://music.youtube.com');
+      final atrUrl = tracking['atrUrl']?['baseUrl']
+          ?.toString()
+          .replaceFirst('https://s.youtube.com', 'https://music.youtube.com');
+
+      final headers = <String, String>{
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+        if (visitorData != null && visitorData.isNotEmpty)
+          'X-Goog-Visitor-Id': visitorData,
+      };
+
+      if (playbackUrl != null && playbackUrl.isNotEmpty) {
+        final sep = playbackUrl.contains('?') ? '&' : '?';
+        await http
+            .get(Uri.parse('$playbackUrl${sep}ver=2&c=WEB_REMIX&cpn=$cpn'),
+                headers: headers)
+            .timeout(const Duration(seconds: 5));
+      }
+      if (atrUrl != null && atrUrl.isNotEmpty) {
+        final sep = atrUrl.contains('?') ? '&' : '?';
+        await http
+            .post(Uri.parse('$atrUrl${sep}ver=2&c=WEB_REMIX&cpn=$cpn'),
+                headers: headers)
+            .timeout(const Duration(seconds: 5));
+      }
+    } catch (_) {}
   }
 
   /// Backward-compatible helper returning direct URI
