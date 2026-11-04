@@ -52,6 +52,22 @@ class SyncedLyrics {
   /// Returns true when Indonesian translation should be displayed under each line
   bool get shouldShowTranslation => !isOriginalIndonesian;
 
+  SyncedLyrics copyWith({
+    String? videoId,
+    bool? isSynced,
+    bool? isOriginalIndonesian,
+    List<LyricLine>? lines,
+    String? sourceName,
+  }) {
+    return SyncedLyrics(
+      videoId: videoId ?? this.videoId,
+      isSynced: isSynced ?? this.isSynced,
+      isOriginalIndonesian: isOriginalIndonesian ?? this.isOriginalIndonesian,
+      lines: lines ?? this.lines,
+      sourceName: sourceName ?? this.sourceName,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'videoId': videoId,
         'isSynced': isSynced,

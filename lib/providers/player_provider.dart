@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:math';
+import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/lyric_model.dart';
 import '../models/song_model.dart';
@@ -12,11 +13,13 @@ import '../services/equalizer_service.dart';
 import '../services/lyrics_translation_service.dart';
 import '../services/rapot_service.dart';
 import '../services/ytmusic_service.dart';
+import '../services/zunify_audio_handler.dart';
 import 'library_provider.dart';
 import 'theme_provider.dart';
 
 class PlayerProvider extends ChangeNotifier {
-  final AudioPlayer _audioPlayer = AudioPlayer();
+  final ZunifyAudioHandler? _audioHandler;
+  late final AudioPlayer _audioPlayer;
   final YTMusicService _ytMusicService;
   final LyricsTranslationService _lyricsService;
   final DownloadService _downloadService;
@@ -32,12 +35,20 @@ class PlayerProvider extends ChangeNotifier {
   bool _isLoadingTrack = false;
   bool _offlineModeEnabled = false;
   bool _highQualityAudio = true; // true = 160kbps, false = 96kbps (Hemat Kuota)
-  final bool _autoRadioEnabled = true; // Spotify-like Up Next recommendation algorithm
+  final bool _autoRadioEnabled = true;
+
+  // Shuffle & Repeat State (0 = Off, 1 = Repeat Queue, 2 = Repeat One)
+  bool _shuffleEnabled = false;
+  int _repeatMode = 0;
+  final Random _random = Random();
 
   // Synced Bilingual Lyrics State
   SyncedLyrics? _currentLyrics;
   bool _isLoadingLyrics = false;
+  bool _isTranslatingLyrics = false;
   int _activeLyricIndex = 0;
+  bool _showTranslation = true;
+  int _lyricsOffsetMs = 0; // Adjustable offset in milliseconds (-3000 to +3000)
 
   // Sleep Timer State
   Timer? _sleepTimer;
@@ -55,6 +66,7 @@ class PlayerProvider extends ChangeNotifier {
   DateTime? _trackPlayStartedAt;
 
   PlayerProvider({
+    ZunifyAudioHandler? audioHandler,
     required YTMusicService ytMusicService,
     required LyricsTranslationService lyricsService,
     required DownloadService downloadService,
@@ -62,13 +74,17 @@ class PlayerProvider extends ChangeNotifier {
     required RapotService rapotService,
     required LibraryProvider libraryProvider,
     required ThemeProvider themeProvider,
-  })  : _ytMusicService = ytMusicService,
+  })  : _audioHandler = audioHandler,
+        _ytMusicService = ytMusicService,
         _lyricsService = lyricsService,
         _downloadService = downloadService,
         _equalizerService = equalizerService,
         _rapotService = rapotService,
         _libraryProvider = libraryProvider,
         _themeProvider = themeProvider {
+    _audioPlayer = _audioHandler?.player ?? AudioPlayer();
+    _audioHandler?.onSkipToNextCallback = playNext;
+    _audioHandler?.onSkipToPreviousCallback = playPrevious;
     _initAudioListeners();
   }
 
@@ -82,12 +98,19 @@ class PlayerProvider extends ChangeNotifier {
   bool get highQualityAudio => _highQualityAudio;
   bool get autoRadioEnabled => _autoRadioEnabled;
 
+  bool get shuffleEnabled => _shuffleEnabled;
+  int get repeatMode => _repeatMode;
+
   SyncedLyrics? get currentLyrics => _currentLyrics;
   bool get isLoadingLyrics => _isLoadingLyrics;
+  bool get isTranslatingLyrics => _isTranslatingLyrics;
   int get activeLyricIndex => _activeLyricIndex;
+  bool get showTranslation => _showTranslation;
+  int get lyricsOffsetMs => _lyricsOffsetMs;
 
   // Sleep timer getters
-  bool get hasActiveSleepTimer => _sleepTimerEndTime != null || _stopAfterCurrentSong;
+  bool get hasActiveSleepTimer =>
+      _sleepTimerEndTime != null || _stopAfterCurrentSong;
   bool get stopAfterCurrentSong => _stopAfterCurrentSong;
   Duration? get remainingSleepTime {
     if (_sleepTimerEndTime == null) return null;
@@ -107,7 +130,11 @@ class PlayerProvider extends ChangeNotifier {
     _highQualityAudio = prefs.getBool('high_quality_audio') ?? true;
     _offlineModeEnabled = prefs.getBool('offline_mode_enabled') ?? false;
     _eqEnabled = prefs.getBool('eq_enabled') ?? true;
-    _selectedEqPresetName = prefs.getString('eq_preset_name') ?? 'Bass Boost 🔥';
+    _selectedEqPresetName =
+        prefs.getString('eq_preset_name') ?? 'Bass Boost 🔥';
+    _showTranslation = prefs.getBool('show_translation') ?? true;
+    _shuffleEnabled = prefs.getBool('shuffle_enabled') ?? false;
+    _repeatMode = prefs.getInt('repeat_mode') ?? 0;
     notifyListeners();
   }
 
@@ -129,13 +156,17 @@ class PlayerProvider extends ChangeNotifier {
       _updateActiveLyricLine(pos);
     });
 
-    // Handle track completion, Sleep Timer "End of Track", and Auto Radio Up-Next
+    // Handle track completion, Sleep Timer "End of Track", Repeat Mode, and Auto Radio Up-Next
     _audioPlayer.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         _flushListenLog();
         if (_stopAfterCurrentSong) {
           cancelSleepTimer();
           _audioPlayer.pause();
+        } else if (_repeatMode == 2 && _currentSong != null) {
+          // Repeat One
+          _audioPlayer.seek(Duration.zero);
+          _audioPlayer.play();
         } else {
           playNext();
         }
@@ -148,9 +179,13 @@ class PlayerProvider extends ChangeNotifier {
     final lyrics = _currentLyrics;
     if (lyrics == null || lyrics.lines.isEmpty) return;
 
+    final adjustedMs =
+        (position.inMilliseconds + _lyricsOffsetMs).clamp(0, 36000000);
+    final adjustedPos = Duration(milliseconds: adjustedMs);
+
     int newIdx = 0;
     for (int i = 0; i < lyrics.lines.length; i++) {
-      if (position >= lyrics.lines[i].timestamp) {
+      if (adjustedPos >= lyrics.lines[i].timestamp) {
         newIdx = i;
       } else {
         break;
@@ -162,7 +197,40 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  /// Plays a song and optionally populates Spotify-style Radio Up-Next queue
+  void toggleTranslationDisplay() async {
+    _showTranslation = !_showTranslation;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('show_translation', _showTranslation);
+  }
+
+  void adjustLyricsOffset(int deltaMs) {
+    _lyricsOffsetMs = (_lyricsOffsetMs + deltaMs).clamp(-5000, 5000);
+    _updateActiveLyricLine(_audioPlayer.position);
+    notifyListeners();
+  }
+
+  void resetLyricsOffset() {
+    _lyricsOffsetMs = 0;
+    _updateActiveLyricLine(_audioPlayer.position);
+    notifyListeners();
+  }
+
+  void toggleShuffle() async {
+    _shuffleEnabled = !_shuffleEnabled;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('shuffle_enabled', _shuffleEnabled);
+  }
+
+  void cycleRepeatMode() async {
+    _repeatMode = (_repeatMode + 1) % 3;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('repeat_mode', _repeatMode);
+  }
+
+  /// Plays a song and populates Notification MediaSession + Radio Up-Next queue
   Future<void> playSong(
     ZunifySong song, {
     List<ZunifySong>? customQueue,
@@ -172,6 +240,7 @@ class PlayerProvider extends ChangeNotifier {
     _isLoadingTrack = true;
     _currentSong = song;
     _activeLyricIndex = 0;
+    _lyricsOffsetMs = 0;
     notifyListeners();
 
     if (customQueue != null && customQueue.isNotEmpty) {
@@ -181,17 +250,22 @@ class PlayerProvider extends ChangeNotifier {
         _queue.insert(0, song);
         _currentIndex = 0;
       }
-    } else {
+    } else if (_queue.isEmpty ||
+        !_queue.any((s) => s.videoId == song.videoId)) {
       _queue = [song];
       _currentIndex = 0;
+    } else {
+      _currentIndex = _queue.indexWhere((s) => s.videoId == song.videoId);
     }
 
+    // Start loading 4-layer synced lyrics immediately in parallel with stream resolution!
+    unawaited(_loadLyricsForSong(song));
+
     try {
-      // Check if song is downloaded in Private Vault first!
       final offlineCopy = _libraryProvider.getDownloadedSong(song.videoId);
       final mediaItemTag = MediaItem(
         id: song.videoId,
-        album: song.album,
+        album: song.album.isNotEmpty ? song.album : 'Zunify Music',
         title: song.title,
         artist: song.artist,
         duration: song.duration,
@@ -200,17 +274,11 @@ class PlayerProvider extends ChangeNotifier {
             : Uri.parse(song.highResArtUrl),
       );
 
+      // Update Notification & Lockscreen MediaSession immediately
+      _audioHandler?.updateNowPlayingMediaItem(mediaItemTag);
+
       if (offlineCopy != null && offlineCopy.localFilePath != null) {
-        try {
-          await _audioPlayer.setAudioSource(
-            AudioSource.uri(
-              Uri.file(offlineCopy.localFilePath!),
-              tag: mediaItemTag,
-            ),
-          );
-        } catch (_) {
-          await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
-        }
+        await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
       } else {
         if (_offlineModeEnabled) {
           _isLoadingTrack = false;
@@ -232,32 +300,22 @@ class PlayerProvider extends ChangeNotifier {
             AudioSource.uri(
               resolvedStream.url,
               headers: resolvedStream.headers,
-              tag: mediaItemTag,
             ),
           );
         } catch (_) {
-          try {
-            await _audioPlayer.setAudioSource(
-              AudioSource.uri(
-                resolvedStream.url,
-                tag: mediaItemTag,
-              ),
-            );
-          } catch (_) {
-            if (resolvedStream.hlsUrl != null) {
-              try {
-                await _audioPlayer.setAudioSource(
-                  AudioSource.uri(
-                    resolvedStream.hlsUrl!,
-                    tag: mediaItemTag,
-                  ),
-                );
-              } catch (_) {
-                await _audioPlayer.setUrl(resolvedStream.url.toString());
-              }
-            } else {
+          if (resolvedStream.hlsUrl != null) {
+            try {
+              await _audioPlayer.setAudioSource(
+                HlsAudioSource(
+                  resolvedStream.hlsUrl!,
+                  headers: resolvedStream.headers,
+                ),
+              );
+            } catch (_) {
               await _audioPlayer.setUrl(resolvedStream.url.toString());
             }
+          } else {
+            await _audioPlayer.setUrl(resolvedStream.url.toString());
           }
         }
       }
@@ -273,9 +331,6 @@ class PlayerProvider extends ChangeNotifier {
           CachedNetworkImageProvider(song.highResArtUrl),
         );
       }
-
-      // Load Synced Karaoke Lyrics + Indonesian Translation in background
-      _loadLyricsForSong(song);
 
       // Pre-fetch next song's stream URI in queue for instant gapless transition
       if (_currentIndex + 1 < _queue.length && !_offlineModeEnabled) {
@@ -295,25 +350,53 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
+  /// 2-Stage Instant Lyrics Loader:
+  /// Stage 1: Shows synced lyrics in < 400ms from SimpMusic / Apple Music / LRCLIB / YTM.
+  /// Stage 2: Translates into Bahasa Indonesia asynchronously in background.
   Future<void> _loadLyricsForSong(ZunifySong song) async {
     _isLoadingLyrics = true;
+    _isTranslatingLyrics = false;
     _currentLyrics = null;
     notifyListeners();
 
     // Check offline vault lyrics first
     final cached = await _downloadService.getOfflineCachedLyrics(song.videoId);
-    if (cached != null) {
+    if (cached != null && cached.lines.length > 1) {
+      if (_currentSong?.videoId != song.videoId) return;
       _currentLyrics = cached;
       _isLoadingLyrics = false;
       notifyListeners();
       return;
     }
 
-    if (!_offlineModeEnabled) {
-      _currentLyrics = await _lyricsService.fetchSyncedBilingualLyrics(song);
+    if (_offlineModeEnabled) {
+      _isLoadingLyrics = false;
+      notifyListeners();
+      return;
     }
+
+    // Stage 1: Fetch raw synced lyrics immediately
+    final rawLyrics = await _lyricsService.fetchRawLyricsInstant(song);
+    if (_currentSong?.videoId != song.videoId) return;
+
+    _currentLyrics = rawLyrics;
     _isLoadingLyrics = false;
+    _updateActiveLyricLine(_audioPlayer.position);
     notifyListeners();
+
+    // Stage 2: Translate non-Indonesian lyrics in background without blocking UI
+    if (!rawLyrics.isOriginalIndonesian && rawLyrics.lines.length > 1) {
+      _isTranslatingLyrics = true;
+      notifyListeners();
+
+      final translated =
+          await _lyricsService.translateLyricsToIndonesian(rawLyrics);
+      if (_currentSong?.videoId != song.videoId) return;
+
+      _currentLyrics = translated;
+      _isTranslatingLyrics = false;
+      notifyListeners();
+    }
   }
 
   Future<void> _populateRadioRecommendations(ZunifySong seedSong) async {
@@ -339,10 +422,27 @@ class PlayerProvider extends ChangeNotifier {
 
   Future<void> playNext() async {
     if (_queue.isEmpty) return;
+
+    if (_shuffleEnabled && _queue.length > 1) {
+      int nextIdx = _random.nextInt(_queue.length);
+      if (nextIdx == _currentIndex) {
+        nextIdx = (nextIdx + 1) % _queue.length;
+      }
+      _currentIndex = nextIdx;
+      await playSong(_queue[_currentIndex], customQueue: _queue);
+      return;
+    }
+
     if (_currentIndex + 1 < _queue.length) {
       _currentIndex++;
       await playSong(_queue[_currentIndex], customQueue: _queue);
-    } else if (_autoRadioEnabled && _currentSong != null && !_offlineModeEnabled) {
+    } else if (_repeatMode == 1 && _queue.isNotEmpty) {
+      // Repeat Queue from start
+      _currentIndex = 0;
+      await playSong(_queue[_currentIndex], customQueue: _queue);
+    } else if (_autoRadioEnabled &&
+        _currentSong != null &&
+        !_offlineModeEnabled) {
       await _populateRadioRecommendations(_currentSong!);
       if (_currentIndex + 1 < _queue.length) {
         _currentIndex++;
@@ -359,6 +459,11 @@ class PlayerProvider extends ChangeNotifier {
     if (_currentIndex > 0) {
       _currentIndex--;
       await playSong(_queue[_currentIndex], customQueue: _queue);
+    } else if (_repeatMode == 1 && _queue.isNotEmpty) {
+      _currentIndex = _queue.length - 1;
+      await playSong(_queue[_currentIndex], customQueue: _queue);
+    } else {
+      await _audioPlayer.seek(Duration.zero);
     }
   }
 
@@ -374,7 +479,9 @@ class PlayerProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('offline_mode_enabled', enabled);
 
-    if (enabled && _libraryProvider.downloadedSongs.isNotEmpty && _currentSong == null) {
+    if (enabled &&
+        _libraryProvider.downloadedSongs.isNotEmpty &&
+        _currentSong == null) {
       await playSong(
         _libraryProvider.downloadedSongs.first,
         customQueue: _libraryProvider.downloadedSongs,
@@ -457,7 +564,8 @@ class PlayerProvider extends ChangeNotifier {
   // Record listen time into Weekly Rapot SQLite DB
   void _flushListenLog() {
     if (_currentSong != null && _trackPlayStartedAt != null) {
-      final elapsedSec = DateTime.now().difference(_trackPlayStartedAt!).inSeconds;
+      final elapsedSec =
+          DateTime.now().difference(_trackPlayStartedAt!).inSeconds;
       if (elapsedSec >= 15) {
         _rapotService.recordSongListen(
           _currentSong!,
@@ -468,7 +576,8 @@ class PlayerProvider extends ChangeNotifier {
     _trackPlayStartedAt = null;
   }
 
-  Future<WeeklyRapot> getWeeklyRapot() => _rapotService.generateCurrentWeeklyRapot();
+  Future<WeeklyRapot> getWeeklyRapot() =>
+      _rapotService.generateCurrentWeeklyRapot();
 
   @override
   void dispose() {

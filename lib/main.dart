@@ -1,7 +1,7 @@
+import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:just_audio_background/just_audio_background.dart';
 import 'package:provider/provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/player_provider.dart';
@@ -13,8 +13,9 @@ import 'services/lyrics_translation_service.dart';
 import 'services/playlist_importer_service.dart';
 import 'services/rapot_service.dart';
 import 'services/ytmusic_service.dart';
+import 'services/zunify_audio_handler.dart';
 
-/// ZUNIFY v1.0.0 - Standalone Aesthetic Music Player
+/// ZUNIFY v1.3.0 - Standalone Aesthetic Music Player
 /// Crafted with ❤️ by Fannz (`com.fannz.zunify`)
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,13 +26,21 @@ Future<void> main() async {
   ]);
 
   // Initialize Foreground Audio Service & Lockscreen Notification Controls
+  // Uses transparent vector `@drawable/ic_stat_zunify` + full Prev/Play/Next buttons
+  ZunifyAudioHandler? audioHandler;
   try {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.fannz.zunify.channel.audio',
-      androidNotificationChannelName: 'Zunify Music Playback',
-      androidNotificationIcon: 'mipmap/launcher_icon',
-      androidNotificationOngoing: true,
-      androidShowNotificationBadge: true,
+    audioHandler = await AudioService.init(
+      builder: () => ZunifyAudioHandler(),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.fannz.zunify.channel.audio',
+        androidNotificationChannelName: 'Zunify Music Playback',
+        androidNotificationChannelDescription:
+            'Kontrol pemutaran musik Zunify di latar belakang & layar kunci',
+        androidNotificationIcon: 'drawable/ic_stat_zunify',
+        androidNotificationOngoing: true,
+        androidStopForegroundOnPause: true,
+        androidShowNotificationBadge: true,
+      ),
     );
   } catch (_) {}
 
@@ -53,6 +62,7 @@ Future<void> main() async {
   await rapotService.init(username: libraryProvider.profile.username);
 
   final playerProvider = PlayerProvider(
+    audioHandler: audioHandler,
     ytMusicService: ytMusicService,
     lyricsService: lyricsService,
     downloadService: downloadService,

@@ -8,6 +8,7 @@ import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../widgets/liquid_background_widget.dart';
+import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -190,88 +191,135 @@ class _MainShellState extends State<MainShell> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.08),
+              color: Colors.white.withOpacity(0.09),
               borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withOpacity(0.14)),
+              border: Border.all(color: Colors.white.withOpacity(0.15)),
             ),
-            child: Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: CachedNetworkImage(
-                    imageUrl: song.highResArtUrl,
-                    width: 44,
-                    height: 44,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 44,
-                      height: 44,
-                      color: Colors.black38,
-                      child: Icon(Icons.music_note, color: accent),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
+                  child: Row(
                     children: [
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13.5,
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: CachedNetworkImage(
+                          imageUrl: song.highResArtUrl,
+                          width: 44,
+                          height: 44,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(
+                            width: 44,
+                            height: 44,
+                            color: Colors.black38,
+                            child: Icon(Icons.music_note, color: accent),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white60,
-                          fontSize: 12,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                MiniAudioSpectrumBars(
+                                  isPlaying: player.isPlaying,
+                                  color: accent,
+                                  height: 13,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13.5,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              song.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: Colors.white60,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(
+                          Icons.skip_previous_rounded,
+                          color: Colors.white70,
+                          size: 24,
+                        ),
+                        onPressed: () => player.playPrevious(),
+                      ),
+                      if (player.isLoadingTrack)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 10),
+                          child: SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: accent,
+                              strokeWidth: 2.2,
+                            ),
+                          ),
+                        )
+                      else
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: Icon(
+                            player.isPlaying
+                                ? Icons.pause_circle_filled_rounded
+                                : Icons.play_circle_fill_rounded,
+                            color: accent,
+                            size: 34,
+                          ),
+                          onPressed: () => player.togglePlayPause(),
+                        ),
+                      IconButton(
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(
+                          Icons.skip_next_rounded,
+                          color: Colors.white70,
+                          size: 24,
+                        ),
+                        onPressed: () => player.playNext(),
                       ),
                     ],
                   ),
                 ),
-                if (player.isLoadingTrack)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: accent,
-                        strokeWidth: 2.2,
-                      ),
-                    ),
-                  )
-                else
-                  IconButton(
-                    icon: Icon(
-                      player.isPlaying
-                          ? Icons.pause_rounded
-                          : Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                    onPressed: () => player.togglePlayPause(),
-                  ),
-                IconButton(
-                  icon: const Icon(
-                    Icons.skip_next_rounded,
-                    color: Colors.white70,
-                    size: 26,
-                  ),
-                  onPressed: () => player.playNext(),
+                StreamBuilder<Duration>(
+                  stream: player.audioPlayer.positionStream,
+                  builder: (context, snapshot) {
+                    final pos = snapshot.data ?? Duration.zero;
+                    final total = player.audioPlayer.duration ?? song.duration;
+                    final progress = total.inMilliseconds > 0
+                        ? (pos.inMilliseconds / total.inMilliseconds)
+                            .clamp(0.0, 1.0)
+                        : 0.0;
+                    return LinearProgressIndicator(
+                      value: progress,
+                      minHeight: 2.5,
+                      backgroundColor: Colors.white.withOpacity(0.08),
+                      valueColor: AlwaysStoppedAnimation<Color>(accent),
+                    );
+                  },
                 ),
               ],
             ),

@@ -37,6 +37,10 @@ jobs:
           cp /tmp/zunify_android_backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/kotlin/com/fannz/zunify
           cp /tmp/zunify_android_backup/app/src/main/kotlin/com/fannz/zunify/MainActivity.kt android/app/src/main/kotlin/com/fannz/zunify/MainActivity.kt
+          mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/raw
+          cp -r /tmp/zunify_android_backup/app/src/main/res/drawable/* android/app/src/main/res/drawable/ || true
+          cp -r /tmp/zunify_android_backup/app/src/main/res/raw/* android/app/src/main/res/raw/ || true
           cp /tmp/zunify_android_backup/settings.gradle android/settings.gradle
           cp /tmp/zunify_android_backup/gradle.properties android/gradle.properties
           sed -i 's/gradle-.*-all.zip/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
