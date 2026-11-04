@@ -211,17 +211,18 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
-        final streamUri = await _ytMusicService.getAudioStreamUri(
+        final resolvedStream = await _ytMusicService.resolveAudioStream(
           song.videoId,
           highQuality: _highQualityAudio,
         );
-        if (streamUri == null) {
+        if (resolvedStream == null) {
           _isLoadingTrack = false;
           notifyListeners();
           return;
         }
         source = AudioSource.uri(
-          streamUri,
+          resolvedStream.url,
+          headers: resolvedStream.headers,
           tag: MediaItem(
             id: song.videoId,
             album: song.album,
@@ -233,7 +234,25 @@ class PlayerProvider extends ChangeNotifier {
         );
       }
 
-      await _audioPlayer.setAudioSource(source);
+      try {
+        await _audioPlayer.setAudioSource(source);
+      } catch (_) {
+        // Fallback if MediaItem notification fails on strict OEM ROMs
+        if (offlineCopy != null && offlineCopy.localFilePath != null) {
+          await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
+        } else {
+          final fallbackStream = await _ytMusicService.resolveAudioStream(
+            song.videoId,
+            highQuality: _highQualityAudio,
+          );
+          if (fallbackStream != null) {
+            await _audioPlayer.setAudioSource(
+              AudioSource.uri(fallbackStream.url, headers: fallbackStream.headers),
+            );
+          }
+        }
+      }
+
       _isLoadingTrack = false;
       _trackPlayStartedAt = DateTime.now();
       await _audioPlayer.play();

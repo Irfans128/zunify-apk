@@ -3,13 +3,16 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
+import '../widgets/liquid_background_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
 import 'now_playing_screen.dart';
+import 'onboarding_screen.dart';
 import 'search_screen.dart';
 import 'settings_screen.dart';
 
@@ -33,8 +36,6 @@ class _MainShellState extends State<MainShell> {
     });
   }
 
-  /// Automatically pops up the Rapot Mingguan modal on Sunday >= 18:00 WIB
-  /// if not yet viewed for that Sunday!
   Future<void> _checkSunday18WIBRapotPopup() async {
     final now = DateTime.now();
     if (now.weekday == DateTime.sunday && now.hour >= 18) {
@@ -58,9 +59,15 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final library = context.watch<LibraryProvider>();
     final theme = context.watch<ThemeProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
+
+    // Show First-Time Welcome Login Screen if user hasn't entered their name yet
+    if (!library.hasCompletedOnboarding) {
+      return const OnboardingScreen();
+    }
 
     final screens = [
       HomeScreen(ytMusicService: widget.ytMusicService),
@@ -71,71 +78,83 @@ class _MainShellState extends State<MainShell> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBgColor,
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _selectedIndex,
-            children: screens,
-          ),
-
-          // Persistent Floating Glassmorphism Mini-Player Bar
-          if (player.currentSong != null)
-            Positioned(
-              left: 12,
-              right: 12,
-              bottom: 10,
-              child: _buildFloatingMiniPlayer(context, player, theme, accent),
+      body: LiquidBackgroundWidget(
+        primaryColor: theme.playerAmbientColor,
+        secondaryColor: theme.secondaryAccentColor,
+        baseColor: theme.scaffoldBgColor,
+        imageUrl: player.currentSong?.highResArtUrl,
+        intensity: 0.28,
+        child: Stack(
+          children: [
+            IndexedStack(
+              index: _selectedIndex,
+              children: screens,
             ),
-        ],
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: theme.cardBgColor,
-          border: Border(
-            top: BorderSide(color: Colors.white.withOpacity(0.07)),
-          ),
+
+            // Floating Liquid Glass Mini-Player
+            if (player.currentSong != null)
+              Positioned(
+                left: 14,
+                right: 14,
+                bottom: 10,
+                child: _buildFloatingMiniPlayer(context, player, theme, accent),
+              ),
+          ],
         ),
-        child: NavigationBarTheme(
-          data: NavigationBarThemeData(
-            backgroundColor: theme.cardBgColor,
-            indicatorColor: accent.withOpacity(0.18),
-            labelTextStyle: WidgetStateProperty.resolveWith((states) {
-              if (states.contains(WidgetState.selected)) {
-                return TextStyle(
-                  color: accent,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                );
-              }
-              return const TextStyle(color: Colors.white54, fontSize: 11.5);
-            }),
-          ),
-          child: NavigationBar(
-            height: 64,
-            selectedIndex: _selectedIndex,
-            onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
-            destinations: [
-              NavigationDestination(
-                icon: const Icon(Icons.home_outlined, color: Colors.white60),
-                selectedIcon: Icon(Icons.home_rounded, color: accent),
-                label: 'Beranda',
+      ),
+      bottomNavigationBar: ClipRRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: theme.scaffoldBgColor.withOpacity(0.82),
+              border: Border(
+                top: BorderSide(color: Colors.white.withOpacity(0.08)),
               ),
-              NavigationDestination(
-                icon: const Icon(Icons.search_rounded, color: Colors.white60),
-                selectedIcon: Icon(Icons.search_rounded, color: accent),
-                label: 'Cari',
+            ),
+            child: NavigationBarTheme(
+              data: NavigationBarThemeData(
+                backgroundColor: Colors.transparent,
+                indicatorColor: accent.withOpacity(0.18),
+                labelTextStyle: WidgetStateProperty.resolveWith((states) {
+                  if (states.contains(WidgetState.selected)) {
+                    return TextStyle(
+                      color: accent,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    );
+                  }
+                  return const TextStyle(color: Colors.white54, fontSize: 11);
+                }),
               ),
-              NavigationDestination(
-                icon: const Icon(Icons.library_music_outlined, color: Colors.white60),
-                selectedIcon: Icon(Icons.library_music_rounded, color: accent),
-                label: 'Koleksiku',
+              child: NavigationBar(
+                height: 62,
+                selectedIndex: _selectedIndex,
+                onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+                destinations: [
+                  NavigationDestination(
+                    icon: const Icon(Icons.home_outlined, color: Colors.white60),
+                    selectedIcon: Icon(Icons.home_rounded, color: accent),
+                    label: 'Beranda',
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.search_rounded, color: Colors.white60),
+                    selectedIcon: Icon(Icons.search_rounded, color: accent),
+                    label: 'Cari',
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.library_music_outlined, color: Colors.white60),
+                    selectedIcon: Icon(Icons.library_music_rounded, color: accent),
+                    label: 'Koleksi',
+                  ),
+                  NavigationDestination(
+                    icon: const Icon(Icons.tune_rounded, color: Colors.white60),
+                    selectedIcon: Icon(Icons.tune_rounded, color: accent),
+                    label: 'Pengaturan',
+                  ),
+                ],
               ),
-              NavigationDestination(
-                icon: const Icon(Icons.settings_outlined, color: Colors.white60),
-                selectedIcon: Icon(Icons.settings_rounded, color: accent),
-                label: 'Pengaturan',
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -167,37 +186,30 @@ class _MainShellState extends State<MainShell> {
         );
       },
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
+          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: theme.cardBgColor.withOpacity(0.92),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: accent.withOpacity(0.35)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.55),
-                  blurRadius: 18,
-                  offset: const Offset(0, 6),
-                ),
-              ],
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: Colors.white.withOpacity(0.14)),
             ),
             child: Row(
               children: [
-                // Mini Vinyl Disc Thumbnail
-                ClipOval(
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
                   child: CachedNetworkImage(
-                    imageUrl: song.thumbnailUrl,
+                    imageUrl: song.highResArtUrl,
                     width: 44,
                     height: 44,
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(
                       width: 44,
                       height: 44,
-                      color: Colors.black,
-                      child: Icon(Icons.album, color: accent),
+                      color: Colors.black38,
+                      child: Icon(Icons.music_note, color: accent),
                     ),
                   ),
                 ),
@@ -213,7 +225,7 @@ class _MainShellState extends State<MainShell> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
                           fontSize: 13.5,
                         ),
                       ),
@@ -222,22 +234,37 @@ class _MainShellState extends State<MainShell> {
                         song.artist,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: accent.withOpacity(0.9),
-                          fontSize: 11.5,
+                        style: const TextStyle(
+                          color: Colors.white60,
+                          fontSize: 12,
                         ),
                       ),
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                    color: accent,
-                    size: 30,
+                if (player.isLoadingTrack)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: accent,
+                        strokeWidth: 2.2,
+                      ),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: Icon(
+                      player.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () => player.togglePlayPause(),
                   ),
-                  onPressed: () => player.togglePlayPause(),
-                ),
                 IconButton(
                   icon: const Icon(
                     Icons.skip_next_rounded,

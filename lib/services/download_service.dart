@@ -9,9 +9,8 @@ import 'lyrics_translation_service.dart';
 import 'ytmusic_service.dart';
 
 /// Zunify Private In-App Offline Downloader
-/// Stores audio files, cover art, and bilingual synced lyrics inside
-/// the private application support directory (`getApplicationSupportDirectory()`)
-/// so files never clutter the phone's File Manager, Gallery, or external music apps.
+/// Uses the authenticated `ResolvedAudioStream` headers (`User-Agent`) so downloads
+/// from YouTube Music never get HTTP 403.
 class DownloadService {
   final YTMusicService _ytMusicService;
   final LyricsTranslationService _lyricsService;
@@ -27,27 +26,30 @@ class DownloadService {
     return vault;
   }
 
-  /// Downloads song audio stream + cover art + bilingual lyrics into private in-app storage
   Future<ZunifySong?> downloadSongToPrivateVault(
     ZunifySong song, {
-    required bool highQuality, // true = 160kbps, false = 96kbps (Hemat Data)
+    required bool highQuality,
     void Function(double progress)? onProgress,
   }) async {
     try {
       final vaultDir = await _getVaultDir();
-      final streamUri = await _ytMusicService.getAudioStreamUri(
+      final resolvedStream = await _ytMusicService.resolveAudioStream(
         song.videoId,
         highQuality: highQuality,
       );
-      if (streamUri == null) return null;
+      if (resolvedStream == null) return null;
 
       final audioPath = p.join(vaultDir.path, 'track_${song.videoId}.m4a');
       final artPath = p.join(vaultDir.path, 'art_${song.videoId}.jpg');
       final lyricsPath = p.join(vaultDir.path, 'lyrics_${song.videoId}.json');
 
-      // 1. Stream and save audio file with progress tracking
-      final request = http.Request('GET', streamUri);
+      // 1. Stream and save audio file with matching client User-Agent header
+      final request = http.Request('GET', resolvedStream.url);
+      request.headers.addAll(resolvedStream.headers);
+
       final streamedResponse = await request.send();
+      if (streamedResponse.statusCode >= 400) return null;
+
       final totalBytes = streamedResponse.contentLength ?? 0;
       int receivedBytes = 0;
 
@@ -64,7 +66,7 @@ class DownloadService {
       await sink.flush();
       await sink.close();
 
-      // 2. Cache high-res album art locally for offline display
+      // 2. Cache high-res album art locally
       String? savedArtPath;
       try {
         final artRes = await http
@@ -77,7 +79,7 @@ class DownloadService {
         }
       } catch (_) {}
 
-      // 3. Cache synced + translated lyrics locally so lyrics also work 100% offline!
+      // 3. Cache synced + translated lyrics locally
       try {
         final syncedLyrics = await _lyricsService.fetchSyncedBilingualLyrics(song);
         final lyricsFile = File(lyricsPath);
@@ -90,14 +92,13 @@ class DownloadService {
         localFilePath: audioPath,
         localArtPath: savedArtPath,
         isDownloaded: true,
-        audioBitrateKbps: highQuality ? 160 : 96,
+        audioBitrateKbps: resolvedStream.bitrateKbps,
       );
     } catch (_) {
       return null;
     }
   }
 
-  /// Loads cached offline lyrics if available in private vault
   Future<SyncedLyrics?> getOfflineCachedLyrics(String videoId) async {
     try {
       final vaultDir = await _getVaultDir();
@@ -110,7 +111,6 @@ class DownloadService {
     return null;
   }
 
-  /// Deletes a downloaded song from the private vault
   Future<void> deleteDownloadedSong(String videoId) async {
     try {
       final vaultDir = await _getVaultDir();

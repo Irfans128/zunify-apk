@@ -8,40 +8,30 @@ import '../widgets/equalizer_sheet.dart';
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
-  void _showEditProfileDialog(BuildContext context, LibraryProvider library, Color accent) {
+  void _showEditProfileDialog(
+    BuildContext context,
+    LibraryProvider library,
+    Color accent,
+  ) {
     final nameCtrl = TextEditingController(text: library.profile.username);
-    final bioCtrl = TextEditingController(text: library.profile.bioTagline);
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF131722),
+        backgroundColor: const Color(0xFF121622),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text(
-          'Edit Akun Lokal Zunify 👤',
+          'Ubah Nama',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Nama Panggilan di Zunify',
-                labelStyle: TextStyle(color: Colors.white60),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: bioCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
-                labelText: 'Status / Bio Musik',
-                labelStyle: TextStyle(color: Colors.white60),
-              ),
-            ),
-          ],
+        content: TextField(
+          controller: nameCtrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Nama kamu...',
+            hintStyle: TextStyle(color: Colors.white38),
+          ),
         ),
         actions: [
           TextButton(
@@ -54,13 +44,13 @@ class SettingsScreen extends StatelessWidget {
               foregroundColor: Colors.black,
             ),
             onPressed: () {
-              library.updateUserProfile(
-                username: nameCtrl.text.trim(),
-                bioTagline: bioCtrl.text.trim(),
-              );
+              library.updateUserProfile(username: nameCtrl.text.trim());
               Navigator.pop(ctx);
             },
-            child: const Text('Simpan', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Simpan',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -75,100 +65,70 @@ class SettingsScreen extends StatelessWidget {
     final accent = theme.accentColor;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBgColor,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 115),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 115),
           children: [
             const Text(
-              'Pengaturan ⚙️',
+              'Pengaturan',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 23,
+                fontSize: 24,
                 fontWeight: FontWeight.w900,
+                letterSpacing: -0.4,
               ),
             ),
             const SizedBox(height: 18),
 
-            // 1. Local Account Profile Card (No Login Required)
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardBgColor,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: accent.withOpacity(0.35)),
-              ),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundColor: accent.withOpacity(0.2),
-                    child: Text(
-                      library.profile.username.isNotEmpty
-                          ? library.profile.username[0].toUpperCase()
-                          : 'F',
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                      ),
+            // Profile Card
+            _glassCard(
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: CircleAvatar(
+                  radius: 24,
+                  backgroundColor: accent.withOpacity(0.2),
+                  child: Text(
+                    library.profile.username.isNotEmpty
+                        ? library.profile.username[0].toUpperCase()
+                        : 'F',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          library.profile.username,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          library.profile.bioTagline,
-                          style: const TextStyle(color: Colors.white60, fontSize: 12.5),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Akun Lokal Zunify • Privasi 100% Aman',
-                          style: TextStyle(color: accent, fontSize: 11),
-                        ),
-                      ],
-                    ),
+                ),
+                title: Text(
+                  library.profile.username,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                   ),
-                  IconButton(
-                    icon: Icon(Icons.edit_rounded, color: accent),
-                    onPressed: () => _showEditProfileDialog(context, library, accent),
-                  ),
-                ],
+                ),
+                subtitle: const Text(
+                  'Akun Lokal Zunify',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                trailing: IconButton(
+                  icon: Icon(Icons.edit_rounded, color: accent, size: 20),
+                  onPressed: () => _showEditProfileDialog(context, library, accent),
+                ),
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
 
-            // 2. UI Color Theme Picker
-            _sectionTitle('🎨 Tema & Pilihan Warna UI'),
+            // Dynamic Liquid Theme Colors
+            _sectionLabel('Tema Dynamic Liquid'),
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardBgColor,
-                borderRadius: BorderRadius.circular(20),
-              ),
+            _glassCard(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Pilih Warna Aksen Zunify:',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
                   Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
+                    spacing: 10,
+                    runSpacing: 10,
                     children: ThemeProvider.accentPresets.map((preset) {
                       final selected = theme.selectedPresetId == preset.id;
                       return GestureDetector(
@@ -176,23 +136,23 @@ class SettingsScreen extends StatelessWidget {
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 220),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 8,
+                            horizontal: 14,
+                            vertical: 9,
                           ),
                           decoration: BoxDecoration(
-                            color: preset.primary.withOpacity(selected ? 0.22 : 0.08),
-                            borderRadius: BorderRadius.circular(16),
+                            color: preset.primary.withOpacity(selected ? 0.22 : 0.07),
+                            borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: selected ? preset.primary : Colors.white12,
-                              width: selected ? 2 : 1,
+                              width: selected ? 1.8 : 1,
                             ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Container(
-                                width: 16,
-                                height: 16,
+                                width: 14,
+                                height: 14,
                                 decoration: BoxDecoration(
                                   color: preset.primary,
                                   shape: BoxShape.circle,
@@ -200,11 +160,11 @@ class SettingsScreen extends StatelessWidget {
                               ),
                               const SizedBox(width: 8),
                               Text(
-                                preset.name,
+                                preset.name.replaceAll('Zunify ', ''),
                                 style: TextStyle(
                                   color: selected ? preset.primary : Colors.white70,
                                   fontWeight:
-                                      selected ? FontWeight.bold : FontWeight.normal,
+                                      selected ? FontWeight.bold : FontWeight.w500,
                                   fontSize: 12.5,
                                 ),
                               ),
@@ -214,94 +174,70 @@ class SettingsScreen extends StatelessWidget {
                       );
                     }).toList(),
                   ),
-                  const Divider(color: Colors.white12, height: 26),
+                  const Divider(color: Colors.white12, height: 24),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text(
-                      'OLED Pure Black Mode 🖤',
+                      'Dynamic Liquid Cover Glow',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: const Text(
-                      'Hitam pekat untuk layar AMOLED & jauh lebih hemat baterai',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                    value: theme.oledPureBlack,
-                    activeColor: accent,
-                    onChanged: (v) => theme.setOledPureBlack(v),
-                  ),
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Dynamic Album Art Glow ✨',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: const Text(
-                      'Warna background player mengikuti warna cover lagu',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
                     ),
                     value: theme.dynamicAlbumColorEnabled,
                     activeColor: accent,
                     onChanged: (v) => theme.setDynamicAlbumColorEnabled(v),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'OLED Pure Black',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    value: theme.oledPureBlack,
+                    activeColor: accent,
+                    onChanged: (v) => theme.setOledPureBlack(v),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
 
-            // 3. Audio Quality Selector (Fitur F) & Hardware Equalizer
-            _sectionTitle('🎧 Kualitas Audio & Hardware DSP'),
+            // Audio & Equalizer
+            _sectionLabel('Audio'),
             const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardBgColor,
-                borderRadius: BorderRadius.circular(20),
-              ),
+            _glassCard(
               child: Column(
                 children: [
-                  RadioListTile<bool>(
+                  SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: accent,
                     title: const Text(
-                      'High Quality (160 kbps Opus/M4A)',
+                      'Kualitas Tinggi (160 kbps)',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
-                    subtitle: const Text(
-                      'Suara jernih & bass maksimal untuk earphone/headphone',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
+                    subtitle: Text(
+                      player.highQualityAudio
+                          ? 'Mode Jernih Maksimal'
+                          : 'Mode Hemat Kuota (96 kbps)',
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
                     ),
-                    value: true,
-                    groupValue: player.highQualityAudio,
-                    onChanged: (v) => player.setHighQualityAudio(v ?? true),
-                  ),
-                  RadioListTile<bool>(
-                    contentPadding: EdgeInsets.zero,
+                    value: player.highQualityAudio,
                     activeColor: accent,
-                    title: const Text(
-                      'Hemat Kuota Data (96 kbps)',
-                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                    ),
-                    subtitle: const Text(
-                      'Konsumsi kuota super irit untuk streaming & download',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                    value: false,
-                    groupValue: player.highQualityAudio,
-                    onChanged: (v) => player.setHighQualityAudio(v ?? false),
+                    onChanged: (v) => player.setHighQualityAudio(v),
                   ),
                   const Divider(color: Colors.white12),
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Icon(Icons.equalizer_rounded, color: accent),
                     title: const Text(
-                      'Buka Hardware Equalizer & Bass Boost',
+                      'Equalizer',
                       style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      'Preset aktif: ${player.selectedEqPresetName}',
+                      player.selectedEqPresetName,
                       style: TextStyle(color: accent, fontSize: 12),
                     ),
-                    trailing: const Icon(Icons.chevron_right_rounded, color: Colors.white54),
+                    trailing: const Icon(
+                      Icons.chevron_right_rounded,
+                      color: Colors.white54,
+                    ),
                     onTap: () {
                       showModalBottomSheet(
                         context: context,
@@ -314,85 +250,27 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 22),
+            const SizedBox(height: 20),
 
-            // 4. Official Creator Credit Card (Fannz)
-            _sectionTitle('👑 Tentang Aplikasi & Pembuat'),
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(22),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    accent.withOpacity(0.22),
-                    theme.cardBgColor,
-                  ],
-                ),
-                border: Border.all(color: accent.withOpacity(0.45), width: 1.5),
-              ),
+            // Clean Creator Credit Card (Fannz)
+            _glassCard(
               child: Column(
                 children: [
-                  Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF07080C),
-                      border: Border.all(color: accent, width: 2),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withOpacity(0.35),
-                          blurRadius: 18,
-                        ),
-                      ],
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      'Z',
-                      style: TextStyle(
-                        color: accent,
-                        fontSize: 32,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
                   const Text(
-                    'ZUNIFY v1.0.0',
+                    'Zunify',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 19,
+                      fontSize: 20,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 1.4,
                     ),
                   ),
                   const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: accent.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      'Crafted with ❤️ by Fannz',
-                      style: TextStyle(
-                        color: accent,
-                        fontWeight: FontWeight.w800,
-                        fontSize: 13.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Standalone Music Player • Synced Karaoke Bilingual Lyrics • Hardware DSP Equalizer • Private Vault Offline • Weekly Rapot (Minggu 18:00 WIB)',
-                    textAlign: TextAlign.center,
+                  Text(
+                    'Crafted with ❤️ by Fannz',
                     style: TextStyle(
-                      color: Colors.white60,
-                      fontSize: 12,
-                      height: 1.45,
+                      color: accent,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13.5,
                     ),
                   ),
                 ],
@@ -404,14 +282,26 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionTitle(String title) {
+  Widget _sectionLabel(String title) {
     return Text(
       title,
       style: const TextStyle(
-        color: Colors.white,
-        fontSize: 15.5,
-        fontWeight: FontWeight.w800,
+        color: Colors.white70,
+        fontSize: 13.5,
+        fontWeight: FontWeight.w700,
       ),
+    );
+  }
+
+  Widget _glassCard({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: child,
     );
   }
 }

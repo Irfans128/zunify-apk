@@ -203,40 +203,41 @@ class _SearchScreenState extends State<SearchScreen> {
     final accent = theme.accentColor;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBgColor,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header + Import Playlist Button
+              // Clean Header + Import Button
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Cari Musik 🔍',
+                    'Cari',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 23,
+                      fontSize: 24,
                       fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
                     ),
                   ),
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: accent.withOpacity(0.18),
+                      backgroundColor: Colors.white.withOpacity(0.08),
                       foregroundColor: accent,
                       elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(20),
-                        side: BorderSide(color: accent.withOpacity(0.5)),
+                        side: BorderSide(color: Colors.white.withOpacity(0.12)),
                       ),
                     ),
                     onPressed: () => _showImportPlaylistModal(context),
                     icon: const Icon(Icons.add_link_rounded, size: 18),
                     label: const Text(
-                      'Import Spotify / YT',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                      'Import Playlist',
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
                     ),
                   ),
                 ],
@@ -250,10 +251,10 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: const TextStyle(color: Colors.white),
                 onSubmitted: _performSearch,
                 decoration: InputDecoration(
-                  hintText: 'Cari lagu, penyanyi, atau lirik...',
+                  hintText: 'Lagu atau artis...',
                   hintStyle: const TextStyle(color: Colors.white38),
                   filled: true,
-                  fillColor: theme.cardBgColor,
+                  fillColor: Colors.white.withOpacity(0.07),
                   prefixIcon: Icon(Icons.search_rounded, color: accent),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
@@ -266,7 +267,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       : null,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(18),
-                    borderSide: BorderSide(color: Colors.white.withOpacity(0.08)),
+                    borderSide: BorderSide.none,
                   ),
                 ),
               ),

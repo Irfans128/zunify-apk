@@ -25,12 +25,15 @@ Future<void> main() async {
   ]);
 
   // Initialize Foreground Audio Service & Lockscreen Notification Controls
-  await JustAudioBackground.init(
-    androidNotificationChannelId: 'com.fannz.zunify.channel.audio',
-    androidNotificationChannelName: 'Zunify Music Playback',
-    androidNotificationOngoing: true,
-    androidShowNotificationBadge: true,
-  );
+  try {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.fannz.zunify.channel.audio',
+      androidNotificationChannelName: 'Zunify Music Playback',
+      androidNotificationIcon: 'mipmap/launcher_icon',
+      androidNotificationOngoing: true,
+      androidShowNotificationBadge: true,
+    );
+  } catch (_) {}
 
   // Initialize Standalone Services
   final ytMusicService = YTMusicService();

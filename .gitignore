@@ -1,0 +1,6 @@
+*.apk
+*.zip
+build/
+.dart_tool/
+.packages
+local.properties

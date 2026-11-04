@@ -89,148 +89,88 @@ class _HomeScreenState extends State<HomeScreen> {
     final accent = theme.accentColor;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBgColor,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: RefreshIndicator(
           color: accent,
           onRefresh: _loadInitialHomeData,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 110),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
             children: [
-              // 1. Dynamic Greeting Header + Local Profile Avatar + Offline Switch
+              // Clean Top Header: Greeting + Rapot Icon + Offline Pill
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          library.profile.timeBasedGreeting,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 21,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          library.profile.bioTagline,
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Prominent Offline Mode Switch (Poin #4)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: player.offlineModeEnabled
-                          ? accent.withOpacity(0.2)
-                          : Colors.white.withOpacity(0.06),
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(
-                        color: player.offlineModeEnabled ? accent : Colors.white12,
+                    child: Text(
+                      'Halo, ${library.profile.username}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.4,
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          player.offlineModeEnabled
-                              ? Icons.cloud_off_rounded
-                              : Icons.wifi_rounded,
-                          color: player.offlineModeEnabled ? accent : Colors.white70,
-                          size: 16,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          'Offline',
-                          style: TextStyle(
-                            color: player.offlineModeEnabled ? accent : Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
+                  ),
+                  IconButton(
+                    tooltip: 'Rapot Mingguan',
+                    icon: Icon(Icons.bar_chart_rounded, color: accent),
+                    onPressed: () => _openWeeklyRapotModal(context),
+                  ),
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    onTap: () => player.setOfflineMode(!player.offlineModeEnabled),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 7,
+                      ),
+                      decoration: BoxDecoration(
+                        color: player.offlineModeEnabled
+                            ? accent
+                            : Colors.white.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            player.offlineModeEnabled
+                                ? Icons.cloud_off_rounded
+                                : Icons.wifi_rounded,
+                            color: player.offlineModeEnabled
+                                ? Colors.black
+                                : Colors.white70,
+                            size: 15,
                           ),
-                        ),
-                        SizedBox(
-                          height: 28,
-                          child: Switch(
-                            value: player.offlineModeEnabled,
-                            activeColor: accent,
-                            onChanged: (v) => player.setOfflineMode(v),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Offline',
+                            style: TextStyle(
+                              color: player.offlineModeEnabled
+                                  ? Colors.black
+                                  : Colors.white70,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 18),
 
-              // If Offline Mode is Active -> Show Private Vault Offline Songs directly!
               if (player.offlineModeEnabled) ...[
-                _buildOfflineVaultBanner(library, player, accent),
+                _buildOfflineList(library, player, accent),
               ] else ...[
-                // 2. Weekly Rapot Banner (Auto triggers Sunday 18:00 WIB)
-                GestureDetector(
-                  onTap: () => _openWeeklyRapotModal(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      gradient: LinearGradient(
-                        colors: [
-                          accent.withOpacity(0.26),
-                          theme.secondaryAccentColor.withOpacity(0.14),
-                        ],
-                      ),
-                      border: Border.all(color: accent.withOpacity(0.45)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: accent.withOpacity(0.22),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(Icons.insights_rounded, color: accent, size: 26),
-                        ),
-                        const SizedBox(width: 14),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Rapot Mingguan Zunify 📊',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15.5,
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                'Update otomatis tiap Minggu 18:00 WIB • Ketuk untuk lihat rekap musikmu!',
-                                style: TextStyle(color: Colors.white70, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(Icons.chevron_right_rounded, color: accent),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // 3. Mood / Genre Chips
+                // Clean Mood Chips
                 SizedBox(
-                  height: 38,
+                  height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _moods.length,
@@ -238,36 +178,46 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, i) {
                       final mood = _moods[i];
                       final selected = mood == _selectedMood;
-                      return ChoiceChip(
-                        label: Text(mood),
-                        selected: selected,
-                        selectedColor: accent,
-                        backgroundColor: Colors.white.withOpacity(0.06),
-                        labelStyle: TextStyle(
-                          color: selected ? Colors.black : Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                      return GestureDetector(
+                        onTap: () => _selectMood(mood),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: selected
+                                ? accent
+                                : Colors.white.withOpacity(0.07),
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: Text(
+                            mood,
+                            style: TextStyle(
+                              color: selected ? Colors.black : Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
                         ),
-                        onSelected: (_) => _selectMood(mood),
                       );
                     },
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
 
-                // 4. Recently Played ("Baru Saja Diputar")
+                // Recently Played
                 if (library.recentlyPlayed.isNotEmpty) ...[
-                  _sectionHeader('Baru Saja Diputar 🕒', accent),
-                  const SizedBox(height: 10),
+                  _sectionHeader('Baru Diputar'),
+                  const SizedBox(height: 12),
                   SizedBox(
-                    height: 168,
+                    height: 176,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: library.recentlyPlayed.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 14),
                       itemBuilder: (context, idx) {
                         final song = library.recentlyPlayed[idx];
-                        return _horizontalSongCard(
+                        return _squareSongCard(
                           song,
                           library.recentlyPlayed,
                           player,
@@ -276,37 +226,39 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 24),
                 ],
 
-                // 5. Mood Mix Tracks
-                _sectionHeader('Mix $_selectedMood Buat Lu ✨', accent),
-                const SizedBox(height: 10),
+                // Mood Mix
+                _sectionHeader(_selectedMood),
+                const SizedBox(height: 12),
                 if (_isLoadingCharts)
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 30),
-                    child: Center(child: CircularProgressIndicator(color: accent)),
+                    padding: const EdgeInsets.symmetric(vertical: 36),
+                    child: Center(
+                      child: CircularProgressIndicator(color: accent),
+                    ),
                   )
                 else
                   SizedBox(
-                    height: 175,
+                    height: 176,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _moodSongs.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 14),
                       itemBuilder: (context, idx) {
                         final song = _moodSongs[idx];
-                        return _horizontalSongCard(song, _moodSongs, player, accent);
+                        return _squareSongCard(song, _moodSongs, player, accent);
                       },
                     ),
                   ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
 
-                // 6. Trending Indonesia
-                _sectionHeader('🔥 Lagu Populer Indonesia', accent),
-                const SizedBox(height: 8),
+                // Trending Indonesia
+                _sectionHeader('Populer di Indonesia'),
+                const SizedBox(height: 10),
                 ..._trendingIndo.take(6).map(
-                      (song) => _verticalSongTile(
+                      (song) => _cleanSongRow(
                         song,
                         _trendingIndo,
                         player,
@@ -314,13 +266,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         accent,
                       ),
                     ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
 
-                // 7. Trending Global
-                _sectionHeader('🌍 Top Global Charts', accent),
-                const SizedBox(height: 8),
+                // Trending Global
+                _sectionHeader('Top Global'),
+                const SizedBox(height: 10),
                 ..._trendingGlobal.take(6).map(
-                      (song) => _verticalSongTile(
+                      (song) => _cleanSongRow(
                         song,
                         _trendingGlobal,
                         player,
@@ -336,72 +288,48 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildOfflineVaultBanner(
+  Widget _buildOfflineList(
     LibraryProvider library,
     PlayerProvider player,
     Color accent,
   ) {
     final songs = library.downloadedSongs;
+    if (songs.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(vertical: 80),
+        child: Center(
+          child: Text(
+            'Belum ada lagu tersimpan untuk mode offline.',
+            style: TextStyle(color: Colors.white54),
+          ),
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: accent.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: accent.withOpacity(0.4)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.offline_pin_rounded, color: accent, size: 30),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Mode Offline Aktif • Menampilkan ${songs.length} lagu dari penyimpanan internal Zunify (Bebas Kuota).',
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 18),
-        if (songs.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: Center(
-              child: Text(
-                'Belum ada lagu yang di-download.\nMatikan Mode Offline untuk mencari & download lagu.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-          )
-        else
-          ...songs.map(
-            (s) => _verticalSongTile(s, songs, player, library, accent),
-          ),
-      ],
-    );
-  }
-
-  Widget _sectionHeader(String title, Color accent) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 17.5,
-            fontWeight: FontWeight.w800,
-          ),
+        _sectionHeader('Tersimpan (${songs.length})'),
+        const SizedBox(height: 10),
+        ...songs.map(
+          (s) => _cleanSongRow(s, songs, player, library, accent),
         ),
       ],
     );
   }
 
-  Widget _horizontalSongCard(
+  Widget _sectionHeader(String title) {
+    return Text(
+      title,
+      style: const TextStyle(
+        color: Colors.white,
+        fontSize: 18,
+        fontWeight: FontWeight.w800,
+        letterSpacing: -0.3,
+      ),
+    );
+  }
+
+  Widget _squareSongCard(
     ZunifySong song,
     List<ZunifySong> queueList,
     PlayerProvider player,
@@ -410,49 +338,33 @@ class _HomeScreenState extends State<HomeScreen> {
     return GestureDetector(
       onTap: () => player.playSong(song, customQueue: queueList),
       child: SizedBox(
-        width: 128,
+        width: 132,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: Stack(
-                children: [
-                  CachedNetworkImage(
-                    imageUrl: song.highResArtUrl,
-                    width: 128,
-                    height: 118,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 128,
-                      height: 118,
-                      color: Colors.white10,
-                      child: Icon(Icons.music_note, color: accent),
-                    ),
-                  ),
-                  Positioned(
-                    right: 6,
-                    bottom: 6,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.75),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.play_arrow_rounded, color: accent, size: 18),
-                    ),
-                  ),
-                ],
+              borderRadius: BorderRadius.circular(18),
+              child: CachedNetworkImage(
+                imageUrl: song.highResArtUrl,
+                width: 132,
+                height: 132,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(
+                  width: 132,
+                  height: 132,
+                  color: Colors.white10,
+                  child: Icon(Icons.music_note, color: accent),
+                ),
               ),
             ),
-            const SizedBox(height: 7),
+            const SizedBox(height: 8),
             Text(
               song.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 fontSize: 13,
               ),
             ),
@@ -468,7 +380,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _verticalSongTile(
+  Widget _cleanSongRow(
     ZunifySong song,
     List<ZunifySong> queueList,
     PlayerProvider player,
@@ -476,18 +388,20 @@ class _HomeScreenState extends State<HomeScreen> {
     Color accent,
   ) {
     final isDownloaded = library.isDownloaded(song.videoId);
+    final isCurrent = player.currentSong?.videoId == song.videoId;
+
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(vertical: 2),
       leading: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
         child: CachedNetworkImage(
-          imageUrl: song.thumbnailUrl,
-          width: 50,
-          height: 50,
+          imageUrl: song.highResArtUrl,
+          width: 48,
+          height: 48,
           fit: BoxFit.cover,
           errorWidget: (_, __, ___) => Container(
-            width: 50,
-            height: 50,
+            width: 48,
+            height: 48,
             color: Colors.white10,
             child: Icon(Icons.music_note, color: accent),
           ),
@@ -497,34 +411,25 @@ class _HomeScreenState extends State<HomeScreen> {
         song.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(
-          color: Colors.white,
-          fontWeight: FontWeight.w600,
+        style: TextStyle(
+          color: isCurrent ? accent : Colors.white,
+          fontWeight: FontWeight.w700,
           fontSize: 14,
         ),
       ),
-      subtitle: Row(
-        children: [
-          if (isDownloaded) ...[
-            Icon(Icons.download_done_rounded, color: accent, size: 14),
-            const SizedBox(width: 4),
-          ],
-          Expanded(
-            child: Text(
-              '${song.artist} • ${song.formattedDuration}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-          ),
-        ],
+      subtitle: Text(
+        song.artist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white54, fontSize: 12),
       ),
       trailing: IconButton(
         icon: Icon(
           isDownloaded
-              ? Icons.offline_pin_rounded
-              : Icons.download_for_offline_outlined,
-          color: isDownloaded ? accent : Colors.white54,
+              ? Icons.download_done_rounded
+              : Icons.download_rounded,
+          color: isDownloaded ? accent : Colors.white38,
+          size: 20,
         ),
         onPressed: () {
           if (!isDownloaded) {

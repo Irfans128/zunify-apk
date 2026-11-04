@@ -13,8 +13,9 @@ class LibraryProvider extends ChangeNotifier {
 
   LocalUserProfile _profile = const LocalUserProfile(
     username: 'Fannz',
-    bioTagline: 'Creator & Audiophile • Zunify 🎧',
+    bioTagline: 'Zunify Music',
   );
+  bool _hasCompletedOnboarding = false;
 
   List<ZunifySong> _favorites = [];
   List<ZunifySong> _downloadedSongs = [];
@@ -26,6 +27,7 @@ class LibraryProvider extends ChangeNotifier {
   LibraryProvider(this._downloadService, this._importerService);
 
   LocalUserProfile get profile => _profile;
+  bool get hasCompletedOnboarding => _hasCompletedOnboarding;
   List<ZunifySong> get favorites => List.unmodifiable(_favorites);
   List<ZunifySong> get downloadedSongs => List.unmodifiable(_downloadedSongs);
   List<ZunifySong> get recentlyPlayed => List.unmodifiable(_recentlyPlayed);
@@ -34,6 +36,7 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> loadLibrary() async {
     final prefs = await SharedPreferences.getInstance();
+    _hasCompletedOnboarding = prefs.getBool('onboarding_completed') ?? false;
 
     final rawProfile = prefs.getString('local_user_profile');
     if (rawProfile != null) {
@@ -61,6 +64,16 @@ class LibraryProvider extends ChangeNotifier {
         .toList();
 
     notifyListeners();
+  }
+
+  Future<void> completeOnboarding(String username) async {
+    final cleanName = username.trim().isNotEmpty ? username.trim() : 'Fannz';
+    _profile = _profile.copyWith(username: cleanName, bioTagline: 'Zunify Music');
+    _hasCompletedOnboarding = true;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarding_completed', true);
+    await prefs.setString('local_user_profile', jsonEncode(_profile.toJson()));
   }
 
   Future<void> updateUserProfile({

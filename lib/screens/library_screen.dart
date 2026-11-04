@@ -100,30 +100,30 @@ class _LibraryScreenState extends State<LibraryScreen>
     final accent = theme.accentColor;
 
     return Scaffold(
-      backgroundColor: theme.scaffoldBgColor,
+      backgroundColor: Colors.transparent,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header + Weekly Rapot Button + New Playlist Button
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text(
-                    'Koleksiku 📚',
+                    'Koleksi',
                     style: TextStyle(
                       color: Colors.white,
-                      fontSize: 23,
+                      fontSize: 24,
                       fontWeight: FontWeight.w900,
+                      letterSpacing: -0.4,
                     ),
                   ),
                   Row(
                     children: [
                       IconButton(
-                        tooltip: 'Lihat Rapot Mingguan',
-                        icon: Icon(Icons.insights_rounded, color: accent),
+                        tooltip: 'Rapot Mingguan',
+                        icon: Icon(Icons.bar_chart_rounded, color: accent),
                         onPressed: () async {
                           final rapot = await player.getWeeklyRapot();
                           if (!context.mounted) return;
@@ -135,10 +135,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                           );
                         },
                       ),
+                      const SizedBox(width: 4),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: accent,
                           foregroundColor: Colors.black,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
                           ),
@@ -147,8 +149,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                             _showCreatePlaylistDialog(context, library, accent),
                         icon: const Icon(Icons.add_rounded, size: 18),
                         label: const Text(
-                          'Playlist Baru',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5),
+                          'Baru',
+                          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
                         ),
                       ),
                     ],
