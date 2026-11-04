@@ -32,7 +32,7 @@ class PlayerProvider extends ChangeNotifier {
   bool _isLoadingTrack = false;
   bool _offlineModeEnabled = false;
   bool _highQualityAudio = true; // true = 160kbps, false = 96kbps (Hemat Kuota)
-  bool _autoRadioEnabled = true; // Spotify-like Up Next recommendation algorithm
+  final bool _autoRadioEnabled = true; // Spotify-like Up Next recommendation algorithm
 
   // Synced Bilingual Lyrics State
   SyncedLyrics? _currentLyrics;

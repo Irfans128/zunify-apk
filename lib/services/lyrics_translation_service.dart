@@ -28,7 +28,7 @@ class LyricsTranslationService {
     }
     try {
       // 1. Query LRCLIB by track_name & artist_name
-      final searchUri = Uri.parse(_lrclibBase + '/search').replace(
+      final searchUri = Uri.parse('$_lrclibBase/search').replace(
         queryParameters: {
           'track_name': song.title,
           'artist_name': song.artist,
@@ -47,7 +47,7 @@ class LyricsTranslationService {
 
       // Fallback search with general query q
       if (items.isEmpty) {
-        final fallbackUri = Uri.parse(_lrclibBase + '/search').replace(
+        final fallbackUri = Uri.parse('$_lrclibBase/search').replace(
           queryParameters: {'q': '${song.artist} ${song.title}'},
         );
         response = await http.get(
