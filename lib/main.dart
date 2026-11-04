@@ -20,6 +20,10 @@ import 'services/zunify_audio_handler.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Keep decoded image bitmap cache lightweight in RAM (~45 MB max, 120 images)
+  PaintingBinding.instance.imageCache.maximumSize = 120;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 45 * 1024 * 1024;
+
   // Lock portrait orientation for sleek mobile UX
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -52,15 +56,9 @@ Future<void> main() async {
   final equalizerService = EqualizerService();
   final rapotService = RapotService();
 
-  // Initialize State Providers
+  // Initialize State Providers in parallel for instant cold startup
   final themeProvider = ThemeProvider();
-  await themeProvider.loadPreferences();
-
   final libraryProvider = LibraryProvider(downloadService, importerService);
-  await libraryProvider.loadLibrary();
-
-  await rapotService.init(username: libraryProvider.profile.username);
-
   final playerProvider = PlayerProvider(
     audioHandler: audioHandler,
     ytMusicService: ytMusicService,
@@ -71,7 +69,14 @@ Future<void> main() async {
     libraryProvider: libraryProvider,
     themeProvider: themeProvider,
   );
-  await playerProvider.initPreferences();
+
+  await Future.wait([
+    themeProvider.loadPreferences(),
+    libraryProvider.loadLibrary(),
+    playerProvider.initPreferences(),
+  ]);
+
+  await rapotService.init(username: libraryProvider.profile.username);
 
   runApp(
     MultiProvider(

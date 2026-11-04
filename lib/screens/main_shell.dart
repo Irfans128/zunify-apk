@@ -276,6 +276,8 @@ class _MainShellState extends State<MainShell> {
                           imageUrl: song.highResArtUrl,
                           width: 42,
                           height: 42,
+                          memCacheWidth: 130,
+                          fadeInDuration: const Duration(milliseconds: 120),
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Container(
                             width: 42,
@@ -382,22 +384,24 @@ class _MainShellState extends State<MainShell> {
                     ],
                   ),
                 ),
-                StreamBuilder<Duration>(
-                  stream: player.audioPlayer.positionStream,
-                  builder: (context, snapshot) {
-                    final pos = snapshot.data ?? Duration.zero;
-                    final total = player.audioPlayer.duration ?? song.duration;
-                    final progress = total.inMilliseconds > 0
-                        ? (pos.inMilliseconds / total.inMilliseconds)
-                            .clamp(0.0, 1.0)
-                        : 0.0;
-                    return LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 2.2,
-                      backgroundColor: Colors.white.withOpacity(0.08),
-                      valueColor: AlwaysStoppedAnimation<Color>(accent),
-                    );
-                  },
+                RepaintBoundary(
+                  child: StreamBuilder<Duration>(
+                    stream: player.audioPlayer.positionStream,
+                    builder: (context, snapshot) {
+                      final pos = snapshot.data ?? Duration.zero;
+                      final total = player.audioPlayer.duration ?? song.duration;
+                      final progress = total.inMilliseconds > 0
+                          ? (pos.inMilliseconds / total.inMilliseconds)
+                              .clamp(0.0, 1.0)
+                          : 0.0;
+                      return LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 2.2,
+                        backgroundColor: Colors.white.withOpacity(0.08),
+                        valueColor: AlwaysStoppedAnimation<Color>(accent),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),

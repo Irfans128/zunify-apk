@@ -37,6 +37,7 @@ jobs:
           rm -rf android
           flutter create --org com.fannz --project-name zunify --platforms=android .
           cp /tmp/zunify_android_backup/app/build.gradle android/app/build.gradle
+          cp /tmp/zunify_android_backup/app/proguard-rules.pro android/app/proguard-rules.pro
           cp /tmp/zunify_android_backup/app/zunify-release.p12 android/app/zunify-release.p12
           cp /tmp/zunify_android_backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/kotlin/com/fannz/zunify
@@ -63,15 +64,15 @@ jobs:
 
       - name: Build Lightweight Split-ABI & Universal Release APK
         run: |
-          flutter build apk --release --split-per-abi --no-tree-shake-icons
-          flutter build apk --release --no-tree-shake-icons
+          flutter build apk --release --split-per-abi
+          flutter build apk --release
 
       - name: Package Lightweight & Universal APKs
         run: |
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.0-Lite-arm64-by-Fannz.apk
           cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.0-Universal-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.6.0-Lite-arm64-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.6.0-Universal-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.6.1-Lite-arm64-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.6.1-Universal-by-Fannz.apk
 
       - name: Upload Zunify APK Artifacts
         uses: actions/upload-artifact@v4
@@ -87,12 +88,12 @@ jobs:
         run: |
           APP_VER=$(grep "kAppVersion =" lib/app_version.dart | cut -d"'" -f2)
           TAG="v${APP_VER}"
-          NOTES="- Algoritma Rekomendasi & Antrean Lagu ala Spotify (Berikutnya di Antrean, Berikutnya dari Playlist, & Autoplay Pintar)\n- Fitur In-App Auto Update langsung dari dalam APK (dengan Log Update & tombol Lewati Versi)\n- Equalizer sekarang Default OFF (Suara Original Murni)\n- Sinkronisasi Lirik 60ms presisi pas ketukan vokal + tampilan bersih & smooth"
+          NOTES="- Optimasi Performa & RAM (Render 60fps jauh lebih ringan, hemat baterai, & ukuran APK lebih ramping)\n- Algoritma Rekomendasi & Antrean Lagu ala Spotify (Berikutnya di Antrean, Berikutnya dari Playlist, & Autoplay Pintar)\n- Fitur In-App Auto Update langsung dari dalam APK (dengan Log Update & tombol Lewati Versi)\n- Equalizer Default OFF (Suara Original Murni)\n- Sinkronisasi Lirik 60ms presisi pas ketukan vokal + tampilan bersih & smooth"
           gh release delete "$TAG" --yes || true
           git tag -f "$TAG"
           git push origin "$TAG" --force
           gh release create "$TAG" \
-            Zunify-v1.6.0-Lite-arm64-by-Fannz.apk \
-            Zunify-v1.6.0-Universal-by-Fannz.apk \
+            Zunify-v1.6.1-Lite-arm64-by-Fannz.apk \
+            Zunify-v1.6.1-Universal-by-Fannz.apk \
             --title "Zunify $TAG (Crafted by Fannz)" \
             --notes "$(echo -e "$NOTES")"

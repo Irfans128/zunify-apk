@@ -355,6 +355,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                             imageUrl: coverArt,
                             width: 58,
                             height: 58,
+                            memCacheWidth: 174,
+                            fadeInDuration: const Duration(milliseconds: 120),
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => _fallbackCover(accent),
                           )
@@ -533,6 +535,8 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                           imageUrl: coverArt,
                           width: 84,
                           height: 84,
+                          memCacheWidth: 252,
+                          fadeInDuration: const Duration(milliseconds: 140),
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => _heroFallback(accent),
                         )

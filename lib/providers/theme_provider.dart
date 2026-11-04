@@ -54,6 +54,7 @@ class ThemeProvider extends ChangeNotifier {
   bool _oledPureBlack = false;
   bool _dynamicAlbumColorEnabled = true;
   Color? _dynamicAlbumColor;
+  final Map<Object, Color> _paletteCache = {};
 
   String get selectedPresetId => _selectedPresetId;
   bool get oledPureBlack => _oledPureBlack;
@@ -109,17 +110,33 @@ class ThemeProvider extends ChangeNotifier {
 
   Future<void> updateDynamicColorFromImage(ImageProvider imageProvider) async {
     if (!_dynamicAlbumColorEnabled) return;
+    final cached = _paletteCache[imageProvider];
+    if (cached != null) {
+      if (_dynamicAlbumColor != cached) {
+        _dynamicAlbumColor = cached;
+        notifyListeners();
+      }
+      return;
+    }
     try {
+      final resized = ResizeImage.resizeIfNeeded(48, 48, imageProvider);
       final palette = await PaletteGenerator.fromImageProvider(
-        imageProvider,
-        maximumColorCount: 12,
+        resized,
+        size: const Size(48, 48),
+        maximumColorCount: 8,
       );
       final extracted = palette.vibrantColor?.color ??
           palette.lightVibrantColor?.color ??
           palette.dominantColor?.color;
       if (extracted != null) {
-        _dynamicAlbumColor = extracted;
-        notifyListeners();
+        if (_paletteCache.length > 60) {
+          _paletteCache.clear();
+        }
+        _paletteCache[imageProvider] = extracted;
+        if (_dynamicAlbumColor != extracted) {
+          _dynamicAlbumColor = extracted;
+          notifyListeners();
+        }
       }
     } catch (_) {}
   }

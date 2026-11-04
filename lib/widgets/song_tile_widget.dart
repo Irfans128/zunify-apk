@@ -89,6 +89,8 @@ class ZunifySongTile extends StatelessWidget {
                 imageUrl: song.thumbnailUrl,
                 width: 48,
                 height: 48,
+                memCacheWidth: 144,
+                fadeInDuration: const Duration(milliseconds: 120),
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
                   width: 48,
@@ -254,6 +256,8 @@ void showSongActionSheet(
                       imageUrl: song.highResArtUrl,
                       width: 54,
                       height: 54,
+                      memCacheWidth: 162,
+                      fadeInDuration: const Duration(milliseconds: 120),
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
                         width: 54,

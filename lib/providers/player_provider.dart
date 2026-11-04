@@ -69,6 +69,8 @@ class PlayerProvider extends ChangeNotifier {
 
   // Guards against stale loads when the user skips quickly
   int _playToken = 0;
+  bool? _lastNotifiedPlaying;
+  ProcessingState? _lastNotifiedProcessing;
 
   // Synced Lyrics State
   SyncedLyrics? _currentLyrics;
@@ -236,7 +238,13 @@ class PlayerProvider extends ChangeNotifier {
           playNext(fromCompletion: true);
         }
       }
-      notifyListeners();
+
+      if (_lastNotifiedPlaying != state.playing ||
+          _lastNotifiedProcessing != state.processingState) {
+        _lastNotifiedPlaying = state.playing;
+        _lastNotifiedProcessing = state.processingState;
+        notifyListeners();
+      }
     });
   }
 
@@ -245,8 +253,10 @@ class PlayerProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   void _startLyricsTicker() {
     if (_lyricsTicker != null) return;
+    if (_currentLyrics == null || !_currentLyrics!.isSynced) return;
     _lyricsTicker = Timer.periodic(const Duration(milliseconds: 60), (_) {
-      if (_currentLyrics == null) return;
+      final lyr = _currentLyrics;
+      if (lyr == null || !lyr.isSynced || !_audioPlayer.playing) return;
       _updateActiveLyricLine(_audioPlayer.position);
     });
   }
@@ -730,6 +740,7 @@ class PlayerProvider extends ChangeNotifier {
       _currentLyrics = _sanitizeLyrics(cached);
       _isLoadingLyrics = false;
       _updateActiveLyricLine(_audioPlayer.position);
+      if (_audioPlayer.playing) _startLyricsTicker();
       notifyListeners();
       return;
     }
@@ -746,6 +757,7 @@ class PlayerProvider extends ChangeNotifier {
     _currentLyrics = rawLyrics == null ? null : _sanitizeLyrics(rawLyrics);
     _isLoadingLyrics = false;
     _updateActiveLyricLine(_audioPlayer.position);
+    if (_audioPlayer.playing) _startLyricsTicker();
     notifyListeners();
   }
 

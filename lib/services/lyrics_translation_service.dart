@@ -20,6 +20,14 @@ class LyricsTranslationService {
       'https://music.youtube.com/youtubei/v1/browse?prettyPrint=false';
 
   final Map<String, SyncedLyrics> _memoryLyricsCache = {};
+  final http.Client _http = http.Client();
+
+  void _cacheLyrics(String videoId, SyncedLyrics lyrics) {
+    if (_memoryLyricsCache.length > 50) {
+      _memoryLyricsCache.remove(_memoryLyricsCache.keys.first);
+    }
+    _memoryLyricsCache[videoId] = lyrics;
+  }
 
   // Common Indonesian words to accurately detect Bahasa Indonesia lyrics
   static const Set<String> _indonesianMarkers = {
@@ -63,38 +71,55 @@ class LyricsTranslationService {
     final cleanArtist = _cleanArtistName(song.artist);
 
     // 1. Try SimpMusic Lyrics API by videoId (AusDMusic Primary Source)
-    final simpResult = await _fetchFromSimpMusic(song.videoId, song.durationSeconds);
-    if (simpResult != null) {
-      _memoryLyricsCache[song.videoId] = simpResult;
+    final simpResult =
+        await _fetchFromSimpMusic(song.videoId, song.durationSeconds);
+    if (simpResult != null && simpResult.isSynced) {
+      _cacheLyrics(song.videoId, simpResult);
       return simpResult;
     }
 
-    // 2. Try Apple Music / BetterLyrics TTML API (AusDMusic Secondary Source)
-    final betterResult = await _fetchFromBetterLyrics(
-      song.videoId,
-      cleanTitle.isNotEmpty ? cleanTitle : song.title,
-      cleanArtist.isNotEmpty ? cleanArtist : song.artist,
-    );
-    if (betterResult != null) {
-      _memoryLyricsCache[song.videoId] = betterResult;
+    // 2 & 3. Query Apple Music / BetterLyrics TTML + LRCLIB in parallel for instant fallback
+    final parallelResults = await Future.wait([
+      _fetchFromBetterLyrics(
+        song.videoId,
+        cleanTitle.isNotEmpty ? cleanTitle : song.title,
+        cleanArtist.isNotEmpty ? cleanArtist : song.artist,
+      ),
+      _fetchFromLrclib(
+        song,
+        cleanTitle: cleanTitle,
+        cleanArtist: cleanArtist,
+      ),
+    ]);
+
+    final betterResult = parallelResults[0];
+    final lrcResult = parallelResults[1];
+
+    if (betterResult != null && betterResult.isSynced) {
+      _cacheLyrics(song.videoId, betterResult);
       return betterResult;
     }
-
-    // 3. Try LRCLIB Synced API
-    final lrcResult = await _fetchFromLrclib(
-      song,
-      cleanTitle: cleanTitle,
-      cleanArtist: cleanArtist,
-    );
+    if (lrcResult != null && lrcResult.isSynced) {
+      _cacheLyrics(song.videoId, lrcResult);
+      return lrcResult;
+    }
+    if (simpResult != null) {
+      _cacheLyrics(song.videoId, simpResult);
+      return simpResult;
+    }
+    if (betterResult != null) {
+      _cacheLyrics(song.videoId, betterResult);
+      return betterResult;
+    }
     if (lrcResult != null) {
-      _memoryLyricsCache[song.videoId] = lrcResult;
+      _cacheLyrics(song.videoId, lrcResult);
       return lrcResult;
     }
 
     // 4. Try YouTube Music Official Built-in Lyrics (`MPLYt_...` tab)
     final ytmResult = await _fetchFromYouTubeMusicMplyt(song);
     if (ytmResult != null) {
-      _memoryLyricsCache[song.videoId] = ytmResult;
+      _cacheLyrics(song.videoId, ytmResult);
       return ytmResult;
     }
 
@@ -159,12 +184,12 @@ class LyricsTranslationService {
     int totalDurationSec,
   ) async {
     try {
-      final res = await http
+      final res = await _http
           .get(
             Uri.parse('$_simpMusicBase/$videoId'),
             headers: {'User-Agent': _simpMusicUa},
           )
-          .timeout(const Duration(seconds: 6));
+          .timeout(const Duration(seconds: 4));
 
       if (res.statusCode != 200) return null;
 
@@ -219,7 +244,7 @@ class LyricsTranslationService {
 
   Future<SyncedLyrics?> _trySimpMusicTranslation(SyncedLyrics rawLyrics) async {
     try {
-      final res = await http
+      final res = await _http
           .get(
             Uri.parse('$_simpMusicBase/translated/${rawLyrics.videoId}/id'),
             headers: {'User-Agent': _simpMusicUa},
@@ -271,7 +296,7 @@ class LyricsTranslationService {
       final uri = Uri.parse(_betterLyricsUrl).replace(
         queryParameters: {'s': title, 'a': artist},
       );
-      final res = await http.get(uri).timeout(const Duration(seconds: 6));
+      final res = await _http.get(uri).timeout(const Duration(seconds: 5));
       if (res.statusCode != 200) return null;
 
       final decoded = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
@@ -371,12 +396,12 @@ class LyricsTranslationService {
       List<dynamic> items = [];
       for (final q in queries) {
         final uri = Uri.parse('$_lrclibBase/search').replace(queryParameters: q);
-        final res = await http
+        final res = await _http
             .get(
               uri,
-              headers: {'User-Agent': 'Zunify/1.3.0 (Crafted by Fannz)'},
+              headers: {'User-Agent': 'Zunify/1.6.1 (Crafted by Fannz)'},
             )
-            .timeout(const Duration(seconds: 6));
+            .timeout(const Duration(seconds: 5));
         if (res.statusCode == 200) {
           items = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
           if (items.isNotEmpty) break;
@@ -439,7 +464,7 @@ class LyricsTranslationService {
         },
       };
 
-      final nextRes = await http
+      final nextRes = await _http
           .post(
             Uri.parse(_ytmNextUrl),
             headers: {
@@ -474,7 +499,7 @@ class LyricsTranslationService {
       }
       if (lyricsBrowseId == null) return null;
 
-      final browseRes = await http
+      final browseRes = await _http
           .post(
             Uri.parse(_ytmBrowseUrl),
             headers: {
@@ -625,7 +650,7 @@ class LyricsTranslationService {
         },
       );
 
-      final res = await http
+      final res = await _http
           .get(
             uri,
             headers: {

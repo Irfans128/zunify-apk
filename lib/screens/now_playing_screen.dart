@@ -1369,6 +1369,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   imageUrl: currentSong.highResArtUrl,
                                   width: 44,
                                   height: 44,
+                                  memCacheWidth: 132,
+                                  fadeInDuration:
+                                      const Duration(milliseconds: 120),
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -1547,6 +1550,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                               imageUrl: item.thumbnailUrl,
                                               width: 40,
                                               height: 40,
+                                              memCacheWidth: 120,
+                                              fadeInDuration: const Duration(
+                                                milliseconds: 120,
+                                              ),
                                               fit: BoxFit.cover,
                                             ),
                                           ),

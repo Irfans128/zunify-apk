@@ -46,6 +46,7 @@ class YTMusicService {
   static const String _alphaNumChars =
       'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   final Random _random = Random();
+  final http.Client _http = http.Client();
 
   String? _cachedVisitorData;
   DateTime? _visitorDataFetchedAt;
@@ -77,7 +78,7 @@ class YTMusicService {
       return _cachedVisitorData;
     }
     try {
-      final res = await http.get(
+      final res = await _http.get(
         Uri.parse(_swJsDataUrl),
         headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
       ).timeout(const Duration(seconds: 8));
@@ -124,7 +125,7 @@ class YTMusicService {
         },
       };
 
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse(_ytmSearchUrl),
             headers: {
@@ -143,6 +144,9 @@ class YTMusicService {
       _captureVisitorDataFromResponse(data);
       final songs = _parseWebRemixSearchItems(data, limit: limit);
       if (songs.isNotEmpty) {
+        if (_searchCache.length > 60) {
+          _searchCache.remove(_searchCache.keys.first);
+        }
         _searchCache[cacheKey] = songs;
       }
       return songs;
@@ -261,7 +265,7 @@ class YTMusicService {
         },
       };
 
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse(_ytmNextUrl),
             headers: {
@@ -408,7 +412,7 @@ class YTMusicService {
           '$_ytVisionOsPlayerBaseUrl&t=$tParam&id=$videoId',
         );
 
-        final res = await http
+        final res = await _http
             .post(
               playerUri,
               headers: headers,
@@ -538,14 +542,14 @@ class YTMusicService {
 
       if (playbackUrl != null && playbackUrl.isNotEmpty) {
         final sep = playbackUrl.contains('?') ? '&' : '?';
-        await http
+        await _http
             .get(Uri.parse('$playbackUrl${sep}ver=2&c=WEB_REMIX&cpn=$cpn'),
                 headers: headers)
             .timeout(const Duration(seconds: 5));
       }
       if (atrUrl != null && atrUrl.isNotEmpty) {
         final sep = atrUrl.contains('?') ? '&' : '?';
-        await http
+        await _http
             .post(Uri.parse('$atrUrl${sep}ver=2&c=WEB_REMIX&cpn=$cpn'),
                 headers: headers)
             .timeout(const Duration(seconds: 5));
@@ -607,7 +611,7 @@ class YTMusicService {
           },
         },
       };
-      final res = await http
+      final res = await _http
           .post(
             Uri.parse(_ytmBrowseUrl),
             headers: {

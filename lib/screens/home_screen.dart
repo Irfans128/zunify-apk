@@ -466,6 +466,8 @@ class _HomeScreenState extends State<HomeScreen> {
               imageUrl: song.highResArtUrl,
               width: 88,
               height: 88,
+              memCacheWidth: 260,
+              fadeInDuration: const Duration(milliseconds: 140),
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
                 width: 88,
@@ -627,6 +629,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 imageUrl: song.thumbnailUrl,
                 width: 56,
                 height: 56,
+                memCacheWidth: 168,
+                fadeInDuration: const Duration(milliseconds: 120),
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
                   width: 56,
@@ -757,6 +761,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     imageUrl: song.highResArtUrl,
                     width: 138,
                     height: 138,
+                    memCacheWidth: 360,
+                    fadeInDuration: const Duration(milliseconds: 140),
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(
                       width: 138,

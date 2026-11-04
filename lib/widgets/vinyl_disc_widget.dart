@@ -189,13 +189,16 @@ class _VinylDiscWidgetState extends State<VinylDiscWidget>
         File(widget.localImagePath!).existsSync()) {
       return Image.file(
         File(widget.localImagePath!),
+        cacheWidth: 280,
         fit: BoxFit.cover,
       );
     }
     if (widget.imageUrl.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: widget.imageUrl,
+        memCacheWidth: 280,
         fit: BoxFit.cover,
+        fadeInDuration: const Duration(milliseconds: 150),
         errorWidget: (_, __, ___) => _defaultZMonogram(),
       );
     }
@@ -370,38 +373,40 @@ class _MiniAudioSpectrumBarsState extends State<MiniAudioSpectrumBars>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final t = _controller.value * 2 * math.pi;
-        final factors = widget.isPlaying
-            ? [
-                0.35 + 0.65 * math.sin(t).abs(),
-                0.25 + 0.75 * math.cos(t * 1.3 + 0.8).abs(),
-                0.40 + 0.60 * math.sin(t * 1.7 + 1.9).abs(),
-                0.30 + 0.70 * math.cos(t * 1.1 + 2.5).abs(),
-              ]
-            : [0.25, 0.45, 0.30, 0.25];
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          final t = _controller.value * 2 * math.pi;
+          final factors = widget.isPlaying
+              ? [
+                  0.35 + 0.65 * math.sin(t).abs(),
+                  0.25 + 0.75 * math.cos(t * 1.3 + 0.8).abs(),
+                  0.40 + 0.60 * math.sin(t * 1.7 + 1.9).abs(),
+                  0.30 + 0.70 * math.cos(t * 1.1 + 2.5).abs(),
+                ]
+              : [0.25, 0.45, 0.30, 0.25];
 
-        return SizedBox(
-          height: widget.height,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(4, (i) {
-              return Container(
-                width: 2.8,
-                height: (widget.height * factors[i]).clamp(3.0, widget.height),
-                margin: const EdgeInsets.symmetric(horizontal: 1.2),
-                decoration: BoxDecoration(
-                  color: widget.color,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              );
-            }),
-          ),
-        );
-      },
+          return SizedBox(
+            height: widget.height,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: List.generate(4, (i) {
+                return Container(
+                  width: 2.8,
+                  height: (widget.height * factors[i]).clamp(3.0, widget.height),
+                  margin: const EdgeInsets.symmetric(horizontal: 1.2),
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                );
+              }),
+            ),
+          );
+        },
+      ),
     );
   }
 }

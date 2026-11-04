@@ -52,42 +52,58 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Base Deep Dark Canvas
-        Container(color: widget.baseColor),
-
-        // Optional Blurred Album Artwork Layer for Ambient Depth
-        if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
-          Opacity(
-            opacity: widget.intensity * 0.75,
-            child: CachedNetworkImage(
-              imageUrl: widget.imageUrl!,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => const SizedBox.shrink(),
-            ),
-          ),
-
-        // Animated Dynamic Liquid Orbs
+        // Base Deep Dark Canvas + Cached Blurred Album Art (Static per song — zero 60fps blur cost)
         RepaintBoundary(
-          child: AnimatedBuilder(
-            animation: _controller,
-            builder: (context, _) {
-              final t = _controller.value * 2 * math.pi;
-              return CustomPaint(
-                painter: _LiquidOrbsPainter(
-                  phase: t,
-                  primaryColor: widget.primaryColor.withOpacity(widget.intensity),
-                  secondaryColor:
-                      widget.secondaryColor.withOpacity(widget.intensity * 0.85),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              ColoredBox(color: widget.baseColor),
+              if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
+                Opacity(
+                  opacity: widget.intensity * 0.68,
+                  child: ImageFiltered(
+                    imageFilter: ImageFilter.blur(
+                      sigmaX: 42,
+                      sigmaY: 42,
+                      tileMode: TileMode.decal,
+                    ),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.imageUrl!,
+                      memCacheWidth: 140,
+                      fit: BoxFit.cover,
+                      fadeInDuration: const Duration(milliseconds: 220),
+                      errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                    ),
+                  ),
                 ),
-              );
-            },
+            ],
           ),
         ),
 
-        // Deep Frosted Ambient Blur Overlay
-        BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 68, sigmaY: 68),
-          child: Container(
+        // Animated Dynamic Liquid Orbs (Already uses smooth RadialGradients — no BackdropFilter needed!)
+        RepaintBoundary(
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, _) {
+                final t = _controller.value * 2 * math.pi;
+                return CustomPaint(
+                  painter: _LiquidOrbsPainter(
+                    phase: t,
+                    primaryColor:
+                        widget.primaryColor.withOpacity(widget.intensity),
+                    secondaryColor: widget.secondaryColor
+                        .withOpacity(widget.intensity * 0.85),
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+
+        // Ambient Depth Vignette Overlay
+        IgnorePointer(
+          child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
