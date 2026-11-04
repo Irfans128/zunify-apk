@@ -21,6 +21,9 @@
 -keep class com.dexterous.** { *; }
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 
+-dontwarn com.google.android.play.core.**
 -dontwarn javax.annotation.**
 -dontwarn org.codehaus.mojo.animal_sniffer.**
 -dontwarn com.google.errorprone.annotations.**
+-dontwarn org.checkerframework.**
+
