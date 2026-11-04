@@ -65,7 +65,6 @@ class _MainShellState extends State<MainShell> {
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
 
-    // Show First-Time Welcome Login Screen if user hasn't entered their name yet
     if (!library.hasCompletedOnboarding) {
       return const OnboardingScreen();
     }
@@ -84,7 +83,7 @@ class _MainShellState extends State<MainShell> {
         secondaryColor: theme.secondaryAccentColor,
         baseColor: theme.scaffoldBgColor,
         imageUrl: player.currentSong?.highResArtUrl,
-        intensity: 0.28,
+        intensity: 0.24,
         child: Stack(
           children: [
             IndexedStack(
@@ -92,65 +91,107 @@ class _MainShellState extends State<MainShell> {
               children: screens,
             ),
 
-            // Floating Liquid Glass Mini-Player
+            // Clean Spotify / Apple Music Floating Mini-Player
             if (player.currentSong != null)
               Positioned(
-                left: 14,
-                right: 14,
-                bottom: 10,
-                child: _buildFloatingMiniPlayer(context, player, theme, accent),
+                left: 12,
+                right: 12,
+                bottom: 8,
+                child: _buildFloatingMiniPlayer(
+                  context,
+                  player,
+                  library,
+                  accent,
+                ),
               ),
           ],
         ),
       ),
       bottomNavigationBar: ClipRRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
           child: Container(
             decoration: BoxDecoration(
-              color: theme.scaffoldBgColor.withOpacity(0.82),
+              color: theme.scaffoldBgColor.withOpacity(0.88),
               border: Border(
-                top: BorderSide(color: Colors.white.withOpacity(0.08)),
+                top: BorderSide(color: Colors.white.withOpacity(0.07)),
               ),
             ),
             child: NavigationBarTheme(
               data: NavigationBarThemeData(
                 backgroundColor: Colors.transparent,
-                indicatorColor: accent.withOpacity(0.18),
+                indicatorColor: accent.withOpacity(0.16),
                 labelTextStyle: WidgetStateProperty.resolveWith((states) {
                   if (states.contains(WidgetState.selected)) {
                     return TextStyle(
                       color: accent,
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w700,
                     );
                   }
-                  return const TextStyle(color: Colors.white54, fontSize: 11);
+                  return const TextStyle(
+                    color: Colors.white54,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  );
                 }),
               ),
               child: NavigationBar(
-                height: 62,
+                height: 60,
                 selectedIndex: _selectedIndex,
-                onDestinationSelected: (idx) => setState(() => _selectedIndex = idx),
+                onDestinationSelected: (idx) =>
+                    setState(() => _selectedIndex = idx),
                 destinations: [
                   NavigationDestination(
-                    icon: const Icon(Icons.home_outlined, color: Colors.white60),
-                    selectedIcon: Icon(Icons.home_rounded, color: accent),
+                    icon: const Icon(
+                      Icons.home_outlined,
+                      color: Colors.white60,
+                      size: 23,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.home_rounded,
+                      color: accent,
+                      size: 23,
+                    ),
                     label: 'Beranda',
                   ),
                   NavigationDestination(
-                    icon: const Icon(Icons.search_rounded, color: Colors.white60),
-                    selectedIcon: Icon(Icons.search_rounded, color: accent),
+                    icon: const Icon(
+                      Icons.search_rounded,
+                      color: Colors.white60,
+                      size: 23,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.search_rounded,
+                      color: accent,
+                      size: 23,
+                    ),
                     label: 'Cari',
                   ),
                   NavigationDestination(
-                    icon: const Icon(Icons.library_music_outlined, color: Colors.white60),
-                    selectedIcon: Icon(Icons.library_music_rounded, color: accent),
+                    icon: const Icon(
+                      Icons.library_music_outlined,
+                      color: Colors.white60,
+                      size: 22,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.library_music_rounded,
+                      color: accent,
+                      size: 22,
+                    ),
                     label: 'Koleksi',
                   ),
                   NavigationDestination(
-                    icon: const Icon(Icons.tune_rounded, color: Colors.white60),
-                    selectedIcon: Icon(Icons.tune_rounded, color: accent),
+                    icon: const Icon(
+                      Icons.tune_rounded,
+                      color: Colors.white60,
+                      size: 22,
+                    ),
+                    selectedIcon: Icon(
+                      Icons.tune_rounded,
+                      color: accent,
+                      size: 22,
+                    ),
                     label: 'Pengaturan',
                   ),
                 ],
@@ -165,10 +206,12 @@ class _MainShellState extends State<MainShell> {
   Widget _buildFloatingMiniPlayer(
     BuildContext context,
     PlayerProvider player,
-    ThemeProvider theme,
+    LibraryProvider library,
     Color accent,
   ) {
     final song = player.currentSong!;
+    final isFav = library.isFavorite(song.videoId);
+
     return GestureDetector(
       onTap: () {
         Navigator.of(context).push(
@@ -179,7 +222,9 @@ class _MainShellState extends State<MainShell> {
                 position: Tween<Offset>(
                   begin: const Offset(0, 1),
                   end: Offset.zero,
-                ).animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+                ).animate(
+                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                ),
                 child: child,
               );
             },
@@ -187,38 +232,49 @@ class _MainShellState extends State<MainShell> {
         );
       },
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(16),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+          filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
           child: Container(
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.09),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: Colors.white.withOpacity(0.15)),
+              color: const Color(0xFF141824).withOpacity(0.92),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.11)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.45),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 8, 6),
+                  padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
                   child: Row(
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                         child: CachedNetworkImage(
                           imageUrl: song.highResArtUrl,
-                          width: 44,
-                          height: 44,
+                          width: 42,
+                          height: 42,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => Container(
-                            width: 44,
-                            height: 44,
+                            width: 42,
+                            height: 42,
                             color: Colors.black38,
-                            child: Icon(Icons.music_note, color: accent),
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              color: accent,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 11),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -229,7 +285,7 @@ class _MainShellState extends State<MainShell> {
                                 MiniAudioSpectrumBars(
                                   isPlaying: player.isPlaying,
                                   color: accent,
-                                  height: 13,
+                                  height: 11,
                                 ),
                                 const SizedBox(width: 6),
                                 Expanded(
@@ -241,6 +297,7 @@ class _MainShellState extends State<MainShell> {
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 13.5,
+                                      letterSpacing: -0.2,
                                     ),
                                   ),
                                 ),
@@ -251,9 +308,10 @@ class _MainShellState extends State<MainShell> {
                               song.artist,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.60),
+                                fontSize: 11.8,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
@@ -261,12 +319,15 @@ class _MainShellState extends State<MainShell> {
                       ),
                       IconButton(
                         visualDensity: VisualDensity.compact,
-                        icon: const Icon(
-                          Icons.skip_previous_rounded,
-                          color: Colors.white70,
-                          size: 24,
+                        splashRadius: 18,
+                        icon: Icon(
+                          isFav
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: isFav ? accent : Colors.white60,
+                          size: 21,
                         ),
-                        onPressed: () => player.playPrevious(),
+                        onPressed: () => library.toggleFavorite(song),
                       ),
                       if (player.isLoadingTrack)
                         Padding(
@@ -283,17 +344,19 @@ class _MainShellState extends State<MainShell> {
                       else
                         IconButton(
                           visualDensity: VisualDensity.compact,
+                          splashRadius: 20,
                           icon: Icon(
                             player.isPlaying
-                                ? Icons.pause_circle_filled_rounded
-                                : Icons.play_circle_fill_rounded,
-                            color: accent,
-                            size: 34,
+                                ? Icons.pause_rounded
+                                : Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 28,
                           ),
                           onPressed: () => player.togglePlayPause(),
                         ),
                       IconButton(
                         visualDensity: VisualDensity.compact,
+                        splashRadius: 18,
                         icon: const Icon(
                           Icons.skip_next_rounded,
                           color: Colors.white70,
@@ -315,7 +378,7 @@ class _MainShellState extends State<MainShell> {
                         : 0.0;
                     return LinearProgressIndicator(
                       value: progress,
-                      minHeight: 2.5,
+                      minHeight: 2.2,
                       backgroundColor: Colors.white.withOpacity(0.08),
                       valueColor: AlwaysStoppedAnimation<Color>(accent),
                     );

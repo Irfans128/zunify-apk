@@ -6,6 +6,7 @@ import '../models/song_model.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
+import '../widgets/song_tile_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
 
 /// Opens the full interactive Playlist Detail Sheet (works for Spotify Import, YT Music Import, and Local Playlists)
@@ -55,8 +56,8 @@ class _LibraryScreenState extends State<LibraryScreen>
         backgroundColor: const Color(0xFF131722),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
         title: const Text(
-          'Buat Playlist Baru 🎵',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          'Buat Playlist Baru',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -65,7 +66,7 @@ class _LibraryScreenState extends State<LibraryScreen>
               controller: nameCtrl,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: 'Nama Playlist (misal: Vibe Malam Fannz)',
+                hintText: 'Nama Playlist (misal: Vibe Malam)',
                 hintStyle: TextStyle(color: Colors.white38),
               ),
             ),
@@ -120,7 +121,7 @@ class _LibraryScreenState extends State<LibraryScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -135,9 +136,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                   ),
                   Row(
                     children: [
-                      // Prominent Rekap Mingguan Pill Button
                       InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(18),
                         onTap: () async {
                           final rapot = await player.getWeeklyRapot();
                           if (!context.mounted) return;
@@ -151,12 +151,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                         child: Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 12,
-                            vertical: 8,
+                            vertical: 7,
                           ),
                           decoration: BoxDecoration(
                             color: accent.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: accent.withOpacity(0.4)),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: accent.withOpacity(0.35)),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -164,7 +164,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                               Icon(
                                 Icons.auto_awesome_rounded,
                                 color: accent,
-                                size: 15,
+                                size: 14,
                               ),
                               const SizedBox(width: 5),
                               Text(
@@ -180,23 +180,37 @@ class _LibraryScreenState extends State<LibraryScreen>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: accent,
-                          foregroundColor: Colors.black,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                        onPressed: () =>
+                      InkWell(
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () =>
                             _showCreatePlaylistDialog(context, library, accent),
-                        icon: const Icon(Icons.add_rounded, size: 18),
-                        label: const Text(
-                          'Baru',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12.5,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(18),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.add_rounded,
+                                color: Colors.black,
+                                size: 17,
+                              ),
+                              SizedBox(width: 3),
+                              Text(
+                                'Playlist',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ),
@@ -209,8 +223,18 @@ class _LibraryScreenState extends State<LibraryScreen>
             TabBar(
               controller: _tabController,
               indicatorColor: accent,
-              labelColor: accent,
+              indicatorWeight: 2.5,
+              dividerColor: Colors.white.withOpacity(0.06),
+              labelColor: Colors.white,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
               unselectedLabelColor: Colors.white54,
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
               tabs: [
                 Tab(text: 'Playlist (${library.playlists.length})'),
                 Tab(text: 'Offline (${library.downloadedSongs.length})'),
@@ -222,28 +246,15 @@ class _LibraryScreenState extends State<LibraryScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  // Tab 1: Playlists (Spotify Import + YT Music Import + Local)
                   _buildPlaylistsTab(library, player, accent),
-
-                  // Tab 2: Private In-App Downloaded Songs
                   _buildSongList(
                     library.downloadedSongs,
                     emptyText:
-                        'Belum ada lagu di Private Vault.\nKetuk ikon Download di player atau pencarian untuk mendengar offline tanpa kuota!',
-                    player: player,
-                    library: library,
-                    accent: accent,
-                    allowDeleteDownload: true,
+                        'Belum ada lagu tersimpan di Private Vault.\nKetuk titik tiga (⋮) pada lagu mana saja untuk mengunduh offline.',
                   ),
-
-                  // Tab 3: Favorite Songs
                   _buildSongList(
                     library.favorites,
                     emptyText: 'Belum ada lagu favorit (❤️).',
-                    player: player,
-                    library: library,
-                    accent: accent,
-                    allowDeleteDownload: false,
                   ),
                 ],
               ),
@@ -257,10 +268,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildSongList(
     List<ZunifySong> songs, {
     required String emptyText,
-    required PlayerProvider player,
-    required LibraryProvider library,
-    required Color accent,
-    required bool allowDeleteDownload,
   }) {
     if (songs.isEmpty) {
       return Center(
@@ -269,87 +276,23 @@ class _LibraryScreenState extends State<LibraryScreen>
           child: Text(
             emptyText,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.white54, height: 1.5),
+            style: const TextStyle(
+              color: Colors.white54,
+              height: 1.5,
+              fontSize: 13.5,
+            ),
           ),
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 110),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 112),
       itemCount: songs.length,
       itemBuilder: (context, idx) {
-        final song = songs[idx];
-        return ListTile(
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: CachedNetworkImage(
-              imageUrl: song.thumbnailUrl,
-              width: 50,
-              height: 50,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
-                width: 50,
-                height: 50,
-                color: Colors.white10,
-                child: Icon(Icons.music_note, color: accent),
-              ),
-            ),
-          ),
-          title: Text(
-            song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          subtitle: Text(
-            '${song.artist} • ${song.formattedDuration}',
-            style: const TextStyle(color: Colors.white54, fontSize: 12),
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                tooltip: 'Tambah ke Antrean',
-                icon: const Icon(
-                  Icons.playlist_add_rounded,
-                  color: Colors.white60,
-                ),
-                onPressed: () {
-                  player.addToQueue(song);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      backgroundColor: accent,
-                      duration: const Duration(seconds: 1),
-                      content: Text(
-                        'Ditambahkan ke antrean: ${song.title}',
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              allowDeleteDownload
-                  ? IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline_rounded,
-                        color: Colors.white54,
-                      ),
-                      onPressed: () => library.removeDownloadedSong(song.videoId),
-                    )
-                  : IconButton(
-                      icon: Icon(Icons.favorite_rounded, color: accent),
-                      onPressed: () => library.toggleFavorite(song),
-                    ),
-            ],
-          ),
-          onTap: () => player.playSong(song, customQueue: songs),
+        return ZunifySongTile(
+          song: songs[idx],
+          queueContext: songs,
         );
       },
     );
@@ -365,16 +308,20 @@ class _LibraryScreenState extends State<LibraryScreen>
         child: Padding(
           padding: EdgeInsets.all(32),
           child: Text(
-            'Belum ada playlist.\nBuat playlist baru atau Import dari Spotify & YouTube Music di tab Cari!',
+            'Belum ada playlist.\nBuat playlist baru atau Import dari Spotify & YouTube Music di tab Cari.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.white54, height: 1.5),
+            style: TextStyle(
+              color: Colors.white54,
+              height: 1.5,
+              fontSize: 13.5,
+            ),
           ),
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 112),
       itemCount: library.playlists.length,
       itemBuilder: (context, i) {
         final ZunifyPlaylist pl = library.playlists[i];
@@ -387,57 +334,58 @@ class _LibraryScreenState extends State<LibraryScreen>
                 ? const Color(0xFFFF4E45)
                 : accent;
 
-        final String songPreview = pl.songs.isEmpty
-            ? 'Ketuk untuk melihat detail playlist'
-            : pl.songs.take(3).map((s) => s.title).join(' • ');
-
         return Container(
-          margin: const EdgeInsets.only(bottom: 12),
+          margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.07)),
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(16),
             onTap: () => showPlaylistDetailSheet(context, pl.id),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               child: Row(
                 children: [
-                  // Playlist Cover Art
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     child: coverArt != null && coverArt.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: coverArt,
-                            width: 64,
-                            height: 64,
+                            width: 58,
+                            height: 58,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => _fallbackCover(accent),
                           )
                         : _fallbackCover(accent),
                   ),
-                  const SizedBox(width: 14),
-
-                  // Playlist Info + Song Preview
+                  const SizedBox(width: 13),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Text(
+                          pl.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
                         Row(
                           children: [
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 2,
+                                horizontal: 6,
+                                vertical: 1.5,
                               ),
                               decoration: BoxDecoration(
-                                color: badgeColor.withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: badgeColor.withOpacity(0.45),
-                                ),
+                                color: badgeColor.withOpacity(0.16),
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 pl.originBadgeLabel,
@@ -448,48 +396,28 @@ class _LibraryScreenState extends State<LibraryScreen>
                                 ),
                               ),
                             ),
-                            const SizedBox(width: 7),
-                            Text(
-                              '${pl.songs.length} lagu',
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w600,
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${pl.songs.length} lagu',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 5),
-                        Text(
-                          pl.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15.5,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          songPreview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
-                          ),
-                        ),
                       ],
                     ),
                   ),
-
-                  // Quick Play Button
                   IconButton(
-                    tooltip: 'Putar Playlist',
                     icon: Icon(
                       Icons.play_circle_fill_rounded,
-                      size: 38,
+                      size: 34,
                       color: accent,
                     ),
                     onPressed: () {
@@ -511,20 +439,18 @@ class _LibraryScreenState extends State<LibraryScreen>
 
   Widget _fallbackCover(Color accent) {
     return Container(
-      width: 64,
-      height: 64,
+      width: 58,
+      height: 58,
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(14),
+        color: accent.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Icon(Icons.queue_music_rounded, color: accent, size: 30),
+      child: Icon(Icons.queue_music_rounded, color: accent, size: 26),
     );
   }
 }
 
-/// Full Interactive Playlist Detail Sheet
-/// Allows inspecting all songs inside Spotify/YTM/Local playlists, searching inside the playlist,
-/// playing any track, shuffling, adding to queue, or removing tracks.
+/// Clean Interactive Playlist Detail Sheet
 class PlaylistDetailSheet extends StatefulWidget {
   final String playlistId;
 
@@ -552,9 +478,8 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
     final accent = theme.accentColor;
 
     final idx = library.playlists.indexWhere((p) => p.id == widget.playlistId);
-    if (idx < 0) {
-      return const SizedBox.shrink();
-    }
+    if (idx < 0) return const SizedBox.shrink();
+
     final ZunifyPlaylist playlist = library.playlists[idx];
     final String? coverArt = playlist.coverUrl ??
         (playlist.songs.isNotEmpty ? playlist.songs.first.highResArtUrl : null);
@@ -577,14 +502,14 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
       height: MediaQuery.of(context).size.height * 0.88,
       decoration: BoxDecoration(
         color: const Color(0xFF0C101B),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         border: Border.all(color: Colors.white.withOpacity(0.08)),
       ),
       child: Column(
         children: [
           const SizedBox(height: 12),
           Container(
-            width: 44,
+            width: 40,
             height: 4,
             decoration: BoxDecoration(
               color: Colors.white24,
@@ -594,42 +519,40 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
 
           // Playlist Hero Header
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
+            padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                   child: coverArt != null && coverArt.isNotEmpty
                       ? CachedNetworkImage(
                           imageUrl: coverArt,
-                          width: 92,
-                          height: 92,
+                          width: 84,
+                          height: 84,
                           fit: BoxFit.cover,
                           errorWidget: (_, __, ___) => _heroFallback(accent),
                         )
                       : _heroFallback(accent),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 9,
-                          vertical: 3,
+                          horizontal: 8,
+                          vertical: 2.5,
                         ),
                         decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: badgeColor.withOpacity(0.45)),
+                          color: badgeColor.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           playlist.originBadgeLabel,
                           style: TextStyle(
                             color: badgeColor,
-                            fontSize: 10.5,
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
@@ -641,15 +564,16 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 19,
+                          fontSize: 18,
                           fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 3),
                       Text(
-                        '${playlist.songs.length} lagu siap diputar',
+                        '${playlist.songs.length} lagu',
                         style: const TextStyle(
-                          color: Colors.white60,
+                          color: Colors.white54,
                           fontSize: 12.5,
                         ),
                       ),
@@ -657,7 +581,10 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                   ),
                 ),
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded, color: Colors.white70),
+                  icon: const Icon(
+                    Icons.more_vert_rounded,
+                    color: Colors.white70,
+                  ),
                   color: const Color(0xFF171C2B),
                   onSelected: (val) async {
                     if (val == 'queue_all') {
@@ -683,31 +610,19 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                       Navigator.pop(context);
                     }
                   },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(
                       value: 'queue_all',
-                      child: Row(
-                        children: [
-                          Icon(Icons.playlist_add_rounded, color: Colors.white, size: 20),
-                          SizedBox(width: 10),
-                          Text(
-                            'Tambah Semua ke Antrean',
-                            style: TextStyle(color: Colors.white),
-                          ),
-                        ],
+                      child: Text(
+                        'Tambah Semua ke Antrean',
+                        style: TextStyle(color: Colors.white),
                       ),
                     ),
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'delete',
-                      child: Row(
-                        children: [
-                          Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20),
-                          SizedBox(width: 10),
-                          Text(
-                            'Hapus Playlist',
-                            style: TextStyle(color: Colors.redAccent),
-                          ),
-                        ],
+                      child: Text(
+                        'Hapus Playlist',
+                        style: TextStyle(color: Colors.redAccent),
                       ),
                     ),
                   ],
@@ -716,9 +631,9 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
             ),
           ),
 
-          // Action Buttons Row: Play All & Shuffle Play
+          // Play All & Shuffle Row
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
               children: [
                 Expanded(
@@ -726,7 +641,7 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: accent,
                       foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -739,10 +654,13 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                               customQueue: playlist.songs,
                             );
                           },
-                    icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 20),
                     label: const Text(
                       'Putar Semua',
-                      style: TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
                     ),
                   ),
                 ),
@@ -751,8 +669,8 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.18)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      side: BorderSide(color: Colors.white.withOpacity(0.15)),
+                      padding: const EdgeInsets.symmetric(vertical: 11),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -760,42 +678,53 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     onPressed: playlist.songs.isEmpty
                         ? null
                         : () {
-                            final shuffled = List<ZunifySong>.from(playlist.songs)
-                              ..shuffle();
+                            final shuffled =
+                                List<ZunifySong>.from(playlist.songs)
+                                  ..shuffle();
                             player.playSong(
                               shuffled.first,
                               customQueue: shuffled,
                             );
                           },
-                    icon: Icon(Icons.shuffle_rounded, size: 19, color: accent),
+                    icon: Icon(Icons.shuffle_rounded, size: 18, color: accent),
                     label: const Text(
                       'Putar Acak',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Filter Search Inside Playlist
           if (playlist.songs.length > 4)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 18),
               child: SizedBox(
-                height: 42,
+                height: 40,
                 child: TextField(
                   controller: _filterCtrl,
                   onChanged: (v) => setState(() => _searchQuery = v),
-                  style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                  style: const TextStyle(color: Colors.white, fontSize: 13),
                   decoration: InputDecoration(
-                    hintText: 'Cari lagu di dalam playlist ini...',
-                    hintStyle: const TextStyle(color: Colors.white38, fontSize: 13),
+                    hintText: 'Cari lagu di playlist ini...',
+                    hintStyle: const TextStyle(
+                      color: Colors.white38,
+                      fontSize: 12.5,
+                    ),
                     filled: true,
                     fillColor: Colors.white.withOpacity(0.06),
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    prefixIcon: Icon(Icons.search_rounded, color: accent, size: 18),
+                    prefixIcon: Icon(
+                      Icons.search_rounded,
+                      color: accent,
+                      size: 18,
+                    ),
                     suffixIcon: _searchQuery.isNotEmpty
                         ? IconButton(
                             icon: const Icon(
@@ -817,16 +746,16 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                 ),
               ),
             ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
-          // Complete Song List inside the Playlist
+          // Clean Song List using ZunifySongTile
           Expanded(
             child: filteredSongs.isEmpty
                 ? Center(
                     child: Text(
                       playlist.songs.isEmpty
                           ? 'Playlist ini masih kosong.'
-                          : 'Tidak ada lagu yang cocok dengan pencarian.',
+                          : 'Tidak ada lagu yang cocok.',
                       style: const TextStyle(color: Colors.white54),
                     ),
                   )
@@ -835,160 +764,11 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     itemCount: filteredSongs.length,
                     itemBuilder: (context, index) {
                       final song = filteredSongs[index];
-                      final isPlayingNow =
-                          player.currentSong?.videoId == song.videoId;
-
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 4,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isPlayingNow
-                              ? accent.withOpacity(0.14)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                          border: isPlayingNow
-                              ? Border.all(color: accent.withOpacity(0.4))
-                              : null,
-                        ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 2,
-                          ),
-                          leading: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              SizedBox(
-                                width: 24,
-                                child: Text(
-                                  '${index + 1}',
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    color: isPlayingNow ? accent : Colors.white54,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12.5,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: CachedNetworkImage(
-                                  imageUrl: song.thumbnailUrl,
-                                  width: 48,
-                                  height: 48,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) => Container(
-                                    width: 48,
-                                    height: 48,
-                                    color: Colors.white10,
-                                    child: Icon(
-                                      Icons.music_note_rounded,
-                                      color: accent,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          title: Text(
-                            song.title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isPlayingNow ? accent : Colors.white,
-                              fontWeight:
-                                  isPlayingNow ? FontWeight.w800 : FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            '${song.artist} • ${song.formattedDuration}',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
-                            ),
-                          ),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                tooltip: 'Tambah ke Antrean',
-                                icon: const Icon(
-                                  Icons.playlist_add_rounded,
-                                  color: Colors.white60,
-                                  size: 21,
-                                ),
-                                onPressed: () {
-                                  player.addToQueue(song);
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: accent,
-                                      duration: const Duration(seconds: 1),
-                                      content: Text(
-                                        'Ditambahkan ke antrean: ${song.title}',
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                              PopupMenuButton<String>(
-                                icon: const Icon(
-                                  Icons.more_vert_rounded,
-                                  color: Colors.white54,
-                                  size: 20,
-                                ),
-                                color: const Color(0xFF171C2B),
-                                onSelected: (action) {
-                                  if (action == 'play_next') {
-                                    player.playNextInQueue(song);
-                                  } else if (action == 'fav') {
-                                    library.toggleFavorite(song);
-                                  } else if (action == 'remove') {
-                                    library.removeSongFromPlaylist(
-                                      playlist.id,
-                                      song.videoId,
-                                    );
-                                  }
-                                },
-                                itemBuilder: (_) => [
-                                  const PopupMenuItem(
-                                    value: 'play_next',
-                                    child: Text(
-                                      'Putar Berikutnya',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'fav',
-                                    child: Text(
-                                      'Tambah / Hapus Favorit',
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  const PopupMenuItem(
-                                    value: 'remove',
-                                    child: Text(
-                                      'Hapus dari Playlist',
-                                      style: TextStyle(color: Colors.redAccent),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                          onTap: () {
-                            player.playSong(song, customQueue: playlist.songs);
-                          },
-                        ),
+                      return ZunifySongTile(
+                        song: song,
+                        queueContext: playlist.songs,
+                        rank: index + 1,
+                        playlistIdForRemoval: playlist.id,
                       );
                     },
                   ),
@@ -1000,13 +780,13 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
 
   Widget _heroFallback(Color accent) {
     return Container(
-      width: 92,
-      height: 92,
+      width: 84,
+      height: 84,
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(18),
+        color: accent.withOpacity(0.16),
+        borderRadius: BorderRadius.circular(14),
       ),
-      child: Icon(Icons.queue_music_rounded, color: accent, size: 42),
+      child: Icon(Icons.queue_music_rounded, color: accent, size: 36),
     );
   }
 }

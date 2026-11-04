@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -7,6 +6,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
+import '../widgets/song_tile_widget.dart';
 import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
 
@@ -21,13 +21,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const List<Map<String, String>> _moods = [
-    {'id': 'Pop Indo', 'label': '🔥 Pop Indo'},
-    {'id': 'Chill', 'label': '🌙 Chill'},
-    {'id': 'Galau', 'label': '🌧️ Galau'},
-    {'id': 'Workout', 'label': '⚡ Workout'},
-    {'id': 'Fokus', 'label': '🎧 Fokus'},
-    {'id': 'K-Pop', 'label': '✨ K-Pop'},
-    {'id': 'Anime', 'label': '🌸 Anime'},
+    {'id': 'Pop Indo', 'label': 'Pop Indo'},
+    {'id': 'Chill', 'label': 'Chill'},
+    {'id': 'Galau', 'label': 'Galau'},
+    {'id': 'Workout', 'label': 'Workout'},
+    {'id': 'Fokus', 'label': 'Fokus'},
+    {'id': 'K-Pop', 'label': 'K-Pop'},
+    {'id': 'Anime', 'label': 'Anime'},
   ];
 
   String _selectedMood = 'Pop Indo';
@@ -126,14 +126,14 @@ class _HomeScreenState extends State<HomeScreen> {
           color: accent,
           onRefresh: _loadInitialHomeData,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 118),
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 112),
             children: [
-              // Rich Top Header: Avatar + Time Greeting + Rapot Pill + Offline Pill
+              // Clean Top Header: Avatar + Greeting/Username + Rekap Pill + Offline Icon
               Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: LinearGradient(
@@ -141,12 +141,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withOpacity(0.32),
-                          blurRadius: 14,
-                        ),
-                      ],
                     ),
                     alignment: Alignment.center,
                     child: Text(
@@ -155,7 +149,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           : 'Z',
                       style: const TextStyle(
                         color: Colors.black,
-                        fontSize: 19,
+                        fontSize: 17,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
@@ -167,11 +161,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       children: [
                         Text(
                           _getTimeGreeting(),
-                          style: TextStyle(
-                            color: accent,
+                          style: const TextStyle(
+                            color: Colors.white60,
                             fontSize: 11.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 0.4,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                         Text(
@@ -180,7 +173,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 21,
+                            fontSize: 20,
                             fontWeight: FontWeight.w900,
                             letterSpacing: -0.4,
                           ),
@@ -188,12 +181,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                   ),
-                  // Weekly Rapot Button
-                  GestureDetector(
+                  // Rekap Mingguan Pill Button
+                  InkWell(
+                    borderRadius: BorderRadius.circular(18),
                     onTap: () => _openWeeklyRapotModal(context),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
+                        horizontal: 12,
                         vertical: 7,
                       ),
                       decoration: BoxDecoration(
@@ -204,13 +198,17 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.insights_rounded, color: accent, size: 15),
+                          Icon(
+                            Icons.auto_awesome_rounded,
+                            color: accent,
+                            size: 14,
+                          ),
                           const SizedBox(width: 5),
                           Text(
-                            'Rapot',
+                            'Rekap',
                             style: TextStyle(
                               color: accent,
-                              fontSize: 11.5,
+                              fontSize: 12,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -219,49 +217,40 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Offline Mode Toggle Pill
-                  GestureDetector(
-                    onTap: () =>
-                        player.setOfflineMode(!player.offlineModeEnabled),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: player.offlineModeEnabled
-                            ? accent
-                            : Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.10),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            player.offlineModeEnabled
-                                ? Icons.cloud_off_rounded
-                                : Icons.wifi_rounded,
+                  // Compact Offline Mode Toggle Button
+                  Tooltip(
+                    message: player.offlineModeEnabled
+                        ? 'Mode Offline Aktif'
+                        : 'Mode Online',
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(18),
+                      onTap: () =>
+                          player.setOfflineMode(!player.offlineModeEnabled),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: player.offlineModeEnabled
+                              ? accent
+                              : Colors.white.withOpacity(0.08),
+                          shape: BoxShape.circle,
+                          border: Border.all(
                             color: player.offlineModeEnabled
-                                ? Colors.black
-                                : Colors.white70,
-                            size: 14,
+                                ? accent
+                                : Colors.white.withOpacity(0.10),
                           ),
-                          const SizedBox(width: 5),
-                          Text(
-                            'Offline',
-                            style: TextStyle(
-                              color: player.offlineModeEnabled
-                                  ? Colors.black
-                                  : Colors.white70,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
+                        ),
+                        alignment: Alignment.center,
+                        child: Icon(
+                          player.offlineModeEnabled
+                              ? Icons.cloud_off_rounded
+                              : Icons.wifi_rounded,
+                          color: player.offlineModeEnabled
+                              ? Colors.black
+                              : Colors.white70,
+                          size: 16,
+                        ),
                       ),
                     ),
                   ),
@@ -272,9 +261,9 @@ class _HomeScreenState extends State<HomeScreen> {
               if (player.offlineModeEnabled) ...[
                 _buildOfflineList(library, player, accent),
               ] else ...[
-                // Interactive Mood Chips with Icons
+                // Clean Spotify-Style Filter Chips
                 SizedBox(
-                  height: 36,
+                  height: 34,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: _moods.length,
@@ -286,25 +275,26 @@ class _HomeScreenState extends State<HomeScreen> {
                       return GestureDetector(
                         onTap: () => _selectMood(moodId),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          duration: const Duration(milliseconds: 180),
+                          padding: const EdgeInsets.symmetric(horizontal: 15),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: selected
                                 ? accent
-                                : Colors.white.withOpacity(0.08),
+                                : Colors.white.withOpacity(0.07),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: selected
                                   ? accent
-                                  : Colors.white.withOpacity(0.10),
+                                  : Colors.white.withOpacity(0.08),
                             ),
                           ),
                           child: Text(
                             moodLabel,
                             style: TextStyle(
                               color: selected ? Colors.black : Colors.white,
-                              fontWeight: FontWeight.w800,
+                              fontWeight:
+                                  selected ? FontWeight.w800 : FontWeight.w600,
                               fontSize: 12.5,
                             ),
                           ),
@@ -313,25 +303,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     },
                   ),
                 ),
-                const SizedBox(height: 18),
+                const SizedBox(height: 16),
 
-                // Hero Featured Mix Banner Card ("Mix Spesial Untukmu")
-                if (heroSong != null) ...[
-                  _buildHeroFeaturedBanner(
-                    heroSong,
-                    _moodSongs.isNotEmpty ? _moodSongs : _trendingIndo,
-                    player,
-                    library.profile.username,
-                    accent,
-                    theme.secondaryAccentColor,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // Spotify / AusDMusic 2-Column Quick Picks Grid (6 items)
+                // Spotify 2-Column Quick Picks Grid (Fixed 56px height per card — never squished!)
                 if (quickPicks.isNotEmpty) ...[
-                  _sectionHeader('Pilihan Cepat', subtitle: 'Putar instan'),
-                  const SizedBox(height: 10),
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -341,7 +316,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisCount: 2,
                       mainAxisSpacing: 8,
                       crossAxisSpacing: 8,
-                      childAspectRatio: 3.05,
+                      mainAxisExtent: 56,
                     ),
                     itemBuilder: (context, i) {
                       final song = quickPicks[i];
@@ -356,10 +331,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 22),
                 ],
 
-                // Mood Mix Carousel
+                // Clean Editorial Featured Mix Banner
+                if (heroSong != null) ...[
+                  _buildHeroFeaturedBanner(
+                    heroSong,
+                    _moodSongs.isNotEmpty ? _moodSongs : _trendingIndo,
+                    player,
+                    accent,
+                    theme.secondaryAccentColor,
+                  ),
+                  const SizedBox(height: 24),
+                ],
+
+                // Mood Mix Carousel (Generous 196px height so text never clips)
                 _sectionHeader(
                   'Mix $_selectedMood',
-                  subtitle: 'Rekomendasi sesuai suasana hatimu',
+                  onPlayAll: _moodSongs.isEmpty
+                      ? null
+                      : () => player.playSong(
+                            _moodSongs.first,
+                            customQueue: _moodSongs,
+                          ),
+                  accent: accent,
                 ),
                 const SizedBox(height: 12),
                 if (_isLoadingCharts)
@@ -371,7 +364,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 else
                   SizedBox(
-                    height: 182,
+                    height: 196,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       itemCount: _moodSongs.length,
@@ -387,21 +380,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                   ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 24),
 
                 // Trending Indonesia
                 _sectionHeader(
-                  'Populer di Indonesia 🇮🇩',
-                  subtitle: 'Lagu paling sering diputar minggu ini',
+                  'Populer di Indonesia',
+                  onPlayAll: _trendingIndo.isEmpty
+                      ? null
+                      : () => player.playSong(
+                            _trendingIndo.first,
+                            customQueue: _trendingIndo,
+                          ),
+                  accent: accent,
                 ),
-                const SizedBox(height: 10),
-                ..._trendingIndo.take(6).toList().asMap().entries.map(
-                      (entry) => _cleanSongRow(
-                        entry.value,
-                        _trendingIndo,
-                        player,
-                        library,
-                        accent,
+                const SizedBox(height: 8),
+                ..._trendingIndo.take(5).toList().asMap().entries.map(
+                      (entry) => ZunifySongTile(
+                        song: entry.value,
+                        queueContext: _trendingIndo,
                         rank: entry.key + 1,
                       ),
                     ),
@@ -409,17 +405,20 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Trending Global
                 _sectionHeader(
-                  'Top Global 🌍',
-                  subtitle: 'Hits dunia yang lagi naik daun',
+                  'Top Global',
+                  onPlayAll: _trendingGlobal.isEmpty
+                      ? null
+                      : () => player.playSong(
+                            _trendingGlobal.first,
+                            customQueue: _trendingGlobal,
+                          ),
+                  accent: accent,
                 ),
-                const SizedBox(height: 10),
-                ..._trendingGlobal.take(6).toList().asMap().entries.map(
-                      (entry) => _cleanSongRow(
-                        entry.value,
-                        _trendingGlobal,
-                        player,
-                        library,
-                        accent,
+                const SizedBox(height: 8),
+                ..._trendingGlobal.take(5).toList().asMap().entries.map(
+                      (entry) => ZunifySongTile(
+                        song: entry.value,
+                        queueContext: _trendingGlobal,
                         rank: entry.key + 1,
                       ),
                     ),
@@ -435,175 +434,159 @@ class _HomeScreenState extends State<HomeScreen> {
     ZunifySong song,
     List<ZunifySong> mixList,
     PlayerProvider player,
-    String username,
     Color accent,
     Color secondaryAccent,
   ) {
     final queueToPlay = mixList.isNotEmpty ? mixList : [song];
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accent.withOpacity(0.24),
-                secondaryAccent.withOpacity(0.14),
-                Colors.white.withOpacity(0.05),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            accent.withOpacity(0.22),
+            secondaryAccent.withOpacity(0.10),
+            Colors.white.withOpacity(0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(14),
+            child: CachedNetworkImage(
+              imageUrl: song.highResArtUrl,
+              width: 88,
+              height: 88,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Container(
+                width: 88,
+                height: 88,
+                color: Colors.white10,
+                child: Icon(Icons.music_note_rounded, color: accent, size: 30),
+              ),
             ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: accent.withOpacity(0.32)),
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'MIX PILIHAN • $_selectedMood'.toUpperCase(),
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.65),
+                    fontSize: 12.2,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 3,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        'MIX SPESIAL • $_selectedMood'.toUpperCase(),
-                        style: TextStyle(
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () =>
+                          player.playSong(song, customQueue: queueToPlay),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
                           color: accent,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.6,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.play_arrow_rounded,
+                              color: Colors.black,
+                              size: 17,
+                            ),
+                            SizedBox(width: 3),
+                            Text(
+                              'Putar',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.3,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '${song.artist} & radio rekomendasi lainnya',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () =>
-                              player.playSong(song, customQueue: queueToPlay),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: accent,
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.play_arrow_rounded,
-                                  color: Colors.black,
-                                  size: 18,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Putar Mix',
-                                  style: TextStyle(
-                                    color: Colors.black,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () {
+                        final shuffled = List<ZunifySong>.from(queueToPlay)
+                          ..shuffle();
+                        player.playSong(shuffled.first, customQueue: shuffled);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
                         ),
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () {
-                            if (!player.shuffleEnabled) {
-                              player.toggleShuffle();
-                            }
-                            player.playSong(song, customQueue: queueToPlay);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            child: const Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.shuffle_rounded,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
-                                SizedBox(width: 4),
-                                Text(
-                                  'Acak',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.10),
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                      ],
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.shuffle_rounded,
+                              color: Colors.white,
+                              size: 15,
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'Acak',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(18),
-                child: CachedNetworkImage(
-                  imageUrl: song.highResArtUrl,
-                  width: 96,
-                  height: 96,
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Container(
-                    width: 96,
-                    height: 96,
-                    color: Colors.white10,
-                    child: Icon(Icons.music_note, color: accent, size: 32),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -620,60 +603,49 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         decoration: BoxDecoration(
           color: isCurrent
-              ? accent.withOpacity(0.18)
+              ? accent.withOpacity(0.16)
               : Colors.white.withOpacity(0.07),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: isCurrent
-                ? accent.withOpacity(0.45)
-                : Colors.white.withOpacity(0.09),
+                ? accent.withOpacity(0.40)
+                : Colors.white.withOpacity(0.06),
           ),
         ),
         child: Row(
           children: [
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(13),
+                left: Radius.circular(9),
               ),
               child: CachedNetworkImage(
-                imageUrl: song.highResArtUrl,
-                width: 54,
-                height: double.infinity,
+                imageUrl: song.thumbnailUrl,
+                width: 56,
+                height: 56,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
-                  width: 54,
+                  width: 56,
+                  height: 56,
                   color: Colors.white10,
-                  child: Icon(Icons.music_note, color: accent, size: 20),
+                  child: Icon(Icons.music_note_rounded, color: accent, size: 20),
                 ),
               ),
             ),
             const SizedBox(width: 9),
             Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isCurrent ? accent : Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 12.5,
-                    ),
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  song.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: isCurrent ? accent : Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12.2,
+                    height: 1.2,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10.5,
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
             if (isCurrent)
@@ -682,11 +654,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: MiniAudioSpectrumBars(
                   isPlaying: player.isPlaying,
                   color: accent,
-                  height: 13,
+                  height: 12,
                 ),
-              )
-            else
-              const SizedBox(width: 6),
+              ),
           ],
         ),
       ),
@@ -715,19 +685,24 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         _sectionHeader(
           'Tersimpan Offline (${songs.length})',
-          subtitle: 'Putar tanpa kuota internet',
+          onPlayAll: () => player.playSong(songs.first, customQueue: songs),
+          accent: accent,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         ...songs.map(
-          (s) => _cleanSongRow(s, songs, player, library, accent),
+          (s) => ZunifySongTile(song: s, queueContext: songs),
         ),
       ],
     );
   }
 
-  Widget _sectionHeader(String title, {String? subtitle}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _sectionHeader(
+    String title, {
+    VoidCallback? onPlayAll,
+    required Color accent,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(
           title,
@@ -738,17 +713,18 @@ class _HomeScreenState extends State<HomeScreen> {
             letterSpacing: -0.3,
           ),
         ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: const TextStyle(
-              color: Colors.white54,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
+        if (onPlayAll != null)
+          GestureDetector(
+            onTap: onPlayAll,
+            child: Text(
+              'Putar Semua',
+              style: TextStyle(
+                color: accent,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ],
       ],
     );
   }
@@ -762,54 +738,48 @@ class _HomeScreenState extends State<HomeScreen> {
     final isCurrent = player.currentSong?.videoId == song.videoId;
     return GestureDetector(
       onTap: () => player.playSong(song, customQueue: queueList),
+      onLongPress: () => showSongActionSheet(context, song: song),
       child: SizedBox(
-        width: 134,
+        width: 138,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Stack(
               children: [
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                   child: CachedNetworkImage(
                     imageUrl: song.highResArtUrl,
-                    width: 134,
-                    height: 134,
+                    width: 138,
+                    height: 138,
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(
-                      width: 134,
-                      height: 134,
+                      width: 138,
+                      height: 138,
                       color: Colors.white10,
-                      child: Icon(Icons.music_note, color: accent),
+                      child: Icon(Icons.music_note_rounded, color: accent),
                     ),
                   ),
                 ),
-                Positioned(
-                  right: 8,
-                  bottom: 8,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: isCurrent
-                          ? accent
-                          : Colors.black.withOpacity(0.65),
-                      shape: BoxShape.circle,
+                if (isCurrent)
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: MiniAudioSpectrumBars(
+                        isPlaying: player.isPlaying,
+                        color: Colors.black,
+                        height: 11,
+                      ),
                     ),
-                    alignment: Alignment.center,
-                    child: isCurrent
-                        ? MiniAudioSpectrumBars(
-                            isPlaying: player.isPlaying,
-                            color: Colors.black,
-                            height: 12,
-                          )
-                        : const Icon(
-                            Icons.play_arrow_rounded,
-                            color: Colors.white,
-                            size: 18,
-                          ),
                   ),
-                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -820,146 +790,21 @@ class _HomeScreenState extends State<HomeScreen> {
               style: TextStyle(
                 color: isCurrent ? accent : Colors.white,
                 fontWeight: FontWeight.w700,
-                fontSize: 13,
+                fontSize: 13.2,
               ),
             ),
+            const SizedBox(height: 2),
             Text(
               song.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white54, fontSize: 11.5),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _cleanSongRow(
-    ZunifySong song,
-    List<ZunifySong> queueList,
-    PlayerProvider player,
-    LibraryProvider library,
-    Color accent, {
-    int? rank,
-  }) {
-    final isDownloaded = library.isDownloaded(song.videoId);
-    final isFav = library.isFavorite(song.videoId);
-    final isCurrent = player.currentSong?.videoId == song.videoId;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      decoration: BoxDecoration(
-        color: isCurrent
-            ? accent.withOpacity(0.12)
-            : Colors.white.withOpacity(0.04),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isCurrent
-              ? accent.withOpacity(0.35)
-              : Colors.white.withOpacity(0.05),
-        ),
-      ),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-        leading: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (rank != null) ...[
-              SizedBox(
-                width: 20,
-                child: Text(
-                  '$rank',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: rank <= 3 ? accent : Colors.white54,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 13,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
-            ClipRRect(
-              borderRadius: BorderRadius.circular(11),
-              child: CachedNetworkImage(
-                imageUrl: song.highResArtUrl,
-                width: 46,
-                height: 46,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: 46,
-                  height: 46,
-                  color: Colors.white10,
-                  child: Icon(Icons.music_note, color: accent),
-                ),
+              style: TextStyle(
+                color: Colors.white.withOpacity(0.55),
+                fontSize: 11.5,
               ),
             ),
           ],
         ),
-        title: Row(
-          children: [
-            if (isCurrent) ...[
-              MiniAudioSpectrumBars(
-                isPlaying: player.isPlaying,
-                color: accent,
-                height: 12,
-              ),
-              const SizedBox(width: 6),
-            ],
-            Expanded(
-              child: Text(
-                song.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: isCurrent ? accent : Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13.8,
-                ),
-              ),
-            ),
-          ],
-        ),
-        subtitle: Text(
-          song.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white54, fontSize: 11.8),
-        ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: isFav ? accent : Colors.white38,
-                size: 19,
-              ),
-              onPressed: () => library.toggleFavorite(song),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              icon: Icon(
-                isDownloaded
-                    ? Icons.download_done_rounded
-                    : Icons.download_rounded,
-                color: isDownloaded ? accent : Colors.white38,
-                size: 19,
-              ),
-              onPressed: () {
-                if (!isDownloaded) {
-                  library.downloadSong(
-                    song,
-                    highQuality: player.highQualityAudio,
-                  );
-                }
-              },
-            ),
-          ],
-        ),
-        onTap: () => player.playSong(song, customQueue: queueList),
       ),
     );
   }

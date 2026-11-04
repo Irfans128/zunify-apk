@@ -11,6 +11,7 @@ import '../widgets/equalizer_sheet.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/share_card_modal.dart';
 import '../widgets/sleep_timer_sheet.dart';
+import '../widgets/song_tile_widget.dart';
 import '../widgets/vinyl_disc_widget.dart';
 
 class NowPlayingScreen extends StatefulWidget {
@@ -38,7 +39,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     _lastSongId = videoId;
     _lastScrolledLyricIdx = activeIdx;
 
-    // Try precision GlobalObjectKey centering first for butter-smooth variable-height scrolling
     final itemKey = GlobalObjectKey('lyric_${videoId}_$activeIdx');
     final ctx = itemKey.currentContext;
     if (ctx != null) {
@@ -51,7 +51,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       return;
     }
 
-    // Fallback proportional offset if target item is offscreen
     if (_lyricsScrollController.hasClients && totalLines > 0) {
       final maxExtent = _lyricsScrollController.position.maxScrollExtent;
       final approxOffset =
@@ -112,17 +111,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         secondaryColor: accent,
         baseColor: theme.scaffoldBgColor,
         imageUrl: song.highResArtUrl,
-        intensity: _showLyricsView ? 0.60 : 0.48,
+        intensity: _showLyricsView ? 0.56 : 0.44,
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+            padding: const EdgeInsets.fromLTRB(22, 6, 22, 10),
             child: Column(
               children: [
-                // Top Bar: Collapse • Segmented Mode Pill • Share Button
+                // Clean Top Navigation Bar: Collapse • Segmented Mode Pill • More Menu
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
+                      visualDensity: VisualDensity.compact,
                       icon: const Icon(
                         Icons.keyboard_arrow_down_rounded,
                         color: Colors.white,
@@ -131,12 +131,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       onPressed: () => Navigator.pop(context),
                     ),
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(3.5),
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(24),
+                        borderRadius: BorderRadius.circular(22),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.12),
+                          color: Colors.white.withOpacity(0.10),
                         ),
                       ),
                       child: Row(
@@ -145,13 +145,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           _modePillButton(
                             label: 'Musik',
                             selected: !_showLyricsView,
-                            accent: accent,
                             onTap: () => setState(() => _showLyricsView = false),
                           ),
                           _modePillButton(
-                            label: 'Lirik Karaoke',
+                            label: 'Lirik',
                             selected: _showLyricsView,
-                            accent: accent,
                             onTap: () {
                               setState(() {
                                 _showLyricsView = true;
@@ -163,19 +161,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Bagikan Lirik / Lagu ke SW',
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Opsi Lagu',
                       icon: const Icon(
-                        Icons.ios_share_rounded,
+                        Icons.more_horiz_rounded,
                         color: Colors.white,
-                        size: 22,
+                        size: 24,
                       ),
-                      onPressed: () => _openShareModal(context, player),
+                      onPressed: () => showSongActionSheet(
+                        context,
+                        song: song,
+                      ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
 
-                // Centerpiece: Vinyl + Spectrum + Glass Lyrics Card OR Smooth 120fps Karaoke Lyrics
+                // Responsive Centerpiece: Adaptive Vinyl + Compact Lyrics Pill OR Full Smooth Lyrics
                 Expanded(
                   child: GestureDetector(
                     onVerticalDragEnd: (details) {
@@ -191,34 +193,44 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       }
                     },
                     child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 320),
+                      duration: const Duration(milliseconds: 280),
                       child: _showLyricsView
                           ? _buildSmoothKaraokeLyricsView(
                               song.videoId,
                               player,
                               accent,
                             )
-                          : Column(
+                          : LayoutBuilder(
                               key: const ValueKey('vinyl_view'),
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                VinylDiscWidget(
-                                  imageUrl: song.highResArtUrl,
-                                  localImagePath: song.localArtPath,
-                                  isPlaying: player.isPlaying,
-                                  accentColor: accent,
-                                  size: 228,
-                                ),
-                                _buildLiveLyricsGlassCard(player, accent),
-                              ],
+                              builder: (context, constraints) {
+                                // Reserve ~108px for the Live Lyrics card + spacing,
+                                // and subtract 46px for the outer spectrum ring inside VinylDiscWidget
+                                final availableForVinyl =
+                                    (constraints.maxHeight - 148)
+                                        .clamp(150.0, 224.0);
+                                return Column(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceEvenly,
+                                  children: [
+                                    VinylDiscWidget(
+                                      imageUrl: song.highResArtUrl,
+                                      localImagePath: song.localArtPath,
+                                      isPlaying: player.isPlaying,
+                                      accentColor: accent,
+                                      size: availableForVinyl,
+                                    ),
+                                    _buildLiveLyricsGlassCard(player, accent),
+                                  ],
+                                );
+                              },
                             ),
                     ),
                   ),
                 ),
 
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
 
-                // Song Info + Add to Playlist + Love
+                // Clean Song Info + Share & Love Buttons
                 Row(
                   children: [
                     Expanded(
@@ -231,69 +243,44 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 21,
+                              fontSize: 20,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.3,
                             ),
                           ),
                           const SizedBox(height: 3),
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  song.artist,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.70),
-                                    fontSize: 14.5,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 7,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: accent.withOpacity(0.16),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: accent.withOpacity(0.35),
-                                  ),
-                                ),
-                                child: Text(
-                                  player.highQualityAudio ? 'HQ AAC' : 'HEMAT',
-                                  style: TextStyle(
-                                    color: accent,
-                                    fontSize: 9.5,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.68),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Bagikan ke Story / SW',
                       icon: const Icon(
-                        Icons.playlist_add_rounded,
+                        Icons.ios_share_rounded,
                         color: Colors.white70,
-                        size: 26,
+                        size: 22,
                       ),
-                      onPressed: () =>
-                          _showAddToPlaylistSheet(context, library, song, accent),
+                      onPressed: () => _openShareModal(context, player),
                     ),
                     IconButton(
+                      visualDensity: VisualDensity.compact,
+                      tooltip: 'Favorit',
                       icon: Icon(
                         isFav
                             ? Icons.favorite_rounded
                             : Icons.favorite_border_rounded,
                         color: isFav ? accent : Colors.white70,
-                        size: 26,
+                        size: 25,
                       ),
                       onPressed: () => library.toggleFavorite(song),
                     ),
@@ -319,12 +306,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             activeTrackColor: accent,
                             inactiveTrackColor: Colors.white.withOpacity(0.16),
                             thumbColor: Colors.white,
-                            trackHeight: 3.8,
+                            trackHeight: 3.5,
                             overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 12,
+                              overlayRadius: 10,
                             ),
                             thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6,
+                              enabledThumbRadius: 5.5,
                             ),
                           ),
                           child: Slider(
@@ -336,23 +323,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ),
                         ),
                         Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
                                 _formatDuration(position),
                                 style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 11.5,
+                                  color: Colors.white54,
+                                  fontSize: 11.2,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
                               Text(
                                 _formatDuration(total),
                                 style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 11.5,
+                                  color: Colors.white54,
+                                  fontSize: 11.2,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
@@ -365,16 +352,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // Main Transport Controls: Shuffle • Prev • Play/Pause • Next • Repeat
+                // Symmetrical Main Transport Controls
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     IconButton(
-                      tooltip: 'Acak Lagu (Shuffle)',
+                      tooltip: 'Acak Lagu',
                       icon: Icon(
                         Icons.shuffle_rounded,
                         color: player.shuffleEnabled ? accent : Colors.white54,
-                        size: 23,
+                        size: 22,
                       ),
                       onPressed: () => player.toggleShuffle(),
                     ),
@@ -382,38 +369,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       icon: const Icon(
                         Icons.skip_previous_rounded,
                         color: Colors.white,
-                        size: 38,
+                        size: 36,
                       ),
                       onPressed: () => player.playPrevious(),
                     ),
                     GestureDetector(
                       onTap: () => player.togglePlayPause(),
                       child: Container(
-                        width: 66,
-                        height: 66,
+                        width: 62,
+                        height: 62,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            colors: [Colors.white, accent.withOpacity(0.9)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: accent.withOpacity(0.38),
-                              blurRadius: 24,
-                              spreadRadius: 2,
+                              color: accent.withOpacity(0.32),
+                              blurRadius: 20,
+                              spreadRadius: 1,
                             ),
                           ],
                         ),
                         alignment: Alignment.center,
                         child: player.isLoadingTrack
                             ? const SizedBox(
-                                width: 24,
-                                height: 24,
+                                width: 22,
+                                height: 22,
                                 child: CircularProgressIndicator(
                                   color: Colors.black,
-                                  strokeWidth: 2.6,
+                                  strokeWidth: 2.5,
                                 ),
                               )
                             : Icon(
@@ -421,7 +404,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ? Icons.pause_rounded
                                     : Icons.play_arrow_rounded,
                                 color: Colors.black,
-                                size: 38,
+                                size: 36,
                               ),
                       ),
                     ),
@@ -429,122 +412,121 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       icon: const Icon(
                         Icons.skip_next_rounded,
                         color: Colors.white,
-                        size: 38,
+                        size: 36,
                       ),
                       onPressed: () => player.playNext(),
                     ),
                     IconButton(
-                      tooltip: 'Mode Ulang (Repeat)',
+                      tooltip: 'Mode Ulang',
                       icon: Icon(
                         player.repeatMode == 2
                             ? Icons.repeat_one_rounded
                             : Icons.repeat_rounded,
                         color: player.repeatMode > 0 ? accent : Colors.white54,
-                        size: 23,
+                        size: 22,
                       ),
                       onPressed: () => player.cycleRepeatMode(),
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
 
-                // Floating Frosted Bottom Dock: Lirik • Equalizer • Timer • Download • Antrean
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 9,
+                // Clean Bottom Utility Bar (Uniform 1-word labels so nothing wraps!)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.06),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.09),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _dockIcon(
+                        icon: Icons.lyrics_outlined,
+                        label: 'Lirik',
+                        active: _showLyricsView,
+                        accent: accent,
+                        onTap: () => setState(() {
+                          _showLyricsView = !_showLyricsView;
+                          _lastScrolledLyricIdx = -1;
+                        }),
                       ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.07),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.12),
-                        ),
+                      _dockIcon(
+                        icon: Icons.equalizer_rounded,
+                        label: 'Equalizer',
+                        active: player.eqEnabled,
+                        accent: accent,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const EqualizerSheet(),
+                          );
+                        },
                       ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceAround,
-                        children: [
-                          _dockIcon(
-                            icon: Icons.lyrics_rounded,
-                            label: 'Lirik',
-                            active: _showLyricsView,
-                            accent: accent,
-                            onTap: () => setState(() {
-                              _showLyricsView = !_showLyricsView;
-                              _lastScrolledLyricIdx = -1;
-                            }),
-                          ),
-                          _dockIcon(
-                            icon: Icons.equalizer_rounded,
-                            label: 'DSP EQ',
-                            active: player.eqEnabled,
-                            accent: accent,
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                isScrollControlled: true,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => const EqualizerSheet(),
-                              );
-                            },
-                          ),
-                          _dockIcon(
-                            icon: Icons.bedtime_outlined,
-                            label: 'Timer',
-                            active: player.hasActiveSleepTimer,
-                            accent: accent,
-                            onTap: () {
-                              showModalBottomSheet(
-                                context: context,
-                                backgroundColor: Colors.transparent,
-                                builder: (_) => const SleepTimerSheet(),
-                              );
-                            },
-                          ),
-                          downloadProgress != null
-                              ? SizedBox(
-                                  width: 22,
-                                  height: 22,
+                      _dockIcon(
+                        icon: Icons.bedtime_outlined,
+                        label: 'Timer',
+                        active: player.hasActiveSleepTimer,
+                        accent: accent,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const SleepTimerSheet(),
+                          );
+                        },
+                      ),
+                      downloadProgress != null
+                          ? SizedBox(
+                              width: 48,
+                              child: Center(
+                                child: SizedBox(
+                                  width: 20,
+                                  height: 20,
                                   child: CircularProgressIndicator(
                                     value: downloadProgress,
                                     color: accent,
-                                    strokeWidth: 2.4,
+                                    strokeWidth: 2.2,
                                   ),
-                                )
-                              : _dockIcon(
-                                  icon: isDownloaded
-                                      ? Icons.download_done_rounded
-                                      : Icons.download_rounded,
-                                  label: isDownloaded ? 'Tersimpan' : 'Unduh',
-                                  active: isDownloaded,
-                                  accent: accent,
-                                  onTap: () {
-                                    if (!isDownloaded) {
-                                      library.downloadSong(
-                                        song,
-                                        highQuality: player.highQualityAudio,
-                                      );
-                                    }
-                                  },
                                 ),
-                          _dockIcon(
-                            icon: Icons.queue_music_rounded,
-                            label: 'Antrean (${player.queue.length})',
-                            active: false,
-                            accent: accent,
-                            onTap: () =>
-                                _showQueueBottomSheet(context, player, accent),
-                          ),
-                        ],
+                              ),
+                            )
+                          : _dockIcon(
+                              icon: isDownloaded
+                                  ? Icons.download_done_rounded
+                                  : Icons.download_outlined,
+                              label: isDownloaded ? 'Tersimpan' : 'Unduh',
+                              active: isDownloaded,
+                              accent: accent,
+                              onTap: () {
+                                if (!isDownloaded) {
+                                  library.downloadSong(
+                                    song,
+                                    highQuality: player.highQualityAudio,
+                                  );
+                                }
+                              },
+                            ),
+                      _dockIcon(
+                        icon: Icons.queue_music_rounded,
+                        label: 'Antrean',
+                        badgeText: '${player.queue.length}',
+                        active: false,
+                        accent: accent,
+                        onTap: () =>
+                            _showQueueBottomSheet(context, player, accent),
                       ),
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
               ],
             ),
           ),
@@ -553,7 +535,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// Frosted Glass Live Lyrics Preview Card below Vinyl Disc
+  /// Sleek Frosted Live Lyrics Preview Card below Vinyl Disc
   Widget _buildLiveLyricsGlassCard(PlayerProvider player, Color accent) {
     final lyrics = player.currentLyrics;
     final isLoading = player.isLoadingLyrics;
@@ -565,30 +547,29 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       }),
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
+          color: Colors.white.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withOpacity(0.11)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Card Top Header: Spectrum + Source Badge + Manual Translate Button + Expand
             Row(
               children: [
                 MiniAudioSpectrumBars(
                   isPlaying: player.isPlaying,
                   color: accent,
-                  height: 12,
+                  height: 11,
                 ),
-                const SizedBox(width: 7),
+                const SizedBox(width: 6),
                 Text(
-                  'LIRIK LIVE',
+                  'LIRIK',
                   style: TextStyle(
                     color: accent,
-                    fontSize: 10.5,
+                    fontSize: 10,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.8,
                   ),
@@ -603,18 +584,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
-                        vertical: 3,
+                        vertical: 2.5,
                       ),
                       decoration: BoxDecoration(
                         color: player.showTranslation
                             ? accent.withOpacity(0.22)
-                            : Colors.white.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: player.showTranslation
-                              ? accent.withOpacity(0.55)
-                              : Colors.white24,
-                        ),
+                            : Colors.white.withOpacity(0.09),
+                        borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -623,7 +599,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             Icons.translate_rounded,
                             color:
                                 player.showTranslation ? accent : Colors.white70,
-                            size: 11,
+                            size: 10.5,
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -646,37 +622,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 const Icon(
                   Icons.open_in_full_rounded,
-                  color: Colors.white54,
-                  size: 13,
+                  color: Colors.white38,
+                  size: 12,
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-
+            const SizedBox(height: 6),
             if (isLoading)
-              Row(
-                children: [
-                  SizedBox(
-                    width: 14,
-                    height: 14,
-                    child: CircularProgressIndicator(
-                      color: accent,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  const Text(
-                    'Memuat lirik tersinkronisasi...',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                ],
+              const Text(
+                'Memuat lirik tersinkronisasi...',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.white60, fontSize: 12.5),
               )
             else if (lyrics == null || lyrics.lines.isEmpty)
               const Text(
                 '♪ Instrumental / Lirik belum tersedia ♪',
-                style: TextStyle(color: Colors.white60, fontSize: 13.5),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: Colors.white54, fontSize: 12.5),
               )
-            else ...[
+            else
               Builder(
                 builder: (context) {
                   final idx =
@@ -686,76 +652,58 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ? lyrics.lines[idx + 1]
                       : null;
 
-                  return AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 260),
-                    transitionBuilder: (child, anim) => FadeTransition(
-                      opacity: anim,
-                      child: SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.16),
-                          end: Offset.zero,
-                        ).animate(anim),
-                        child: child,
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        activeLine.originalText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      key: ValueKey('preview_line_$idx'),
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                      if (player.showTranslation &&
+                          lyrics.shouldShowTranslation &&
+                          activeLine.translatedIndoText != null) ...[
+                        const SizedBox(height: 2),
                         Text(
-                          activeLine.originalText,
-                          maxLines: 2,
+                          activeLine.translatedIndoText!,
+                          maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15.5,
-                            height: 1.28,
+                          style: GoogleFonts.dmSans(
+                            color: accent,
+                            fontSize: 12,
+                            fontStyle: FontStyle.italic,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        if (player.showTranslation &&
-                            lyrics.shouldShowTranslation &&
-                            activeLine.translatedIndoText != null) ...[
-                          const SizedBox(height: 3),
-                          Text(
-                            activeLine.translatedIndoText!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.dmSans(
-                              color: accent,
-                              fontSize: 13,
-                              fontStyle: FontStyle.italic,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      ] else if (nextLine != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          nextLine.originalText,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white38,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 12,
                           ),
-                        ] else if (nextLine != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            nextLine.originalText,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white38,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                        ),
                       ],
-                    ),
+                    ],
                   );
                 },
               ),
-            ],
           ],
         ),
       ),
     );
   }
 
-  /// Butter-Smooth 120fps Karaoke Lyrics View (Zero GPU `ImageFilter.blur` jank!)
-  /// Uses hardware-accelerated `AnimatedScale` + `AnimatedOpacity` + soft optical `Shadow`
-  /// and a dedicated Manual Translation Button ("🌐 Terjemahkan ke Indonesia").
+  /// Clean Apple Music / Spotify Style 120fps Karaoke Lyrics View
   Widget _buildSmoothKaraokeLyricsView(
     String videoId,
     PlayerProvider player,
@@ -789,184 +737,140 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       key: const ValueKey('smooth_karaoke_lyrics_view'),
       children: [
-        // Top Control Bar: Source Badge • Manual "Terjemahkan" Button • Sync Offset
+        // Symmetrical Top Toolbar: Manual Translate Button (Left) • Sync Offset (Right)
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                // Manual Translate Toggle Button (Primary CTA)
-                if (lyrics.shouldShowTranslation)
-                  GestureDetector(
-                    onTap: () => player.toggleTranslationDisplay(),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 220),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: player.showTranslation
-                            ? accent
-                            : Colors.white.withOpacity(0.11),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: player.showTranslation
-                              ? accent
-                              : Colors.white.withOpacity(0.22),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (player.isTranslatingLyrics) ...[
-                            SizedBox(
-                              width: 12,
-                              height: 12,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: player.showTranslation
-                                    ? Colors.black
-                                    : accent,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                          ] else ...[
-                            Icon(
-                              Icons.translate_rounded,
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              if (lyrics.shouldShowTranslation)
+                GestureDetector(
+                  onTap: () => player.toggleTranslationDisplay(),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      color: player.showTranslation
+                          ? accent
+                          : Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (player.isTranslatingLyrics) ...[
+                          SizedBox(
+                            width: 11,
+                            height: 11,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
                               color: player.showTranslation
                                   ? Colors.black
-                                  : Colors.white,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 5),
-                          ],
-                          Text(
-                            player.isTranslatingLyrics
-                                ? 'Menerjemahkan...'
-                                : (player.showTranslation
-                                    ? 'Sembunyikan Terjemahan'
-                                    : 'Terjemahkan ke Indonesia'),
-                            style: TextStyle(
-                              color: player.showTranslation
-                                  ? Colors.black
-                                  : Colors.white,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
+                                  : accent,
                             ),
                           ),
+                          const SizedBox(width: 6),
+                        ] else ...[
+                          Icon(
+                            Icons.translate_rounded,
+                            color: player.showTranslation
+                                ? Colors.black
+                                : Colors.white,
+                            size: 13.5,
+                          ),
+                          const SizedBox(width: 5),
                         ],
-                      ),
+                        Text(
+                          player.isTranslatingLyrics
+                              ? 'Menerjemahkan...'
+                              : (player.showTranslation
+                                  ? 'Indonesia ON'
+                                  : 'Terjemahkan'),
+                          style: TextStyle(
+                            color: player.showTranslation
+                                ? Colors.black
+                                : Colors.white,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                if (lyrics.shouldShowTranslation) const SizedBox(width: 8),
+                )
+              else
+                const SizedBox.shrink(),
 
-                // Source Badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.verified_rounded, color: accent, size: 13),
-                      const SizedBox(width: 5),
-                      Text(
-                        lyrics.sourceName,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
+              // Sync Offset Pill
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                const SizedBox(width: 8),
-
-                // Sync Offset Adjuster (-0.5s / +0.5s)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.07),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      GestureDetector(
-                        onTap: () => player.adjustLyricsOffset(-500),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          child: Text(
-                            '-0.5s',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                            ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    GestureDetector(
+                      onTap: () => player.adjustLyricsOffset(-500),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(
+                          '-0.5s',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => player.resetLyricsOffset(),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Text(
-                            '${(player.lyricsOffsetMs / 1000).toStringAsFixed(1)}s',
-                            style: TextStyle(
-                              color: player.lyricsOffsetMs == 0
-                                  ? Colors.white54
-                                  : accent,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                            ),
+                    ),
+                    GestureDetector(
+                      onTap: () => player.resetLyricsOffset(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Text(
+                          '${(player.lyricsOffsetMs / 1000).toStringAsFixed(1)}s',
+                          style: TextStyle(
+                            color: player.lyricsOffsetMs == 0
+                                ? Colors.white54
+                                : accent,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => player.adjustLyricsOffset(500),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          child: Text(
-                            '+0.5s',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w700,
-                            ),
+                    ),
+                    GestureDetector(
+                      onTap: () => player.adjustLyricsOffset(500),
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        child: Text(
+                          '+0.5s',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
 
-        // Butter-Smooth 60/120fps Synced Karaoke Scroll List
+        // Clean Apple Music / Spotify Synced Lyrics Scroll List
         Expanded(
           child: ListView.builder(
             controller: _lyricsScrollController,
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.symmetric(vertical: 110),
+            padding: const EdgeInsets.symmetric(vertical: 100),
             itemCount: lyrics.lines.length,
             itemBuilder: (context, index) {
               final line = lyrics.lines[index];
@@ -975,96 +879,51 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               final itemOpacity = isActive
                   ? 1.0
                   : (distance == 1
-                      ? 0.48
-                      : (distance == 2 ? 0.28 : 0.18));
+                      ? 0.45
+                      : (distance == 2 ? 0.26 : 0.16));
 
               return GestureDetector(
                 key: GlobalObjectKey('lyric_${videoId}_$index'),
                 onTap: () => player.seekTo(line.timestamp),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 320),
-                  curve: Curves.easeOutCubic,
-                  margin: const EdgeInsets.symmetric(vertical: 6),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isActive ? 16 : 12,
-                    vertical: isActive ? 14 : 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isActive
-                        ? Colors.white.withOpacity(0.10)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    border: isActive
-                        ? Border.all(
-                            color: accent.withOpacity(0.45),
-                            width: 1.2,
-                          )
-                        : null,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 6,
                   ),
                   child: AnimatedScale(
                     scale: isActive ? 1.02 : 0.96,
                     alignment: Alignment.centerLeft,
-                    duration: const Duration(milliseconds: 320),
+                    duration: const Duration(milliseconds: 300),
                     curve: Curves.easeOutCubic,
                     child: AnimatedOpacity(
-                      duration: const Duration(milliseconds: 280),
+                      duration: const Duration(milliseconds: 260),
                       opacity: itemOpacity,
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (isActive) ...[
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                    top: 5,
-                                    right: 10,
-                                  ),
-                                  child: MiniAudioSpectrumBars(
-                                    isPlaying: player.isPlaying,
-                                    color: accent,
-                                    height: 16,
-                                  ),
-                                ),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  line.originalText,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: Colors.white,
-                                    fontSize: isActive ? 22.5 : 18.5,
-                                    fontWeight: isActive
-                                        ? FontWeight.w800
-                                        : FontWeight.w700,
-                                    height: 1.34,
-                                    letterSpacing: -0.3,
-                                    shadows: isActive
-                                        ? [
-                                            Shadow(
-                                              color: accent.withOpacity(0.48),
-                                              blurRadius: 16,
-                                            ),
-                                          ]
-                                        : [
-                                            Shadow(
-                                              color: Colors.white
-                                                  .withOpacity(0.18),
-                                              blurRadius:
-                                                  distance == 1 ? 3 : 6,
-                                            ),
-                                          ],
-                                  ),
-                                ),
-                              ),
-                            ],
+                          Text(
+                            line.originalText,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontSize: isActive ? 23 : 19,
+                              fontWeight:
+                                  isActive ? FontWeight.w800 : FontWeight.w700,
+                              height: 1.32,
+                              letterSpacing: -0.3,
+                              shadows: isActive
+                                  ? [
+                                      Shadow(
+                                        color: accent.withOpacity(0.45),
+                                        blurRadius: 16,
+                                      ),
+                                    ]
+                                  : null,
+                            ),
                           ),
-
-                          // On-Demand Indonesian Translation (Shown only when user taps Terjemahkan)
                           if (player.showTranslation &&
                               lyrics.shouldShowTranslation &&
                               line.translatedIndoText != null) ...[
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 5),
                             Text(
                               line.translatedIndoText!,
                               style: GoogleFonts.dmSans(
@@ -1092,17 +951,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _modePillButton({
     required String label,
     required bool selected,
-    required Color accent,
     required VoidCallback onTap,
   }) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? Colors.white.withOpacity(0.18) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
         ),
         child: Text(
           label,
@@ -1122,21 +980,50 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required bool active,
     required Color accent,
     required VoidCallback onTap,
+    String? badgeText,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: active ? accent : Colors.white70,
-              size: 20,
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Icon(
+                  icon,
+                  color: active ? accent : Colors.white70,
+                  size: 20,
+                ),
+                if (badgeText != null)
+                  Positioned(
+                    right: -10,
+                    top: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        badgeText,
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 3),
             Text(
               label,
               style: TextStyle(
@@ -1160,7 +1047,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0B0E17),
+      backgroundColor: const Color(0xFF0C101B),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -1181,7 +1068,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     children: [
                       Center(
                         child: Container(
-                          width: 42,
+                          width: 40,
                           height: 4,
                           decoration: BoxDecoration(
                             color: Colors.white24,
@@ -1197,16 +1084,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Antrean Pemutaran',
+                                'Antrean Lagu',
                                 style: TextStyle(
                                   color: Colors.white,
-                                  fontSize: 19,
+                                  fontSize: 18.5,
                                   fontWeight: FontWeight.w900,
                                 ),
                               ),
                               SizedBox(height: 2),
                               Text(
-                                'Tahan & geser ikon ≡ untuk ubah urutan lagu',
+                                'Geser ikon ≡ untuk mengatur urutan lagu',
                                 style: TextStyle(
                                   color: Colors.white54,
                                   fontSize: 11.5,
@@ -1246,13 +1133,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                       const SizedBox(height: 10),
 
-                      // Now Playing Highlight Card
                       if (currentSong != null) ...[
                         Text(
                           'SEDANG DIPUTAR',
                           style: TextStyle(
                             color: accent,
-                            fontSize: 10.5,
+                            fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.8,
                           ),
@@ -1261,9 +1147,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: accent.withOpacity(0.14),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: accent.withOpacity(0.4)),
+                            color: accent.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: accent.withOpacity(0.35)),
                           ),
                           child: Row(
                             children: [
@@ -1271,8 +1157,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 borderRadius: BorderRadius.circular(10),
                                 child: CachedNetworkImage(
                                   imageUrl: currentSong.highResArtUrl,
-                                  width: 46,
-                                  height: 46,
+                                  width: 44,
+                                  height: 44,
                                   fit: BoxFit.cover,
                                 ),
                               ),
@@ -1296,7 +1182,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        color: Colors.white70,
+                                        color: Colors.white60,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -1306,7 +1192,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               MiniAudioSpectrumBars(
                                 isPlaying: livePlayer.isPlaying,
                                 color: accent,
-                                height: 16,
+                                height: 14,
                               ),
                               const SizedBox(width: 6),
                             ],
@@ -1316,17 +1202,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ],
 
                       const Text(
-                        'DAFTAR ANTREAN (DRAG UNTUK UBAH URUTAN)',
+                        'BERIKUTNYA DI ANTREAN',
                         style: TextStyle(
                           color: Colors.white54,
-                          fontSize: 10.5,
+                          fontSize: 10,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.8,
                         ),
                       ),
                       const SizedBox(height: 6),
 
-                      // Reorderable Queue List
                       Expanded(
                         child: ReorderableListView.builder(
                           scrollController: scrollCtrl,
@@ -1353,7 +1238,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 color: isCurrent
                                     ? accent.withOpacity(0.10)
                                     : Colors.white.withOpacity(0.04),
-                                borderRadius: BorderRadius.circular(13),
+                                borderRadius: BorderRadius.circular(12),
                               ),
                               child: ListTile(
                                 dense: true,
@@ -1362,11 +1247,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   right: 4,
                                 ),
                                 leading: ClipRRect(
-                                  borderRadius: BorderRadius.circular(9),
+                                  borderRadius: BorderRadius.circular(8),
                                   child: CachedNetworkImage(
                                     imageUrl: item.thumbnailUrl,
-                                    width: 42,
-                                    height: 42,
+                                    width: 40,
+                                    height: 40,
                                     fit: BoxFit.cover,
                                   ),
                                 ),
@@ -1398,7 +1283,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                         livePlayer.queue.length > 1)
                                       IconButton(
                                         visualDensity: VisualDensity.compact,
-                                        tooltip: 'Hapus dari antrean',
                                         icon: const Icon(
                                           Icons.close_rounded,
                                           color: Colors.white38,
@@ -1417,15 +1301,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                         child: Icon(
                                           Icons.drag_handle_rounded,
                                           color: Colors.white54,
-                                          size: 22,
+                                          size: 20,
                                         ),
                                       ),
                                     ),
                                   ],
                                 ),
-                                onTap: () {
-                                  livePlayer.jumpToQueueIndex(i);
-                                },
+                                onTap: () => livePlayer.jumpToQueueIndex(i),
                               ),
                             );
                           },
@@ -1437,85 +1319,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               },
             );
           },
-        );
-      },
-    );
-  }
-
-  void _showAddToPlaylistSheet(
-    BuildContext context,
-    LibraryProvider library,
-    dynamic song,
-    Color accent,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF0E111A),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Tambah ke Playlist',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (library.playlists.isEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.add_circle_outline_rounded, color: accent),
-                  title: const Text(
-                    'Buat Playlist Baru',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                  onTap: () async {
-                    await library.createLocalPlaylist('Favoritku', '');
-                    if (library.playlists.isNotEmpty) {
-                      await library.addSongToPlaylist(
-                        library.playlists.first.id,
-                        song,
-                      );
-                    }
-                    if (ctx.mounted) Navigator.pop(ctx);
-                  },
-                )
-              else
-                ...library.playlists.map((pl) {
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.queue_music_rounded, color: accent),
-                    title: Text(
-                      pl.name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${pl.songs.length} lagu',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    onTap: () async {
-                      await library.addSongToPlaylist(pl.id, song);
-                      if (ctx.mounted) Navigator.pop(ctx);
-                    },
-                  );
-                }),
-            ],
-          ),
         );
       },
     );
