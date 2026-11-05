@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:audio_service/audio_service.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/lyric_model.dart';
 import '../models/song_model.dart';
@@ -62,6 +66,17 @@ class PlayerProvider extends ChangeNotifier {
   bool _isLoadingTrack = false;
   bool _offlineModeEnabled = false;
   bool _highQualityAudio = true; // true = 160kbps, false = 96kbps (Hemat Kuota)
+  bool _autoQualityEnabled = true; // Feature #3: Wi-Fi = 160kbps, Data = 96kbps
+  String _detectedNetworkType = 'wifi';
+  DateTime? _lastNetCheckAt;
+
+  // Feature #1: Crossfade & Gapless Transition (0 = Off, 3..8s = Smooth Crossfade)
+  int _crossfadeSeconds = 4;
+  bool _crossfadeTriggeredForCurrent = false;
+  Timer? _fadeInTimer;
+
+  static const MethodChannel _nativeChannel =
+      MethodChannel('com.fannz.zunify/equalizer');
 
   // Shuffle & Repeat State (0 = Off, 1 = Repeat Queue, 2 = Repeat One)
   bool _shuffleEnabled = false;
@@ -145,6 +160,20 @@ class PlayerProvider extends ChangeNotifier {
   bool get isLoadingTrack => _isLoadingTrack;
   bool get offlineModeEnabled => _offlineModeEnabled;
   bool get highQualityAudio => _highQualityAudio;
+  bool get autoQualityEnabled => _autoQualityEnabled;
+  String get detectedNetworkType => _detectedNetworkType;
+  int get crossfadeSeconds => _crossfadeSeconds;
+
+  String get activeQualityLabel {
+    if (_autoQualityEnabled) {
+      return _detectedNetworkType == 'cellular'
+          ? 'Otomatis • Data Seluler (96kbps Hemat)'
+          : 'Otomatis • Wi-Fi (160kbps HQ)';
+    }
+    return _highQualityAudio
+        ? '160 kbps High Quality'
+        : '96 kbps Hemat Kuota';
+  }
 
   bool get shuffleEnabled => _shuffleEnabled;
   int get repeatMode => _repeatMode;
@@ -177,7 +206,10 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> initPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _highQualityAudio = prefs.getBool('high_quality_audio') ?? true;
+    _autoQualityEnabled = prefs.getBool('auto_quality_enabled') ?? true;
+    _crossfadeSeconds = prefs.getInt('crossfade_seconds') ?? 4;
     _offlineModeEnabled = prefs.getBool('offline_mode_enabled') ?? false;
+    unawaited(_refreshNetworkType());
 
     // v1.6: Equalizer defaults to OFF + flat (new key so old installs reset too)
     _eqEnabled = prefs.getBool('eq_enabled_v2') ?? false;
@@ -214,9 +246,10 @@ class PlayerProvider extends ChangeNotifier {
       }
     });
 
-    // Coarse position updates (precise lyric sync runs on its own ticker)
+    // Coarse position updates (precise lyric sync runs on its own ticker) + Smooth Crossfade
     _audioPlayer.positionStream.listen((pos) {
       _updateActiveLyricLine(pos);
+      _handleCrossfadeTick(pos);
     });
 
     _audioPlayer.playerStateStream.listen((state) {
@@ -264,6 +297,75 @@ class PlayerProvider extends ChangeNotifier {
   void _stopLyricsTicker() {
     _lyricsTicker?.cancel();
     _lyricsTicker = null;
+  }
+
+  void _handleCrossfadeTick(Duration pos) {
+    if (_crossfadeSeconds <= 0 ||
+        !_audioPlayer.playing ||
+        _isLoadingTrack ||
+        _repeatMode == 2 ||
+        _stopAfterCurrentSong) {
+      return;
+    }
+    final total = _audioPlayer.duration ?? _currentSong?.duration ?? Duration.zero;
+    if (total.inSeconds < 45) return;
+
+    final remainingMs = total.inMilliseconds - pos.inMilliseconds;
+    final fadeWindowMs = _crossfadeSeconds * 1000;
+
+    if (remainingMs > 0 && remainingMs <= fadeWindowMs) {
+      // Smoothly ramp volume down as the song approaches the crossfade handoff
+      final ratio = (remainingMs / fadeWindowMs).clamp(0.18, 1.0);
+      _audioPlayer.setVolume(ratio);
+
+      if (remainingMs <= 650 && !_crossfadeTriggeredForCurrent) {
+        _crossfadeTriggeredForCurrent = true;
+        playNext(fromCompletion: true);
+      }
+    }
+  }
+
+  void _startSmoothFadeIn() {
+    _fadeInTimer?.cancel();
+    if (_crossfadeSeconds <= 0) {
+      _audioPlayer.setVolume(1.0);
+      return;
+    }
+    double vol = 0.22;
+    _audioPlayer.setVolume(vol);
+    const steps = 12;
+    final stepMs = ((_crossfadeSeconds * 320) ~/ steps).clamp(70, 180);
+    _fadeInTimer = Timer.periodic(Duration(milliseconds: stepMs), (timer) {
+      vol += (1.0 - 0.22) / steps;
+      if (vol >= 0.99) {
+        _audioPlayer.setVolume(1.0);
+        timer.cancel();
+      } else {
+        _audioPlayer.setVolume(vol.clamp(0.22, 1.0));
+      }
+    });
+  }
+
+  Future<bool> _resolveEffectiveHighQuality() async {
+    if (!_autoQualityEnabled) return _highQualityAudio;
+    await _refreshNetworkType();
+    return _detectedNetworkType != 'cellular';
+  }
+
+  Future<void> _refreshNetworkType() async {
+    final now = DateTime.now();
+    if (_lastNetCheckAt != null &&
+        now.difference(_lastNetCheckAt!).inSeconds < 12) {
+      return;
+    }
+    _lastNetCheckAt = now;
+    try {
+      final net = await _nativeChannel.invokeMethod<String>('getNetworkType');
+      if (net != null && net.isNotEmpty && net != _detectedNetworkType) {
+        _detectedNetworkType = net;
+        notifyListeners();
+      }
+    } catch (_) {}
   }
 
   void _updateActiveLyricLine(Duration position) {
@@ -653,9 +755,10 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
+        final effectiveHq = await _resolveEffectiveHighQuality();
         final resolvedStream = await _ytMusicService.resolveAudioStream(
           song.videoId,
-          highQuality: _highQualityAudio,
+          highQuality: effectiveHq,
         );
         if (token != _playToken) return; // user already skipped elsewhere
         if (resolvedStream == null) {
@@ -693,6 +796,14 @@ class PlayerProvider extends ChangeNotifier {
 
       _isLoadingTrack = false;
       _trackPlayStartedAt = DateTime.now();
+      final wasCrossfaded = _crossfadeTriggeredForCurrent;
+      _crossfadeTriggeredForCurrent = false;
+      if (wasCrossfaded && _crossfadeSeconds > 0) {
+        _startSmoothFadeIn();
+      } else {
+        _fadeInTimer?.cancel();
+        _audioPlayer.setVolume(1.0);
+      }
       notifyListeners();
       unawaited(_audioPlayer.play());
       unawaited(_libraryProvider.addToRecentlyPlayed(song));
@@ -718,9 +829,12 @@ class PlayerProvider extends ChangeNotifier {
     if (_currentIndex + 1 < _queue.length) {
       final next = _queue[_currentIndex + 1];
       if (!_libraryProvider.isDownloaded(next.videoId)) {
+        final effectiveHq = _autoQualityEnabled
+            ? (_detectedNetworkType != 'cellular')
+            : _highQualityAudio;
         _ytMusicService.prefetchNextSongStream(
           next.videoId,
-          highQuality: _highQualityAudio,
+          highQuality: effectiveHq,
         );
       }
     }
@@ -1002,6 +1116,56 @@ class PlayerProvider extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('high_quality_audio', highQuality);
+  }
+
+  Future<void> setAutoQualityEnabled(bool enabled) async {
+    _autoQualityEnabled = enabled;
+    if (enabled) await _refreshNetworkType();
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('auto_quality_enabled', enabled);
+  }
+
+  Future<void> setCrossfadeSeconds(int seconds) async {
+    _crossfadeSeconds = seconds.clamp(0, 12);
+    if (_crossfadeSeconds == 0) {
+      _fadeInTimer?.cancel();
+      _audioPlayer.setVolume(1.0);
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('crossfade_seconds', _crossfadeSeconds);
+  }
+
+  /// Prepares a local M4A audio file for the Story Video+Music Exporter (`ShareCardModal`).
+  /// Uses offline vault copy if already downloaded; otherwise downloads lightweight stream to temp cache.
+  Future<String?> prepareAudioFileForStory(ZunifySong song) async {
+    final offline = _libraryProvider.getDownloadedSong(song.videoId);
+    if (offline?.localFilePath != null &&
+        File(offline!.localFilePath!).existsSync()) {
+      return offline.localFilePath!;
+    }
+
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/zunify_story_audio_${song.videoId}.m4a');
+    if (tempFile.existsSync() && tempFile.lengthSync() > 32 * 1024) {
+      return tempFile.path;
+    }
+
+    final resolved = await _ytMusicService.resolveAudioStream(
+      song.videoId,
+      highQuality: false, // 96kbps M4A is ~2MB so it downloads in ~1 second
+    );
+    if (resolved == null) return null;
+
+    final res = await http
+        .get(resolved.url, headers: resolved.headers)
+        .timeout(const Duration(seconds: 20));
+    if (res.statusCode == 200 || res.statusCode == 206) {
+      await tempFile.writeAsBytes(res.bodyBytes, flush: true);
+      return tempFile.path;
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------------------

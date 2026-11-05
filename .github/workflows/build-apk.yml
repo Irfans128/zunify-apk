@@ -71,8 +71,8 @@ jobs:
         run: |
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.0-Lite-arm64-by-Fannz.apk
           cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.0-Universal-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.6.1-Lite-arm64-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.6.1-Universal-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.7.0-Lite-arm64-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.7.0-Universal-by-Fannz.apk
 
       - name: Upload Zunify APK Artifacts
         uses: actions/upload-artifact@v4
@@ -88,12 +88,12 @@ jobs:
         run: |
           APP_VER=$(grep "kAppVersion =" lib/app_version.dart | cut -d"'" -f2)
           TAG="v${APP_VER}"
-          NOTES="- Optimasi Performa & RAM (Render 60fps jauh lebih ringan, hemat baterai, & ukuran APK lebih ramping)\n- Algoritma Rekomendasi & Antrean Lagu ala Spotify (Berikutnya di Antrean, Berikutnya dari Playlist, & Autoplay Pintar)\n- Fitur In-App Auto Update langsung dari dalam APK (dengan Log Update & tombol Lewati Versi)\n- Equalizer Default OFF (Suara Original Murni)\n- Sinkronisasi Lirik 60ms presisi pas ketukan vokal + tampilan bersih & smooth"
+          NOTES="- Perbaikan Lirik Lagu Ber-Intro Monolog/MV (Surat Cinta Untuk Starla & lagu sejenis kini punya monolog awal & sinkron akurat dengan durasi asli)\n- Tampilan Lirik Baru Lebih Estetik (Countdown Intro Musik, Indikator Instrumental • • •, Depth-of-Field Blur, & Efek Glow Lirik Aktif)\n- Bagikan Lirik ke SW / Story dengan Suara Lagu Asli (.MP4 Video + Potongan Audio Lagu Persis di Detik Lirik)\n- Rekap Mingguan (Weekly Wrapped) 2-Slide Story Baru Lebih Rapi & Proporsional di Semua Ukuran Layar HP\n- Notifikasi Sistem Otomatis saat Ada Update Baru + Fitur Broadcast Pengumuman dari Fannz ke Semua User\n- Fitur Crossfade Transisi Lagu Mulus (0s / 3s / 4s / 6s / 8s)\n- Kualitas Audio Otomatis Pintar (160 kbps Jernih saat Wi-Fi & 96 kbps Hemat Kuota saat Data Seluler)"
           gh release delete "$TAG" --yes || true
           git tag -f "$TAG"
           git push origin "$TAG" --force
           gh release create "$TAG" \
-            Zunify-v1.6.1-Lite-arm64-by-Fannz.apk \
-            Zunify-v1.6.1-Universal-by-Fannz.apk \
+            Zunify-v1.7.0-Lite-arm64-by-Fannz.apk \
+            Zunify-v1.7.0-Universal-by-Fannz.apk \
             --title "Zunify $TAG (Crafted by Fannz)" \
             --notes "$(echo -e "$NOTES")"

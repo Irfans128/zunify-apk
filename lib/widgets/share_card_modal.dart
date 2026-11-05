@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
@@ -39,6 +40,11 @@ class _ShareCardModalState extends State<ShareCardModal> {
   int _selectedTemplate = 0; // 0: Blur Glass, 1: Vinyl Studio, 2: Polaroid, 3: Cyber Aurora
   bool _includeIndoTranslation = false;
   bool _isSharing = false;
+  bool _isCreatingVideo = false;
+  String _statusMessage = '';
+
+  static const MethodChannel _nativeChannel =
+      MethodChannel('com.fannz.zunify/equalizer');
 
   static const List<String> _templateNames = [
     '✨ Blur Glass',
@@ -77,33 +83,128 @@ class _ShareCardModalState extends State<ShareCardModal> {
     });
   }
 
+  Future<File?> _renderCardPngToFile() async {
+    await Future.delayed(const Duration(milliseconds: 50));
+    final boundary = _cardRepaintKey.currentContext?.findRenderObject()
+        as RenderRepaintBoundary?;
+    if (boundary == null) return null;
+
+    final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+    final ByteData? byteData =
+        await image.toByteData(format: ui.ImageByteFormat.png);
+    if (byteData == null) return null;
+
+    final Uint8List pngBytes = byteData.buffer.asUint8List();
+    final tempDir = await getTemporaryDirectory();
+    final file = File(
+      '${tempDir.path}/zunify_story_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    await file.writeAsBytes(pngBytes, flush: true);
+    return file;
+  }
+
   Future<void> _exportAndShareCard() async {
-    setState(() => _isSharing = true);
+    setState(() {
+      _isSharing = true;
+      _statusMessage = 'Menyiapkan gambar HD...';
+    });
     try {
-      final boundary = _cardRepaintKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
-      if (boundary == null) return;
-
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-
-      final Uint8List pngBytes = byteData.buffer.asUint8List();
-      final tempDir = await getTemporaryDirectory();
-      final file = File(
-        '${tempDir.path}/zunify_story_${DateTime.now().millisecondsSinceEpoch}.png',
-      );
-      await file.writeAsBytes(pngBytes);
+      final file = await _renderCardPngToFile();
+      if (file == null) return;
 
       await Share.shareXFiles(
-        [XFile(file.path)],
+        [XFile(file.path, mimeType: 'image/png')],
         text:
             '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music (Crafted by Fannz)',
       );
     } catch (_) {
     } finally {
-      if (mounted) setState(() => _isSharing = false);
+      if (mounted) {
+        setState(() {
+          _isSharing = false;
+          _statusMessage = '';
+        });
+      }
+    }
+  }
+
+  /// Exports a 9:16 `.mp4` Story Video combining the Lyric Card + 20s of the actual song audio
+  /// starting right at the selected lyric line's timestamp!
+  Future<void> _exportAndShareVideoWithAudio(
+    PlayerProvider player,
+    List<LyricLine> chosenLines,
+  ) async {
+    setState(() {
+      _isCreatingVideo = true;
+      _statusMessage = 'Menyiapkan potongan lagu & kartu lirik...';
+    });
+    try {
+      final pngFile = await _renderCardPngToFile();
+      if (pngFile == null) return;
+
+      final audioPath = await player.prepareAudioFileForStory(widget.song);
+      if (audioPath == null) {
+        // Fallback to image share if offline/network failed
+        await _exportAndShareCard();
+        return;
+      }
+
+      if (mounted) {
+        setState(() => _statusMessage = 'Merender Video Story + Musik (.mp4)...');
+      }
+
+      // Compute startMs from the earliest selected lyric line (or current playback position)
+      int startMs = 0;
+      if (chosenLines.isNotEmpty &&
+          chosenLines.first.timestamp.inMilliseconds > 0) {
+        startMs = (chosenLines.first.timestamp.inMilliseconds - 800)
+            .clamp(0, widget.song.duration.inMilliseconds);
+      } else if (player.currentSong?.videoId == widget.song.videoId) {
+        startMs = player.audioPlayer.position.inMilliseconds;
+      }
+
+      // Compute durationMs (18..24 seconds covering selected lines)
+      int durationMs = 20000;
+      if (chosenLines.length >= 2) {
+        final spanMs = chosenLines.last.timestamp.inMilliseconds -
+            chosenLines.first.timestamp.inMilliseconds +
+            6000;
+        durationMs = spanMs.clamp(15000, 25000);
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final outMp4Path =
+          '${tempDir.path}/zunify_story_music_${DateTime.now().millisecondsSinceEpoch}.mp4';
+
+      final createdPath = await _nativeChannel.invokeMethod<String>(
+        'createStoryVideo',
+        {
+          'imagePath': pngFile.path,
+          'audioPath': audioPath,
+          'outputPath': outMp4Path,
+          'startMs': startMs,
+          'durationMs': durationMs,
+        },
+      );
+
+      if (createdPath != null && File(createdPath).existsSync()) {
+        await Share.shareXFiles(
+          [XFile(createdPath, mimeType: 'video/mp4')],
+          text:
+              '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music (Crafted by Fannz)',
+        );
+      } else {
+        await _exportAndShareCard();
+      }
+    } catch (_) {
+      await _exportAndShareCard();
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCreatingVideo = false;
+          _statusMessage = '';
+        });
+      }
     }
   }
 
@@ -342,33 +443,90 @@ class _ShareCardModalState extends State<ShareCardModal> {
               ),
 
             const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: accent,
-                  foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                ),
-                onPressed: _isSharing ? null : _exportAndShareCard,
-                icon: _isSharing
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.black,
+            if (_statusMessage.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: accent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _statusMessage,
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
-                      )
-                    : const Icon(Icons.ios_share_rounded),
-                label: const Text(
-                  'Bagikan ke WhatsApp Status (SW) / IG Story',
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14.5),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ],
+            Row(
+              children: [
+                Expanded(
+                  flex: 6,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: (_isSharing || _isCreatingVideo)
+                        ? null
+                        : () => _exportAndShareVideoWithAudio(
+                              player,
+                              chosenLines,
+                            ),
+                    icon: const Icon(Icons.movie_creation_rounded, size: 19),
+                    label: const Text(
+                      'Bagikan ke SW + Lagu',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  flex: 4,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: BorderSide(color: Colors.white.withOpacity(0.18)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    onPressed: (_isSharing || _isCreatingVideo)
+                        ? null
+                        : _exportAndShareCard,
+                    icon: const Icon(Icons.image_outlined, size: 18),
+                    label: const Text(
+                      'Gambar Saja',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 12.8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

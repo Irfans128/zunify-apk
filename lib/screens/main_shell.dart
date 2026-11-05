@@ -44,12 +44,97 @@ class _MainShellState extends State<MainShell> {
     // Wait 3.5s after app UI renders so startup is 100% instant with zero lag
     await Future.delayed(const Duration(milliseconds: 3500));
     if (!mounted) return;
+    final updater = UpdateService();
     try {
-      final info = await UpdateService().checkForUpdate(manual: false);
+      final info = await updater.checkForUpdate(manual: false);
       if (info != null && mounted) {
         await showUpdateSheet(context, info);
       }
     } catch (_) {}
+
+    if (!mounted) return;
+    try {
+      final broadcast = await updater.checkBroadcastAnnouncement();
+      if (broadcast != null && mounted) {
+        _showBroadcastDialog(context, broadcast);
+      }
+    } catch (_) {}
+  }
+
+  void _showBroadcastDialog(BuildContext context, BroadcastAnnouncement item) {
+    final accent = context.read<ThemeProvider>().accentColor;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF101420),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: accent.withOpacity(0.35)),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.16),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.campaign_rounded, color: accent, size: 22),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                item.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              item.message,
+              style: const TextStyle(
+                color: Colors.white70,
+                fontSize: 13.8,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '— ${item.sender}',
+              style: TextStyle(
+                color: accent,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: accent,
+              foregroundColor: Colors.black,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Siap, Mengerti',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _checkSunday18WIBRapotPopup() async {

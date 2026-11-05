@@ -3,12 +3,22 @@ import 'package:http/http.dart' as http;
 import '../models/lyric_model.dart';
 import '../models/song_model.dart';
 
-/// Zunify v1.3 4-Layer Synced Karaoke Lyrics & Smart Bahasa Indonesia Translation Service
-/// Inspired by AusDMusic (`SimpMusicLyricsClient` + `BetterLyrics` + `YouTube Music MPLYt` + `LRCLIB`)
-/// 1. SimpMusic Lyrics API (`https://api-lyrics.simpmusic.org/v1/{videoId}`) with `SimpMusicLyrics/1.0.0` UA
-/// 2. Apple Music / BetterLyrics TTML (`https://lyrics-api.boidu.dev/getLyrics`)
-/// 3. LRCLIB Synced Database (`https://lrclib.net/api/search`)
-/// 4. YouTube Music Official Lyrics (`https://music.youtube.com/youtubei/v1/next` -> `MPLYt_...`)
+class _ScoredLyricsCandidate {
+  final SyncedLyrics lyrics;
+  final double score;
+  final int declaredDurationSec;
+
+  const _ScoredLyricsCandidate({
+    required this.lyrics,
+    required this.score,
+    required this.declaredDurationSec,
+  });
+}
+
+/// Zunify v1.7 Smart Duration-Fit & Spoken-Intro Aware Lyrics Engine
+/// Queries SimpMusic, LRCLIB, and BetterLyrics in parallel and scores every candidate
+/// by duration accuracy, timestamp span coverage (start-to-end), spoken intro completeness,
+/// and line richness — preventing mismatched studio vs MV/monologue lyrics.
 class LyricsTranslationService {
   static const String _simpMusicBase = 'https://api-lyrics.simpmusic.org/v1';
   static const String _simpMusicUa = 'SimpMusicLyrics/1.0.0';
@@ -59,8 +69,73 @@ class LyricsTranslationService {
         .trim();
   }
 
-  /// Stage 1: Fetches synced/plain lyrics as fast as possible (< 400ms) from the 4 providers
-  /// so the UI can display lyrics immediately while translation loads in the background.
+  /// Scores a parsed lyrics candidate against the playing track's actual duration.
+  /// Catching cases where a shorter studio LRC is attached to a longer spoken-intro track.
+  double _scoreLyricsCandidate({
+    required List<LyricLine> lines,
+    required bool isSynced,
+    required int declaredDurationSec,
+    required int targetDurationSec,
+    required double providerBonus,
+  }) {
+    if (lines.isEmpty) return -9999;
+    if (!isSynced) return 10.0 + lines.length.clamp(0, 40) * 0.4;
+
+    double score = 100.0 + providerBonus;
+    final vocalLines = lines
+        .where((l) =>
+            l.originalText.trim().isNotEmpty &&
+            !l.originalText.contains('•'))
+        .toList();
+    if (vocalLines.isEmpty) return -9999;
+
+    final firstSec = vocalLines.first.timestamp.inMilliseconds / 1000.0;
+    final lastSec = vocalLines.last.timestamp.inMilliseconds / 1000.0;
+
+    // 1. Declared duration accuracy
+    if (targetDurationSec > 30 && declaredDurationSec > 30) {
+      final durDiff = (declaredDurationSec - targetDurationSec).abs();
+      if (durDiff <= 3) {
+        score += 48.0;
+      } else if (durDiff <= 7) {
+        score += 32.0;
+      } else if (durDiff <= 14) {
+        score += 10.0;
+      } else {
+        score -= (durDiff * 1.8).clamp(15.0, 75.0);
+      }
+    }
+
+    // 2. Actual timestamp span coverage ( catches mislabeled SimpMusic uploads! )
+    if (targetDurationSec > 60) {
+      final tailGap = targetDurationSec - lastSec;
+      if (tailGap >= 3 && tailGap <= 33) {
+        // Last vocal ends naturally before the song's outro
+        score += 42.0;
+      } else if (tailGap > 36) {
+        // Ends way too early -> likely a studio cut LRC on an extended/spoken-intro MV!
+        score -= ((tailGap - 30) * 2.1).clamp(20.0, 85.0);
+      } else if (tailGap < -6) {
+        // Timestamps exceed the audio duration!
+        score -= (tailGap.abs() * 3.0).clamp(25.0, 95.0);
+      }
+
+      // 3. Spoken intro / early vocal coverage bonus:
+      // If the LRC starts early (<= 14s) AND still reaches the end of the song,
+      // it includes the spoken monologue / intro verse!
+      if (firstSec <= 14.0 && tailGap >= 2 && tailGap <= 34) {
+        score += 34.0;
+      }
+    }
+
+    // 4. Completeness / line count bonus
+    score += (vocalLines.length.clamp(0, 65) * 1.15);
+
+    return score;
+  }
+
+  /// Fetches the most accurate synced lyrics by racing SimpMusic, LRCLIB, and BetterLyrics
+  /// in parallel and picking the candidate that best fits the song's duration & intro structure.
   Future<SyncedLyrics> fetchRawLyricsInstant(ZunifySong song) async {
     final cached = _memoryLyricsCache[song.videoId];
     if (cached != null && cached.lines.length > 1) {
@@ -70,53 +145,41 @@ class LyricsTranslationService {
     final cleanTitle = _cleanSongTitle(song.title);
     final cleanArtist = _cleanArtistName(song.artist);
 
-    // 1. Try SimpMusic Lyrics API by videoId (AusDMusic Primary Source)
-    final simpResult =
-        await _fetchFromSimpMusic(song.videoId, song.durationSeconds);
-    if (simpResult != null && simpResult.isSynced) {
-      _cacheLyrics(song.videoId, simpResult);
-      return simpResult;
-    }
-
-    // 2 & 3. Query Apple Music / BetterLyrics TTML + LRCLIB in parallel for instant fallback
-    final parallelResults = await Future.wait([
-      _fetchFromBetterLyrics(
-        song.videoId,
-        cleanTitle.isNotEmpty ? cleanTitle : song.title,
-        cleanArtist.isNotEmpty ? cleanArtist : song.artist,
-      ),
-      _fetchFromLrclib(
+    // Query all 3 synced providers in parallel so we can compare completeness & duration fit
+    final results = await Future.wait([
+      _fetchCandidatesFromSimpMusic(song.videoId, song.durationSeconds),
+      _fetchCandidatesFromLrclib(
         song,
         cleanTitle: cleanTitle,
         cleanArtist: cleanArtist,
       ),
+      _fetchCandidateFromBetterLyrics(
+        song.videoId,
+        cleanTitle.isNotEmpty ? cleanTitle : song.title,
+        cleanArtist.isNotEmpty ? cleanArtist : song.artist,
+        song.durationSeconds,
+      ),
     ]);
 
-    final betterResult = parallelResults[0];
-    final lrcResult = parallelResults[1];
+    final allCandidates = <_ScoredLyricsCandidate>[
+      ...results[0],
+      ...results[1],
+      ...results[2],
+    ];
 
-    if (betterResult != null && betterResult.isSynced) {
-      _cacheLyrics(song.videoId, betterResult);
-      return betterResult;
-    }
-    if (lrcResult != null && lrcResult.isSynced) {
-      _cacheLyrics(song.videoId, lrcResult);
-      return lrcResult;
-    }
-    if (simpResult != null) {
-      _cacheLyrics(song.videoId, simpResult);
-      return simpResult;
-    }
-    if (betterResult != null) {
-      _cacheLyrics(song.videoId, betterResult);
-      return betterResult;
-    }
-    if (lrcResult != null) {
-      _cacheLyrics(song.videoId, lrcResult);
-      return lrcResult;
+    if (allCandidates.isNotEmpty) {
+      allCandidates.sort((a, b) => b.score.compareTo(a.score));
+      final best = allCandidates.first;
+      final aligned = _alignExtendedIntroIfNeeded(
+        best.lyrics,
+        declaredDurationSec: best.declaredDurationSec,
+        targetDurationSec: song.durationSeconds,
+      );
+      _cacheLyrics(song.videoId, aligned);
+      return aligned;
     }
 
-    // 4. Try YouTube Music Official Built-in Lyrics (`MPLYt_...` tab)
+    // 4. Fallback to YouTube Music Official Built-in Lyrics (`MPLYt_...` tab)
     final ytmResult = await _fetchFromYouTubeMusicMplyt(song);
     if (ytmResult != null) {
       _cacheLyrics(song.videoId, ytmResult);
@@ -126,27 +189,72 @@ class LyricsTranslationService {
     return _emptyFallback(song.videoId);
   }
 
+  /// If a song's audio is an MV with a long spoken/cinematic intro (e.g. 310s)
+  /// and the only available LRC in the world is for the shorter studio cut (e.g. 265s),
+  /// automatically shifts the timestamps by the intro offset so vocals still sync!
+  SyncedLyrics _alignExtendedIntroIfNeeded(
+    SyncedLyrics lyrics, {
+    required int declaredDurationSec,
+    required int targetDurationSec,
+  }) {
+    if (!lyrics.isSynced || lyrics.lines.length < 4 || targetDurationSec < 120) {
+      return lyrics;
+    }
+
+    final vocalLines = lyrics.lines
+        .where((l) =>
+            l.originalText.trim().isNotEmpty &&
+            !l.originalText.contains('•'))
+        .toList();
+    if (vocalLines.isEmpty) return lyrics;
+
+    final firstSec = vocalLines.first.timestamp.inSeconds;
+    final lastSec = vocalLines.last.timestamp.inSeconds;
+    final tailGap = targetDurationSec - lastSec;
+
+    // Only auto-shift if the LRC clearly starts after >15s AND ends >38s too early
+    // AND its declared duration is shorter than the audio track by 22..75s
+    if (firstSec >= 15 && tailGap >= 38 && declaredDurationSec > 60) {
+      final deltaSec = targetDurationSec - declaredDurationSec;
+      if (deltaSec >= 22 && deltaSec <= 75) {
+        final offset = Duration(seconds: deltaSec);
+        final shifted = <LyricLine>[
+          const LyricLine(
+            timestamp: Duration(seconds: 2),
+            originalText: '♪ Intro / Monolog Musik... ♪',
+          ),
+          ...lyrics.lines.map(
+            (l) => LyricLine(
+              timestamp: l.timestamp + offset,
+              originalText: l.originalText,
+              translatedIndoText: l.translatedIndoText,
+            ),
+          ),
+        ];
+        return lyrics.copyWith(lines: shifted);
+      }
+    }
+    return lyrics;
+  }
+
   /// Stage 2: Translates non-Indonesian lyrics into Bahasa Indonesia in background
   Future<SyncedLyrics> translateLyricsToIndonesian(SyncedLyrics rawLyrics) async {
     if (rawLyrics.isOriginalIndonesian || rawLyrics.lines.length <= 1) {
       return rawLyrics;
     }
 
-    // Check if already translated
     final alreadyTranslated =
         rawLyrics.lines.any((l) => l.translatedIndoText != null);
     if (alreadyTranslated) {
       return rawLyrics;
     }
 
-    // Try SimpMusic Translated Lyrics DB first (`/v1/translated/{videoId}/id`)
     final simpTrans = await _trySimpMusicTranslation(rawLyrics);
     if (simpTrans != null) {
-      _memoryLyricsCache[rawLyrics.videoId] = simpTrans;
+      _cacheLyrics(rawLyrics.videoId, simpTrans);
       return simpTrans;
     }
 
-    // Otherwise batch-translate with Google Translate GTX
     final translatedLines = await _translateLinesWithGoogle(rawLyrics.lines);
     final stillIndonesian =
         translatedLines.every((l) => l.translatedIndoText == null);
@@ -156,7 +264,7 @@ class LyricsTranslationService {
       isOriginalIndonesian:
           stillIndonesian ? true : rawLyrics.isOriginalIndonesian,
     );
-    _memoryLyricsCache[rawLyrics.videoId] = updated;
+    _cacheLyrics(rawLyrics.videoId, updated);
     return updated;
   }
 
@@ -179,10 +287,11 @@ class LyricsTranslationService {
   // ---------------------------------------------------------------------------
   // PROVIDER 1: SimpMusic Lyrics API (`https://api-lyrics.simpmusic.org/v1`)
   // ---------------------------------------------------------------------------
-  Future<SyncedLyrics?> _fetchFromSimpMusic(
+  Future<List<_ScoredLyricsCandidate>> _fetchCandidatesFromSimpMusic(
     String videoId,
     int totalDurationSec,
   ) async {
+    final candidates = <_ScoredLyricsCandidate>[];
     try {
       final res = await _http
           .get(
@@ -191,55 +300,63 @@ class LyricsTranslationService {
           )
           .timeout(const Duration(seconds: 4));
 
-      if (res.statusCode != 200) return null;
+      if (res.statusCode != 200) return candidates;
 
-      final decoded = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final dataList = decoded['data'] as List<dynamic>? ?? [];
-      if (dataList.isEmpty) return null;
+      if (dataList.isEmpty) return candidates;
 
-      // Pick item with syncedLyrics or richSyncLyrics first
-      Map<String, dynamic>? chosen;
       for (final raw in dataList) {
         final item = raw as Map<String, dynamic>;
-        final synced = item['syncedLyrics']?.toString() ?? '';
-        final rich = item['richSyncLyrics']?.toString() ?? '';
-        if (synced.trim().isNotEmpty || rich.trim().isNotEmpty) {
-          chosen = item;
-          break;
+        final rawSynced =
+            (item['syncedLyrics']?.toString().trim().isNotEmpty == true)
+                ? item['syncedLyrics'].toString()
+                : item['richSyncLyrics']?.toString();
+        final rawPlain = item['plainLyric']?.toString();
+        final itemDur =
+            (item['durationSeconds'] as num?)?.toInt() ?? totalDurationSec;
+
+        List<LyricLine> lines = [];
+        bool isSynced = false;
+
+        if (rawSynced != null && rawSynced.trim().isNotEmpty) {
+          lines = _parseLrcFormat(rawSynced);
+          isSynced = lines.isNotEmpty;
         }
+        if (lines.isEmpty && rawPlain != null && rawPlain.trim().isNotEmpty) {
+          lines = _parsePlainLines(rawPlain, totalDurationSec);
+          isSynced = false;
+        }
+        if (lines.isEmpty) continue;
+
+        final sample = lines.map((e) => e.originalText).join(' ');
+        final lyr = SyncedLyrics(
+          videoId: videoId,
+          isSynced: isSynced,
+          isOriginalIndonesian: detectIsIndonesian(sample),
+          lines: lines,
+          sourceName: isSynced ? 'SimpMusic Synced' : 'SimpMusic Lyrics',
+        );
+
+        final score = _scoreLyricsCandidate(
+          lines: lines,
+          isSynced: isSynced,
+          declaredDurationSec: itemDur,
+          targetDurationSec: totalDurationSec,
+          providerBonus: 6.0,
+        );
+
+        candidates.add(
+          _ScoredLyricsCandidate(
+            lyrics: lyr,
+            score: score,
+            declaredDurationSec: itemDur,
+          ),
+        );
       }
-      chosen ??= dataList.first as Map<String, dynamic>;
-
-      final rawSynced =
-          (chosen['syncedLyrics']?.toString().trim().isNotEmpty == true)
-              ? chosen['syncedLyrics'].toString()
-              : chosen['richSyncLyrics']?.toString();
-      final rawPlain = chosen['plainLyric']?.toString();
-
-      List<LyricLine> lines = [];
-      bool isSynced = false;
-
-      if (rawSynced != null && rawSynced.trim().isNotEmpty) {
-        lines = _parseLrcFormat(rawSynced);
-        isSynced = lines.isNotEmpty;
-      }
-      if (lines.isEmpty && rawPlain != null && rawPlain.trim().isNotEmpty) {
-        lines = _parsePlainLines(rawPlain, totalDurationSec);
-        isSynced = false;
-      }
-      if (lines.isEmpty) return null;
-
-      final sample = lines.map((e) => e.originalText).join(' ');
-      return SyncedLyrics(
-        videoId: videoId,
-        isSynced: isSynced,
-        isOriginalIndonesian: detectIsIndonesian(sample),
-        lines: lines,
-        sourceName: isSynced ? 'SimpMusic Synced' : 'SimpMusic Lyrics',
-      );
-    } catch (_) {
-      return null;
-    }
+    } catch (_) {}
+    return candidates;
   }
 
   Future<SyncedLyrics?> _trySimpMusicTranslation(SyncedLyrics rawLyrics) async {
@@ -252,7 +369,8 @@ class LyricsTranslationService {
           .timeout(const Duration(seconds: 4));
 
       if (res.statusCode != 200) return null;
-      final decoded = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final data = decoded['data'] as Map<String, dynamic>?;
       final transLrc = data?['translatedLyric']?.toString();
       if (transLrc == null || transLrc.trim().isEmpty) return null;
@@ -260,13 +378,17 @@ class LyricsTranslationService {
       final transLines = _parseLrcFormat(transLrc);
       if (transLines.isEmpty) return null;
 
-      // Match by timestamp proximity or index
       final merged = <LyricLine>[];
       for (int i = 0; i < rawLyrics.lines.length; i++) {
         final orig = rawLyrics.lines[i];
+        if (orig.originalText.contains('•')) {
+          merged.add(orig);
+          continue;
+        }
         String? matchText;
         for (final tl in transLines) {
-          if ((tl.timestamp.inMilliseconds - orig.timestamp.inMilliseconds).abs() <=
+          if ((tl.timestamp.inMilliseconds - orig.timestamp.inMilliseconds)
+                  .abs() <=
               1200) {
             matchText = tl.originalText;
             break;
@@ -287,35 +409,54 @@ class LyricsTranslationService {
   // ---------------------------------------------------------------------------
   // PROVIDER 2: BetterLyrics / Apple Music TTML (`lyrics-api.boidu.dev`)
   // ---------------------------------------------------------------------------
-  Future<SyncedLyrics?> _fetchFromBetterLyrics(
+  Future<List<_ScoredLyricsCandidate>> _fetchCandidateFromBetterLyrics(
     String videoId,
     String title,
     String artist,
+    int totalDurationSec,
   ) async {
     try {
       final uri = Uri.parse(_betterLyricsUrl).replace(
         queryParameters: {'s': title, 'a': artist},
       );
-      final res = await _http.get(uri).timeout(const Duration(seconds: 5));
-      if (res.statusCode != 200) return null;
+      final res = await _http.get(uri).timeout(const Duration(seconds: 4));
+      if (res.statusCode != 200) return const [];
 
-      final decoded = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final decoded =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final ttml = decoded['ttml']?.toString() ?? '';
-      if (ttml.isEmpty) return null;
+      if (ttml.isEmpty) return const [];
 
       final lines = _parseTtmlFormat(ttml);
-      if (lines.isEmpty) return null;
+      if (lines.isEmpty) return const [];
 
+      final estimatedDur = lines.last.timestamp.inSeconds + 16;
       final sample = lines.map((e) => e.originalText).join(' ');
-      return SyncedLyrics(
+      final lyr = SyncedLyrics(
         videoId: videoId,
         isSynced: true,
         isOriginalIndonesian: detectIsIndonesian(sample),
         lines: lines,
         sourceName: 'Apple Music Synced',
       );
+
+      final score = _scoreLyricsCandidate(
+        lines: lines,
+        isSynced: true,
+        declaredDurationSec: estimatedDur,
+        targetDurationSec: totalDurationSec,
+        providerBonus: 4.0,
+      );
+
+      return [
+        _ScoredLyricsCandidate(
+          lyrics: lyr,
+          score: score,
+          declaredDurationSec: estimatedDur,
+        ),
+      ];
     } catch (_) {
-      return null;
+      return const [];
     }
   }
 
@@ -343,7 +484,7 @@ class LyricsTranslationService {
         ),
       );
     }
-    return lines;
+    return _injectInterludeMarkers(lines);
   }
 
   int _parseTtmlTimestampMs(String raw) {
@@ -377,12 +518,15 @@ class LyricsTranslationService {
 
   // ---------------------------------------------------------------------------
   // PROVIDER 3: LRCLIB (`https://lrclib.net/api/search`)
+  // Evaluates ALL matching tracks in LRCLIB so spoken-intro versions (e.g. 308s)
+  // and studio versions (e.g. 272s) each get their exact matching LRC!
   // ---------------------------------------------------------------------------
-  Future<SyncedLyrics?> _fetchFromLrclib(
+  Future<List<_ScoredLyricsCandidate>> _fetchCandidatesFromLrclib(
     ZunifySong song, {
     required String cleanTitle,
     required String cleanArtist,
   }) async {
+    final candidates = <_ScoredLyricsCandidate>[];
     try {
       final queries = <Map<String, String>>[
         {
@@ -395,11 +539,12 @@ class LyricsTranslationService {
 
       List<dynamic> items = [];
       for (final q in queries) {
-        final uri = Uri.parse('$_lrclibBase/search').replace(queryParameters: q);
+        final uri =
+            Uri.parse('$_lrclibBase/search').replace(queryParameters: q);
         final res = await _http
             .get(
               uri,
-              headers: {'User-Agent': 'Zunify/1.6.1 (Crafted by Fannz)'},
+              headers: {'User-Agent': 'Zunify/1.7.0 (Crafted by Fannz)'},
             )
             .timeout(const Duration(seconds: 5));
         if (res.statusCode == 200) {
@@ -408,46 +553,76 @@ class LyricsTranslationService {
         }
       }
 
-      if (items.isEmpty) return null;
+      if (items.isEmpty) return candidates;
 
-      Map<String, dynamic>? chosen;
-      for (final item in items) {
+      final targetTitleLower =
+          (cleanTitle.isNotEmpty ? cleanTitle : song.title).toLowerCase();
+
+      for (final item in items.take(15)) {
         final map = item as Map<String, dynamic>;
-        if ((map['syncedLyrics'] as String?)?.trim().isNotEmpty == true) {
-          chosen = map;
-          break;
+        final trackName = (map['trackName']?.toString() ?? '').toLowerCase();
+        // Skip unrelated songs returned by broad search
+        if (targetTitleLower.length >= 4 &&
+            trackName.isNotEmpty &&
+            !trackName.contains(targetTitleLower) &&
+            !targetTitleLower.contains(trackName)) {
+          continue;
         }
+
+        final rawSynced = map['syncedLyrics'] as String?;
+        final rawPlain = map['plainLyrics'] as String?;
+        final itemDur =
+            (map['duration'] as num?)?.round() ?? song.durationSeconds;
+
+        List<LyricLine> parsedLines = [];
+        bool isSynced = false;
+
+        if (rawSynced != null && rawSynced.trim().isNotEmpty) {
+          parsedLines = _parseLrcFormat(rawSynced);
+          isSynced = parsedLines.isNotEmpty;
+        }
+        if (parsedLines.isEmpty &&
+            rawPlain != null &&
+            rawPlain.trim().isNotEmpty) {
+          parsedLines = _parsePlainLines(rawPlain, song.durationSeconds);
+          isSynced = false;
+        }
+        if (parsedLines.isEmpty) continue;
+
+        // Verify that timestamps are actually progressing (rejects broken LRCs where all lines have the same timestamp)
+        if (isSynced && parsedLines.length >= 5) {
+          final spanSec = parsedLines.last.timestamp.inSeconds -
+              parsedLines.first.timestamp.inSeconds;
+          if (spanSec < 25) continue;
+        }
+
+        final sample = parsedLines.map((e) => e.originalText).join(' ');
+        final lyr = SyncedLyrics(
+          videoId: song.videoId,
+          isSynced: isSynced,
+          isOriginalIndonesian: detectIsIndonesian(sample),
+          lines: parsedLines,
+          sourceName: isSynced ? 'LRCLIB Synced' : 'LRCLIB Plain',
+        );
+
+        final score = _scoreLyricsCandidate(
+          lines: parsedLines,
+          isSynced: isSynced,
+          declaredDurationSec: itemDur,
+          targetDurationSec: song.durationSeconds,
+          providerBonus: 5.0,
+        );
+
+        candidates.add(
+          _ScoredLyricsCandidate(
+            lyrics: lyr,
+            score: score,
+            declaredDurationSec: itemDur,
+          ),
+        );
       }
-      chosen ??= items.first as Map<String, dynamic>;
-
-      final rawSynced = chosen['syncedLyrics'] as String?;
-      final rawPlain = chosen['plainLyrics'] as String?;
-
-      List<LyricLine> parsedLines = [];
-      bool isSynced = false;
-
-      if (rawSynced != null && rawSynced.trim().isNotEmpty) {
-        parsedLines = _parseLrcFormat(rawSynced);
-        isSynced = parsedLines.isNotEmpty;
-      }
-      if (parsedLines.isEmpty && rawPlain != null && rawPlain.trim().isNotEmpty) {
-        parsedLines = _parsePlainLines(rawPlain, song.durationSeconds);
-        isSynced = false;
-      }
-
-      if (parsedLines.isEmpty) return null;
-
-      final sample = parsedLines.map((e) => e.originalText).join(' ');
-      return SyncedLyrics(
-        videoId: song.videoId,
-        isSynced: isSynced,
-        isOriginalIndonesian: detectIsIndonesian(sample),
-        lines: parsedLines,
-        sourceName: isSynced ? 'LRCLIB Synced' : 'LRCLIB Plain',
-      );
-    } catch (_) {
-      return null;
-    }
+    } catch (_) {}
+    return candidates;
   }
 
   // ---------------------------------------------------------------------------
@@ -482,8 +657,9 @@ class LyricsTranslationService {
       if (nextRes.statusCode != 200) return null;
       final nextData =
           jsonDecode(utf8.decode(nextRes.bodyBytes)) as Map<String, dynamic>;
-      final tabs = nextData['contents']?['singleColumnMusicWatchNextResultsRenderer']
-              ?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']
+      final tabs = nextData['contents']
+              ?['singleColumnMusicWatchNextResultsRenderer']?['tabbedRenderer']
+              ?['watchNextTabbedResultsRenderer']?['tabs']
           as List<dynamic>?;
       if (tabs == null) return null;
 
@@ -517,11 +693,12 @@ class LyricsTranslationService {
       if (browseRes.statusCode != 200) return null;
       final browseData =
           jsonDecode(utf8.decode(browseRes.bodyBytes)) as Map<String, dynamic>;
-      final contents = browseData['contents']?['sectionListRenderer']?['contents']
-          as List<dynamic>?;
+      final contents = browseData['contents']?['sectionListRenderer']
+          ?['contents'] as List<dynamic>?;
       if (contents == null || contents.isEmpty) return null;
 
-      final runs = (contents.first as Map<String, dynamic>)['musicDescriptionShelfRenderer']
+      final runs = (contents.first
+              as Map<String, dynamic>)['musicDescriptionShelfRenderer']
           ?['description']?['runs'] as List<dynamic>?;
       if (runs == null || runs.isEmpty) return null;
 
@@ -574,7 +751,7 @@ class LyricsTranslationService {
   }
 
   List<LyricLine> _parseLrcFormat(String lrcContent) {
-    final lines = <LyricLine>[];
+    final rawParsed = <LyricLine>[];
     final regExp = RegExp(r'\[(\d{1,2}):(\d{2})(?:[\.:](\d{1,3}))?\](.*)');
 
     for (final rawLine in lrcContent.split('\n')) {
@@ -590,7 +767,7 @@ class LyricsTranslationService {
           millis *= 10;
         }
 
-        // Strip any secondary word-level timestamps like <00:08.50> inside richSyncLyrics
+        // Strip secondary word-level timestamps like <00:08.50> inside richSyncLyrics
         final text = match
             .group(4)!
             .replaceAll(RegExp(r'<\d{1,2}:\d{2}(?:[\.:]\d{1,3})?>'), '')
@@ -598,21 +775,67 @@ class LyricsTranslationService {
             .replaceAll(RegExp(r'^v\d+:\s*', caseSensitive: false), '')
             .trim();
 
-        if (text.isNotEmpty) {
-          lines.add(
+        rawParsed.add(
+          LyricLine(
+            timestamp: Duration(
+              minutes: mins,
+              seconds: secs,
+              milliseconds: millis,
+            ),
+            originalText: text,
+          ),
+        );
+      }
+    }
+
+    // Filter out empty lines unless they mark a real musical interlude (>= 8s gap)
+    final cleaned = <LyricLine>[];
+    for (int i = 0; i < rawParsed.length; i++) {
+      final cur = rawParsed[i];
+      if (cur.originalText.isNotEmpty) {
+        cleaned.add(cur);
+      } else if (cleaned.isNotEmpty && i + 1 < rawParsed.length) {
+        final next = rawParsed[i + 1];
+        final gapMs =
+            next.timestamp.inMilliseconds - cur.timestamp.inMilliseconds;
+        if (gapMs >= 7000 && !cleaned.last.originalText.contains('•')) {
+          cleaned.add(
             LyricLine(
-              timestamp: Duration(
-                minutes: mins,
-                seconds: secs,
-                milliseconds: millis,
-              ),
-              originalText: text,
+              timestamp: cur.timestamp,
+              originalText: '♪ • • • ♪',
             ),
           );
         }
       }
     }
-    return lines;
+
+    return _injectInterludeMarkers(cleaned);
+  }
+
+  /// Automatically adds an interlude indicator when two vocal lines are separated by >= 16s
+  List<LyricLine> _injectInterludeMarkers(List<LyricLine> input) {
+    if (input.length < 2) return input;
+    final out = <LyricLine>[];
+    for (int i = 0; i < input.length; i++) {
+      final cur = input[i];
+      out.add(cur);
+      if (i + 1 < input.length && !cur.originalText.contains('•')) {
+        final next = input[i + 1];
+        if (!next.originalText.contains('•')) {
+          final gapSec =
+              (next.timestamp - cur.timestamp).inSeconds;
+          if (gapSec >= 18) {
+            out.add(
+              LyricLine(
+                timestamp: cur.timestamp + const Duration(seconds: 6),
+                originalText: '♪ • • • ♪',
+              ),
+            );
+          }
+        }
+      }
+    }
+    return out;
   }
 
   List<LyricLine> _parsePlainLines(String plain, int totalDurationSec) {
@@ -635,7 +858,9 @@ class LyricsTranslationService {
   }
 
   /// Batch-translates non-Indonesian lyric lines into Bahasa Indonesia
-  Future<List<LyricLine>> _translateLinesWithGoogle(List<LyricLine> lines) async {
+  Future<List<LyricLine>> _translateLinesWithGoogle(
+    List<LyricLine> lines,
+  ) async {
     try {
       final joinedText = lines.map((l) => l.originalText).join('\n');
       final uri = Uri.parse(
@@ -681,6 +906,10 @@ class LyricsTranslationService {
 
       for (int i = 0; i < lines.length; i++) {
         final orig = lines[i].originalText.trim();
+        if (orig.contains('•')) {
+          updated.add(lines[i]);
+          continue;
+        }
         final trans =
             i < translatedLines.length ? translatedLines[i].trim() : null;
 

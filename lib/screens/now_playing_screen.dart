@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -927,114 +928,259 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
 
+        // Intro Countdown Banner when song is in intro before first lyric line
+        if (player.activeLyricIndex == -1 &&
+            lyrics.lines.isNotEmpty &&
+            lyrics.lines.first.timestamp.inSeconds >= 4)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Builder(
+              builder: (context) {
+                final firstMs =
+                    lyrics.lines.first.timestamp.inMilliseconds.clamp(1, 600000);
+                final posMs =
+                    (player.position.inMilliseconds + player.lyricsOffsetMs)
+                        .clamp(0, firstMs);
+                final progress = (posMs / firstMs).clamp(0.0, 1.0);
+                final remainSec =
+                    ((firstMs - posMs) / 1000).ceil().clamp(0, 999);
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        accent.withOpacity(0.20),
+                        Colors.white.withOpacity(0.05),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: accent.withOpacity(0.35)),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.music_note_rounded, color: accent, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Intro Musik  •  •  •',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.92),
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(99),
+                          child: LinearProgressIndicator(
+                            value: progress,
+                            minHeight: 5,
+                            backgroundColor: Colors.white12,
+                            valueColor: AlwaysStoppedAnimation<Color>(accent),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        '-${remainSec}s',
+                        style: TextStyle(
+                          color: accent,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+
         // Smooth Synced Lyrics Scroll List
         Expanded(
           child: Stack(
             children: [
-              NotificationListener<UserScrollNotification>(
-                onNotification: (n) {
-                  _onUserScrollNotification(n);
-                  return false;
-                },
-                child: ListView.builder(
-                  controller: _lyricsScrollController,
-                  physics: const BouncingScrollPhysics(),
-                  padding: const EdgeInsets.only(top: 28, bottom: 130),
-                  itemCount: lyrics.lines.length,
-                  itemBuilder: (context, index) {
-                    final line = lyrics.lines[index];
-                    final activeIdx = player.activeLyricIndex;
-                    final isActive = index == activeIdx;
-                    final isPassed = activeIdx >= 0 && index < activeIdx;
-                    final distance =
-                        activeIdx < 0 ? (index + 1) : (index - activeIdx).abs();
+              ShaderMask(
+                shaderCallback: (rect) => const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.transparent,
+                    Colors.white,
+                    Colors.white,
+                    Colors.transparent,
+                  ],
+                  stops: [0.0, 0.06, 0.90, 1.0],
+                ).createShader(rect),
+                blendMode: BlendMode.dstIn,
+                child: NotificationListener<UserScrollNotification>(
+                  onNotification: (n) {
+                    _onUserScrollNotification(n);
+                    return false;
+                  },
+                  child: ListView.builder(
+                    controller: _lyricsScrollController,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.only(top: 26, bottom: 135),
+                    itemCount: lyrics.lines.length,
+                    itemBuilder: (context, index) {
+                      final line = lyrics.lines[index];
+                      final activeIdx = player.activeLyricIndex;
+                      final isActive = index == activeIdx;
+                      final isPassed = activeIdx >= 0 && index < activeIdx;
+                      final distance = activeIdx < 0
+                          ? (index + 1)
+                          : (index - activeIdx).abs();
 
-                    final double itemOpacity = isActive
-                        ? 1.0
-                        : (distance == 1
-                            ? 0.50
-                            : (distance == 2
-                                ? 0.32
-                                : (isPassed ? 0.20 : 0.24)));
+                      final double itemOpacity = isActive
+                          ? 1.0
+                          : (distance == 1
+                              ? 0.56
+                              : (distance == 2
+                                  ? 0.34
+                                  : (isPassed ? 0.18 : 0.22)));
 
-                    final displayText = line.originalText.isEmpty
-                        ? '•   •   •'
-                        : line.originalText;
+                      final double blurSigma = isActive || _userScrollingLyrics
+                          ? 0.0
+                          : (distance <= 1
+                              ? 0.0
+                              : (distance == 2 ? 0.55 : 1.15));
 
-                    return InkWell(
-                      key: GlobalObjectKey('lyric_${videoId}_$index'),
-                      borderRadius: BorderRadius.circular(14),
-                      onTap: () {
-                        setState(() => _userScrollingLyrics = false);
-                        player.seekTo(line.timestamp);
-                      },
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 260),
-                        curve: Curves.easeOutCubic,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: 10,
-                          horizontal: 10,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? Colors.white.withOpacity(0.06)
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: AnimatedScale(
-                          scale: isActive ? 1.0 : 0.96,
-                          alignment: Alignment.centerLeft,
+                      final isInterlude = line.originalText.isEmpty ||
+                          line.originalText == '♪ • • • ♪';
+                      final displayText = isInterlude
+                          ? '•   •   •'
+                          : line.originalText;
+
+                      return InkWell(
+                        key: GlobalObjectKey('lyric_${videoId}_$index'),
+                        borderRadius: BorderRadius.circular(18),
+                        onTap: () {
+                          setState(() => _userScrollingLyrics = false);
+                          player.seekTo(line.timestamp);
+                        },
+                        child: AnimatedContainer(
                           duration: const Duration(milliseconds: 280),
                           curve: Curves.easeOutCubic,
-                          child: AnimatedOpacity(
-                            duration: const Duration(milliseconds: 240),
-                            opacity: itemOpacity,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  displayText,
-                                  style: GoogleFonts.plusJakartaSans(
-                                    color: isActive ? Colors.white : Colors.white,
-                                    fontSize: isActive ? 22 : 18.5,
-                                    fontWeight: isActive
-                                        ? FontWeight.w800
-                                        : FontWeight.w700,
-                                    height: 1.35,
-                                    letterSpacing: -0.3,
-                                    shadows: isActive
-                                        ? [
-                                            Shadow(
-                                              color: accent.withOpacity(0.45),
-                                              blurRadius: 16,
-                                            ),
-                                          ]
-                                        : null,
-                                  ),
-                                ),
-                                if (player.showTranslation &&
-                                    lyrics.shouldShowTranslation &&
-                                    line.translatedIndoText != null &&
-                                    line.translatedIndoText!.isNotEmpty) ...[
-                                  const SizedBox(height: 5),
-                                  Text(
-                                    line.translatedIndoText!,
-                                    style: GoogleFonts.dmSans(
-                                      color: isActive ? accent : Colors.white70,
-                                      fontSize: isActive ? 15 : 13.5,
-                                      fontStyle: FontStyle.italic,
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.3,
+                          margin: EdgeInsets.symmetric(
+                            vertical: isActive ? 4 : 1,
+                          ),
+                          padding: EdgeInsets.symmetric(
+                            vertical: isActive ? 13 : 9,
+                            horizontal: 14,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: isActive
+                                ? LinearGradient(
+                                    colors: [
+                                      accent.withOpacity(0.18),
+                                      Colors.white.withOpacity(0.05),
+                                    ],
+                                    begin: Alignment.centerLeft,
+                                    end: Alignment.centerRight,
+                                  )
+                                : null,
+                            color: isActive ? null : Colors.transparent,
+                            borderRadius: BorderRadius.circular(18),
+                            border: isActive
+                                ? Border.all(
+                                    color: accent.withOpacity(0.35),
+                                    width: 1.1,
+                                  )
+                                : null,
+                            boxShadow: isActive
+                                ? [
+                                    BoxShadow(
+                                      color: accent.withOpacity(0.14),
+                                      blurRadius: 20,
+                                      spreadRadius: 1,
                                     ),
-                                  ),
-                                ],
-                              ],
+                                  ]
+                                : null,
+                          ),
+                          child: AnimatedScale(
+                            scale: isActive ? 1.0 : 0.95,
+                            alignment: Alignment.centerLeft,
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeOutCubic,
+                            child: AnimatedOpacity(
+                              duration: const Duration(milliseconds: 240),
+                              opacity: itemOpacity,
+                              child: ImageFiltered(
+                                enabled: blurSigma > 0,
+                                imageFilter: ui.ImageFilter.blur(
+                                  sigmaX: blurSigma,
+                                  sigmaY: blurSigma,
+                                ),
+                                child: isInterlude
+                                    ? _buildInterludeIndicator(
+                                        isActive: isActive,
+                                        accent: accent,
+                                        player: player,
+                                        lineTimestamp: line.timestamp,
+                                        nextTimestamp:
+                                            index + 1 < lyrics.lines.length
+                                                ? lyrics.lines[index + 1]
+                                                    .timestamp
+                                                : player.duration,
+                                      )
+                                    : Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            displayText,
+                                            style: GoogleFonts.plusJakartaSans(
+                                              color: Colors.white,
+                                              fontSize: isActive ? 22.5 : 18.5,
+                                              fontWeight: isActive
+                                                  ? FontWeight.w800
+                                                  : FontWeight.w700,
+                                              height: 1.34,
+                                              letterSpacing: -0.35,
+                                              shadows: isActive
+                                                  ? [
+                                                      Shadow(
+                                                        color: accent
+                                                            .withOpacity(0.55),
+                                                        blurRadius: 18,
+                                                      ),
+                                                    ]
+                                                  : null,
+                                            ),
+                                          ),
+                                          if (player.showTranslation &&
+                                              lyrics.shouldShowTranslation &&
+                                              line.translatedIndoText != null &&
+                                              line.translatedIndoText!
+                                                  .isNotEmpty) ...[
+                                            const SizedBox(height: 6),
+                                            Text(
+                                              line.translatedIndoText!,
+                                              style: GoogleFonts.dmSans(
+                                                color: isActive
+                                                    ? accent
+                                                    : Colors.white70,
+                                                fontSize:
+                                                    isActive ? 15.2 : 13.5,
+                                                fontStyle: FontStyle.italic,
+                                                fontWeight: FontWeight.w600,
+                                                height: 1.3,
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
               ),
 
@@ -1096,6 +1242,62 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildInterludeIndicator({
+    required bool isActive,
+    required Color accent,
+    required PlayerProvider player,
+    required Duration lineTimestamp,
+    required Duration nextTimestamp,
+  }) {
+    final startMs = lineTimestamp.inMilliseconds;
+    final endMs = nextTimestamp.inMilliseconds > startMs
+        ? nextTimestamp.inMilliseconds
+        : startMs + 6000;
+    final curMs = (player.position.inMilliseconds + player.lyricsOffsetMs)
+        .clamp(startMs, endMs);
+    final spanMs = (endMs - startMs).clamp(1, 600000);
+    final progress = isActive ? ((curMs - startMs) / spanMs).clamp(0.0, 1.0) : 0.0;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (int i = 0; i < 3; i++) ...[
+          Container(
+            width: isActive ? 11 : 8,
+            height: isActive ? 11 : 8,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isActive && progress >= (i * 0.30)
+                  ? accent
+                  : Colors.white.withOpacity(isActive ? 0.38 : 0.25),
+              boxShadow: isActive && progress >= (i * 0.30)
+                  ? [
+                      BoxShadow(
+                        color: accent.withOpacity(0.6),
+                        blurRadius: 10,
+                      ),
+                    ]
+                  : null,
+            ),
+          ),
+          if (i < 2) const SizedBox(width: 10),
+        ],
+        if (isActive) ...[
+          const SizedBox(width: 14),
+          Text(
+            'Instrumental',
+            style: TextStyle(
+              color: accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.4,
+            ),
+          ),
+        ],
       ],
     );
   }

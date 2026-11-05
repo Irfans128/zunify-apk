@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,21 +33,91 @@ class UpdateInfo {
   }
 }
 
-/// Serverless in-app updater powered by GitHub Releases.
-///
-/// Performance: the check never blocks app startup. It runs in the background
-/// a few seconds after the UI is shown, has a short timeout, and is throttled
-/// to once every 6 hours (manual "Cek Update" ignores the throttle).
+class BroadcastAnnouncement {
+  final String id;
+  final bool active;
+  final String title;
+  final String message;
+  final String sender;
+  final String createdAt;
+
+  const BroadcastAnnouncement({
+    required this.id,
+    required this.active,
+    required this.title,
+    required this.message,
+    required this.sender,
+    required this.createdAt,
+  });
+
+  factory BroadcastAnnouncement.fromJson(Map<String, dynamic> json) {
+    return BroadcastAnnouncement(
+      id: (json['id'] ?? '').toString(),
+      active: json['active'] == true,
+      title: (json['title'] ?? 'Info Zunify').toString(),
+      message: (json['message'] ?? '').toString(),
+      sender: (json['sender'] ?? 'Fannz').toString(),
+      createdAt: (json['createdAt'] ?? '').toString(),
+    );
+  }
+}
+
+/// Serverless in-app updater & developer broadcast notification service
+/// powered by GitHub Releases & `announcements.json`.
 class UpdateService {
   static const MethodChannel _nativeChannel =
       MethodChannel('com.fannz.zunify/equalizer');
   static const _prefLastCheck = 'update_last_check_ms';
   static const _prefSkipped = 'update_skipped_version';
   static const _prefCachedJson = 'update_cached_release_json';
+  static const _prefNotifiedVer = 'update_notified_version';
+  static const _prefLastSeenAnnouncementId = 'last_seen_announcement_id';
   static const Duration _throttle = Duration(hours: 6);
 
+  static final FlutterLocalNotificationsPlugin _notifPlugin =
+      FlutterLocalNotificationsPlugin();
+  static bool _notifInitialized = false;
+
+  static Future<void> _ensureNotifInitialized() async {
+    if (_notifInitialized) return;
+    try {
+      const androidSettings =
+          AndroidInitializationSettings('@mipmap/launcher_icon');
+      const initSettings = InitializationSettings(android: androidSettings);
+      await _notifPlugin.initialize(initSettings);
+      await _notifPlugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+      _notifInitialized = true;
+    } catch (_) {}
+  }
+
+  /// Displays a system status-bar notification on the user's phone.
+  static Future<void> showSystemPushNotification({
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      await _ensureNotifInitialized();
+      const androidDetails = AndroidNotificationDetails(
+        'zunify_updates_broadcast',
+        'Update & Info Zunify (Fannz)',
+        channelDescription:
+            'Notifikasi update aplikasi dan pengumuman resmi dari Fannz',
+        icon: '@drawable/ic_stat_zunify',
+        importance: Importance.max,
+        priority: Priority.high,
+        styleInformation: BigTextStyleInformation(''),
+      );
+      const details = NotificationDetails(android: androidDetails);
+      await _notifPlugin.show(id, title, body, details);
+    } catch (_) {}
+  }
+
   /// Returns an [UpdateInfo] when a newer version exists, otherwise null.
-  /// When [manual] is false, skipped versions are hidden and the throttle applies.
+  /// Also fires an Android system notification once per new release version.
   Future<UpdateInfo?> checkForUpdate({bool manual = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -92,7 +163,122 @@ class UpdateService {
     if (!isNewer(info.version, kAppVersion)) return null;
 
     if (!manual && prefs.getString(_prefSkipped) == info.version) return null;
+
+    // Trigger Android status-bar notification once for this new version
+    final alreadyNotified = prefs.getString(_prefNotifiedVer);
+    if (alreadyNotified != info.version) {
+      await prefs.setString(_prefNotifiedVer, info.version);
+      await showSystemPushNotification(
+        id: 888,
+        title: '🚀 Update Zunify v${info.version} Tersedia!',
+        body: info.changelog.isNotEmpty
+            ? info.changelog.split('\n').first.replaceFirst(RegExp(r'^-\s*'), '')
+            : 'Versi terbaru Zunify sudah siap diunduh langsung dari aplikasi.',
+      );
+    }
+
     return info;
+  }
+
+  /// Checks if Fannz has published a new broadcast notification in `announcements.json`.
+  /// If a new active announcement is found, triggers a real Android push notification
+  /// and returns it for the in-app banner.
+  Future<BroadcastAnnouncement?> checkBroadcastAnnouncement() async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
+            ),
+            headers: const {
+              'Accept': 'application/vnd.github.raw+json',
+              'User-Agent': 'Zunify-Updater',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (res.statusCode != 200) return null;
+
+      final decoded =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final announcement = BroadcastAnnouncement.fromJson(decoded);
+      if (!announcement.active ||
+          announcement.id.isEmpty ||
+          announcement.message.trim().isEmpty) {
+        return null;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final lastSeen = prefs.getString(_prefLastSeenAnnouncementId);
+      if (lastSeen == announcement.id) {
+        return null;
+      }
+
+      await prefs.setString(_prefLastSeenAnnouncementId, announcement.id);
+      await showSystemPushNotification(
+        id: 889,
+        title: announcement.title,
+        body: announcement.message,
+      );
+      return announcement;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Admin feature for Fannz: publishes a live broadcast notification to all Zunify users
+  /// by updating `announcements.json` on GitHub (`[skip ci]` so it takes effect immediately).
+  Future<bool> publishBroadcastAnnouncement({
+    required String title,
+    required String message,
+    required String githubToken,
+  }) async {
+    final cleanToken = githubToken.trim();
+    if (cleanToken.isEmpty) return false;
+
+    final apiUri = Uri.parse(
+      'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
+    );
+    final headers = {
+      'Authorization': 'Bearer $cleanToken',
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'Zunify-Admin-Fannz',
+    };
+
+    String? existingSha;
+    try {
+      final getRes =
+          await http.get(apiUri, headers: headers).timeout(const Duration(seconds: 8));
+      if (getRes.statusCode == 200) {
+        final meta = jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
+        existingSha = meta['sha']?.toString();
+      }
+    } catch (_) {}
+
+    final newPayload = {
+      'id': 'fannz_${DateTime.now().millisecondsSinceEpoch}',
+      'active': true,
+      'title': title.trim().isEmpty ? '🎧 Info dari Fannz' : title.trim(),
+      'message': message.trim(),
+      'sender': 'Fannz',
+      'createdAt': DateTime.now().toUtc().toIso8601String(),
+    };
+
+    final jsonBytes = utf8.encode(
+      const JsonEncoder.withIndent('  ').convert(newPayload),
+    );
+    final body = <String, dynamic>{
+      'message': 'chore(broadcast): push notification from Fannz [skip ci]',
+      'content': base64Encode(jsonBytes),
+      if (existingSha != null) 'sha': existingSha,
+    };
+
+    final putRes = await http
+        .put(apiUri, headers: headers, body: jsonEncode(body))
+        .timeout(const Duration(seconds: 10));
+    return putRes.statusCode == 200 || putRes.statusCode == 201;
   }
 
   Future<void> skipVersion(String version) async {
