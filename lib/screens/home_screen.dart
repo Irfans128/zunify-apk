@@ -606,7 +606,11 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final isCurrent = player.currentSong?.videoId == song.videoId;
     return GestureDetector(
-      onTap: () => player.playSong(song, customQueue: queueList),
+      onTap: () => player.playSong(
+        song,
+        customQueue: const [],
+        contextName: 'Radio ${song.title}',
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: isCurrent
@@ -746,7 +750,11 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final isCurrent = player.currentSong?.videoId == song.videoId;
     return GestureDetector(
-      onTap: () => player.playSong(song, customQueue: queueList),
+      onTap: () => player.playSong(
+        song,
+        customQueue: const [],
+        contextName: 'Radio ${song.title}',
+      ),
       onLongPress: () => showSongActionSheet(context, song: song),
       child: SizedBox(
         width: 138,

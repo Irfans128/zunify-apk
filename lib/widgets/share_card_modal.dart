@@ -55,7 +55,9 @@ class _ShareCardModalState extends State<ShareCardModal> {
   @override
   void initState() {
     super.initState();
-    final lines = widget.lyrics?.lines ?? [];
+    final lines = (widget.lyrics?.lines ?? [])
+        .where((l) => !l.originalText.contains('•'))
+        .toList();
     _selectedIndices = {};
     if (lines.isNotEmpty) {
       final first = widget.initialLyricIndex.clamp(0, lines.length - 1);
@@ -213,7 +215,9 @@ class _ShareCardModalState extends State<ShareCardModal> {
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
     final liveLyrics = player.currentLyrics ?? widget.lyrics;
-    final lines = liveLyrics?.lines ?? [];
+    final lines = (liveLyrics?.lines ?? [])
+        .where((l) => !l.originalText.contains('•'))
+        .toList();
 
     final sortedSelected = _selectedIndices.toList()..sort();
     final chosenLines = sortedSelected

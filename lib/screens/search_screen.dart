@@ -346,11 +346,14 @@ class _SearchScreenState extends State<SearchScreen> {
                         ? _buildBrowseAndSuggestions(accent)
                         : ListView.builder(
                             padding: const EdgeInsets.only(bottom: 112),
+                            cacheExtent: 500,
                             itemCount: _results.length,
                             itemBuilder: (context, idx) {
+                              final item = _results[idx];
                               return ZunifySongTile(
-                                song: _results[idx],
-                                queueContext: _results,
+                                song: item,
+                                queueContext: const [],
+                                contextName: 'Radio ${item.title}',
                               );
                             },
                           ),

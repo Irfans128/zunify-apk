@@ -244,7 +244,7 @@ class YTMusicService {
     return songs;
   }
 
-  /// Spotify-style Radio / Up-Next Engine via YouTube Music `RDAMVM` Watch Playlist
+  /// Spotify-style Genre / Mood Radio Engine via YouTube Music `RDAMVM` AutoMix Watch Playlist
   Future<List<ZunifySong>> getRadioRecommendations(
     ZunifySong seedSong, {
     Set<String> excludeVideoIds = const {},
@@ -255,6 +255,8 @@ class YTMusicService {
         'videoId': seedSong.videoId,
         'playlistId': 'RDAMVM${seedSong.videoId}',
         'isAudioOnly': true,
+        'enablePersistentPlaylistPanel': true,
+        'tunerSettingValue': 'AUTOMIX_SETTING_NORMAL',
         'context': {
           'client': {
             'clientName': 'WEB_REMIX',
@@ -299,9 +301,15 @@ class YTMusicService {
 
             final title =
                 r['title']?['runs']?[0]?['text']?.toString() ?? 'Unknown';
+            final bylineRuns = r['longBylineText']?['runs'] as List<dynamic>?;
             final artist =
-                r['longBylineText']?['runs']?[0]?['text']?.toString() ??
-                    seedSong.artist;
+                bylineRuns != null && bylineRuns.isNotEmpty
+                    ? (bylineRuns[0]['text']?.toString() ?? seedSong.artist)
+                    : seedSong.artist;
+            final album =
+                bylineRuns != null && bylineRuns.length >= 3
+                    ? (bylineRuns[2]['text']?.toString() ?? 'Zunify Radio')
+                    : 'Zunify Radio';
             final durText =
                 r['lengthText']?['runs']?[0]?['text']?.toString() ?? '3:30';
             final thumbs =
@@ -318,21 +326,21 @@ class YTMusicService {
                 videoId: vid,
                 title: title,
                 artist: artist,
-                album: 'Zunify Radio',
+                album: album,
                 durationSeconds: _parseDurationText(durText),
                 thumbnailUrl: thumb,
                 highResArtUrl: _upgradeThumbnailToSquareHD(thumb),
                 addedAt: DateTime.now(),
               ),
             );
-            if (results.length >= 18) break;
+            if (results.length >= 36) break;
           }
           if (results.isNotEmpty) return results;
         }
       }
     } catch (_) {}
 
-    return searchSongs('${seedSong.artist} populer', limit: 12);
+    return searchSongs('Mix lagu mirip ${seedSong.artist}', limit: 20);
   }
 
   /// Resolves direct playable Audio Stream (`HTTP 200/206`) using `AusDMusic`'s

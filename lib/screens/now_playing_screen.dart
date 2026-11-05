@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' as ui;
+import 'dart:math' as math;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -30,10 +30,36 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   String? _lastSongId;
   bool _userScrollingLyrics = false;
   Timer? _resumeAutoScrollTimer;
+  Timer? _smoothKaraokeTimer;
+  final ValueNotifier<int> _smoothPosMs = ValueNotifier<int>(0);
+
+  @override
+  void initState() {
+    super.initState();
+    _startSmoothKaraokeClock();
+  }
+
+  void _startSmoothKaraokeClock() {
+    _smoothKaraokeTimer?.cancel();
+    _smoothKaraokeTimer = Timer.periodic(
+      const Duration(milliseconds: 22),
+      (_) {
+        if (!mounted || !_showLyricsView) return;
+        final player = context.read<PlayerProvider>();
+        final ms =
+            player.audioPlayer.position.inMilliseconds + player.lyricsOffsetMs;
+        if (_smoothPosMs.value != ms) {
+          _smoothPosMs.value = ms;
+        }
+      },
+    );
+  }
 
   @override
   void dispose() {
     _resumeAutoScrollTimer?.cancel();
+    _smoothKaraokeTimer?.cancel();
+    _smoothPosMs.dispose();
     _lyricsScrollController.dispose();
     super.dispose();
   }
@@ -928,81 +954,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
 
-        // Intro Countdown Banner when song is in intro before first lyric line
-        if (player.activeLyricIndex == -1 &&
-            lyrics.lines.isNotEmpty &&
-            lyrics.lines.first.timestamp.inSeconds >= 4)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: StreamBuilder<Duration>(
-              stream: player.audioPlayer.positionStream,
-              initialData: player.position,
-              builder: (context, snap) {
-                final curPos = snap.data ?? player.position;
-                final firstMs =
-                    lyrics.lines.first.timestamp.inMilliseconds.clamp(1, 600000);
-                final posMs =
-                    (curPos.inMilliseconds + player.lyricsOffsetMs)
-                        .clamp(0, firstMs);
-                final progress = (posMs / firstMs).clamp(0.0, 1.0);
-                final remainSec =
-                    ((firstMs - posMs) / 1000).ceil().clamp(0, 999);
-                return Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        accent.withOpacity(0.20),
-                        Colors.white.withOpacity(0.05),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: accent.withOpacity(0.35)),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.music_note_rounded, color: accent, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Intro Musik  •  •  •',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.92),
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(99),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 5,
-                            backgroundColor: Colors.white12,
-                            valueColor: AlwaysStoppedAnimation<Color>(accent),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '-${remainSec}s',
-                        style: TextStyle(
-                          color: accent,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-
-        // Smooth Apple Music "Liquid Glass" Synced Lyrics Scroll List
+        // Smooth Apple Music "Liquid Glass" Synced Lyrics Scroll List (Zero-Jank 60/120fps)
         Expanded(
           child: Stack(
             children: [
@@ -1016,7 +968,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     Colors.white,
                     Colors.transparent,
                   ],
-                  stops: [0.0, 0.07, 0.88, 1.0],
+                  stops: [0.0, 0.06, 0.90, 1.0],
                 ).createShader(rect),
                 blendMode: BlendMode.dstIn,
                 child: NotificationListener<UserScrollNotification>(
@@ -1027,36 +979,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   child: ListView.builder(
                     controller: _lyricsScrollController,
                     physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.only(top: 30, bottom: 145),
+                    cacheExtent: 600,
+                    padding: const EdgeInsets.only(top: 24, bottom: 145),
                     itemCount: lyrics.lines.length,
                     itemBuilder: (context, index) {
                       final line = lyrics.lines[index];
-                      final activeIdx = player.activeLyricIndex;
+                      final activeIdx = player.activeLyricIndex < 0
+                          ? 0
+                          : player.activeLyricIndex;
                       final isActive = index == activeIdx;
-                      final isPassed = activeIdx >= 0 && index < activeIdx;
-                      final distance = activeIdx < 0
-                          ? (index + 1)
-                          : (index - activeIdx).abs();
+                      final isPassed = index < activeIdx;
+                      final distance = (index - activeIdx).abs();
 
                       final double itemOpacity = isActive
                           ? 1.0
                           : (distance == 1
-                              ? 0.52
+                              ? 0.48
                               : (distance == 2
-                                  ? 0.30
+                                  ? 0.28
                                   : (isPassed ? 0.14 : 0.18)));
 
-                      final double blurSigma = isActive || _userScrollingLyrics
-                          ? 0.0
-                          : (distance == 1
-                              ? 0.35
-                              : (distance == 2 ? 1.05 : 1.85));
-
                       final isInterlude = line.originalText.isEmpty ||
-                          line.originalText == '♪ • • • ♪';
-                      final displayText = isInterlude
-                          ? '•   •   •'
-                          : line.originalText;
+                          line.originalText.contains('•');
                       final nextTimestamp = index + 1 < lyrics.lines.length
                           ? lyrics.lines[index + 1].timestamp
                           : player.duration;
@@ -1065,119 +1009,77 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ? _buildInterludeIndicator(
                               isActive: isActive,
                               accent: accent,
-                              player: player,
                               lineTimestamp: line.timestamp,
                               nextTimestamp: nextTimestamp,
                             )
                           : _buildAppleMusicLyricContent(
                               isActive: isActive,
-                              displayText: displayText,
+                              line: line,
                               translatedText: (player.showTranslation &&
                                       lyrics.shouldShowTranslation)
                                   ? line.translatedIndoText
                                   : null,
                               accent: accent,
-                              player: player,
-                              lineTimestamp: line.timestamp,
                               nextTimestamp: nextTimestamp,
                             );
 
-                      return GestureDetector(
+                      return RepaintBoundary(
                         key: GlobalObjectKey('lyric_${videoId}_$index'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: () {
-                          setState(() => _userScrollingLyrics = false);
-                          player.seekTo(line.timestamp);
-                        },
-                        child: AnimatedPadding(
-                          duration: const Duration(milliseconds: 380),
-                          curve: Curves.easeOutQuart,
-                          padding: EdgeInsets.symmetric(
-                            vertical: isActive ? 7 : 3,
-                          ),
-                          child: AnimatedScale(
-                            scale: isActive
-                                ? 1.0
-                                : (distance == 1 ? 0.94 : 0.90),
-                            alignment: Alignment.centerLeft,
-                            duration: const Duration(milliseconds: 420),
-                            curve: Curves.easeOutQuart,
-                            child: AnimatedOpacity(
-                              duration: const Duration(milliseconds: 320),
-                              curve: Curves.easeOutCubic,
-                              opacity: itemOpacity,
-                              child: isActive
-                                  ? Container(
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(24),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: accent.withOpacity(0.22),
-                                            blurRadius: 28,
-                                            spreadRadius: 1,
-                                            offset: const Offset(0, 8),
-                                          ),
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.28),
-                                            blurRadius: 18,
-                                            offset: const Offset(0, 6),
-                                          ),
-                                        ],
-                                      ),
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(24),
-                                        child: BackdropFilter(
-                                          filter: ui.ImageFilter.blur(
-                                            sigmaX: 18,
-                                            sigmaY: 18,
-                                          ),
-                                          child: Container(
-                                            padding: const EdgeInsets.fromLTRB(
-                                              18,
-                                              15,
-                                              18,
-                                              15,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              borderRadius:
-                                                  BorderRadius.circular(24),
-                                              gradient: LinearGradient(
-                                                begin: Alignment.topLeft,
-                                                end: Alignment.bottomRight,
-                                                colors: [
-                                                  Colors.white
-                                                      .withOpacity(0.22),
-                                                  accent.withOpacity(0.15),
-                                                  Colors.white
-                                                      .withOpacity(0.06),
-                                                ],
-                                                stops: const [0.0, 0.52, 1.0],
-                                              ),
-                                              border: Border.all(
-                                                color: Colors.white
-                                                    .withOpacity(0.34),
-                                                width: 1.2,
-                                              ),
-                                            ),
-                                            child: lineBody,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  : Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 8,
-                                        horizontal: 14,
-                                      ),
-                                      child: ImageFiltered(
-                                        enabled: blurSigma > 0,
-                                        imageFilter: ui.ImageFilter.blur(
-                                          sigmaX: blurSigma,
-                                          sigmaY: blurSigma,
-                                        ),
-                                        child: lineBody,
-                                      ),
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            setState(() => _userScrollingLyrics = false);
+                            player.seekTo(line.timestamp);
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 340),
+                            curve: Curves.easeOutCubic,
+                            margin: EdgeInsets.symmetric(
+                              vertical: isActive ? 6 : 2,
+                            ),
+                            padding: EdgeInsets.symmetric(
+                              vertical: isActive ? 14 : 9,
+                              horizontal: isActive ? 18 : 14,
+                            ),
+                            decoration: isActive
+                                ? BoxDecoration(
+                                    borderRadius: BorderRadius.circular(24),
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [
+                                        Colors.white.withOpacity(0.20),
+                                        accent.withOpacity(0.14),
+                                        Colors.white.withOpacity(0.05),
+                                      ],
+                                      stops: const [0.0, 0.50, 1.0],
                                     ),
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.32),
+                                      width: 1.15,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: accent.withOpacity(0.18),
+                                        blurRadius: 22,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
+                                  )
+                                : const BoxDecoration(),
+                            child: AnimatedScale(
+                              scale: isActive
+                                  ? 1.0
+                                  : (distance == 1 ? 0.94 : 0.90),
+                              alignment: Alignment.centerLeft,
+                              duration: const Duration(milliseconds: 360),
+                              curve: Curves.easeOutCubic,
+                              child: AnimatedOpacity(
+                                duration: const Duration(milliseconds: 280),
+                                curve: Curves.easeOutCubic,
+                                opacity: itemOpacity,
+                                child: lineBody,
+                              ),
                             ),
                           ),
                         ),
@@ -1251,13 +1153,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildAppleMusicLyricContent({
     required bool isActive,
-    required String displayText,
+    required LyricLine line,
     required String? translatedText,
     required Color accent,
-    required PlayerProvider player,
-    required Duration lineTimestamp,
     required Duration nextTimestamp,
   }) {
+    final displayText = line.originalText;
     if (!isActive) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1289,175 +1190,194 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       );
     }
 
-    final words = displayText
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
-    final totalWeight = words.fold<int>(0, (sum, w) => sum + w.length + 1);
+    final startMs = line.timestamp.inMilliseconds;
+    final endMs = line.endTimeMs ??
+        (nextTimestamp.inMilliseconds > startMs
+            ? nextTimestamp.inMilliseconds
+            : startMs + 3200);
+    final words = line.words;
 
-    return StreamBuilder<Duration>(
-      stream: player.audioPlayer.positionStream,
-      initialData: player.position,
-      builder: (context, snap) {
-        final curPos = snap.data ?? player.position;
-        final startMs = lineTimestamp.inMilliseconds;
-        final rawSpan = (nextTimestamp.inMilliseconds - startMs).clamp(800, 7500);
-        final elapsed =
-            (curPos.inMilliseconds + player.lyricsOffsetMs - startMs)
-                .clamp(0, rawSpan);
-        final lineProgress = (elapsed / rawSpan).clamp(0.0, 1.0);
-
-        int cumulativeWeight = 0;
-
+    return ValueListenableBuilder<int>(
+      valueListenable: _smoothPosMs,
+      builder: (context, curMs, _) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Wrap(
-              spacing: 6.5,
-              runSpacing: 4,
-              children: words.map((word) {
-                final wWeight = word.length + 1;
-                final wStart =
-                    totalWeight > 0 ? cumulativeWeight / totalWeight : 0.0;
-                cumulativeWeight += wWeight;
-                final wEnd =
-                    totalWeight > 0 ? cumulativeWeight / totalWeight : 1.0;
-                final wSpan = (wEnd - wStart).clamp(0.02, 1.0);
-                final wProg =
-                    ((lineProgress - wStart) / wSpan).clamp(0.0, 1.0);
+            if (words.isNotEmpty)
+              Wrap(
+                spacing: 6.5,
+                runSpacing: 4,
+                children: words.map((w) {
+                  final span = (w.endMs - w.startMs).clamp(60, 15000);
+                  final wProg = ((curMs - w.startMs) / span).clamp(0.0, 1.0);
+                  // Smooth sinusoidal lift while singing the word
+                  final lift = wProg >= 1.0
+                      ? -1.4
+                      : (wProg <= 0.0 ? 0.0 : -2.2 * math.sin(wProg * math.pi));
 
-                final baseStyle = GoogleFonts.plusJakartaSans(
+                  final baseStyle = GoogleFonts.plusJakartaSans(
+                    color: Colors.white,
+                    fontSize: 23.0,
+                    fontWeight: FontWeight.w800,
+                    height: 1.30,
+                    letterSpacing: -0.45,
+                    shadows: wProg > 0.05
+                        ? [
+                            Shadow(
+                              color: accent.withOpacity(0.55 * wProg),
+                              blurRadius: 14,
+                            ),
+                          ]
+                        : null,
+                  );
+
+                  return Transform.translate(
+                    offset: Offset(0, lift),
+                    child: wProg >= 0.99
+                        ? Text(w.text, style: baseStyle)
+                        : (wProg <= 0.01
+                            ? Text(
+                                w.text,
+                                style: baseStyle.copyWith(
+                                  color: Colors.white.withOpacity(0.38),
+                                  shadows: null,
+                                ),
+                              )
+                            : ShaderMask(
+                                shaderCallback: (rect) => LinearGradient(
+                                  begin: Alignment.centerLeft,
+                                  end: Alignment.centerRight,
+                                  colors: [
+                                    Colors.white,
+                                    Colors.white.withOpacity(0.38),
+                                  ],
+                                  stops: [
+                                    wProg.clamp(0.0, 1.0),
+                                    (wProg + 0.22).clamp(0.0, 1.0),
+                                  ],
+                                ).createShader(rect),
+                                blendMode: BlendMode.srcIn,
+                                child: Text(w.text, style: baseStyle),
+                              )),
+                  );
+                }).toList(),
+              )
+            else
+              Text(
+                displayText,
+                style: GoogleFonts.plusJakartaSans(
                   color: Colors.white,
                   fontSize: 23.0,
                   fontWeight: FontWeight.w800,
                   height: 1.30,
                   letterSpacing: -0.45,
-                  shadows: wProg > 0.1
-                      ? [
-                          Shadow(
-                            color: accent.withOpacity(0.55 * wProg),
-                            blurRadius: 16,
-                          ),
-                        ]
-                      : null,
-                );
-
-                return Transform.translate(
-                  offset: Offset(0, -1.6 * wProg),
-                  child: wProg >= 0.99
-                      ? Text(word, style: baseStyle)
-                      : (wProg <= 0.01
-                          ? Text(
-                              word,
-                              style: baseStyle.copyWith(
-                                color: Colors.white.withOpacity(0.40),
-                                shadows: null,
-                              ),
-                            )
-                          : ShaderMask(
-                              shaderCallback: (rect) => LinearGradient(
-                                begin: Alignment.centerLeft,
-                                end: Alignment.centerRight,
-                                colors: [
-                                  Colors.white,
-                                  Colors.white.withOpacity(0.40),
-                                ],
-                                stops: [
-                                  wProg.clamp(0.0, 1.0),
-                                  (wProg + 0.25).clamp(0.0, 1.0),
-                                ],
-                              ).createShader(rect),
-                              blendMode: BlendMode.srcIn,
-                              child: Text(word, style: baseStyle),
-                            )),
-                );
-              }).toList(),
-            ),
+                ),
+              ),
             if (translatedText != null && translatedText.isNotEmpty) ...[
               const SizedBox(height: 7),
               Text(
                 translatedText,
                 style: GoogleFonts.dmSans(
                   color: accent,
-                  fontSize: 15.2,
+                  fontSize: 15.0,
                   fontStyle: FontStyle.italic,
                   fontWeight: FontWeight.w700,
                   height: 1.3,
                 ),
               ),
             ],
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(99),
-              child: LinearProgressIndicator(
-                value: lineProgress,
-                minHeight: 2.5,
-                backgroundColor: Colors.white.withOpacity(0.12),
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  Colors.white.withOpacity(0.85),
-                ),
-              ),
-            ),
           ],
         );
       },
     );
   }
 
+  /// Spotify / Apple Music 3 Animated Instrumental Dots (`•  •  •`)
+  /// Bounces in a smooth wave and fills left-to-right as the intro/interlude plays,
+  /// with NO text labels.
   Widget _buildInterludeIndicator({
     required bool isActive,
     required Color accent,
-    required PlayerProvider player,
     required Duration lineTimestamp,
     required Duration nextTimestamp,
   }) {
+    if (!isActive) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (i) {
+            return Container(
+              margin: EdgeInsets.only(right: i < 2 ? 10 : 0),
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.28),
+              ),
+            );
+          }),
+        ),
+      );
+    }
+
     final startMs = lineTimestamp.inMilliseconds;
     final endMs = nextTimestamp.inMilliseconds > startMs
         ? nextTimestamp.inMilliseconds
         : startMs + 6000;
-    final curMs = (player.position.inMilliseconds + player.lyricsOffsetMs)
-        .clamp(startMs, endMs);
-    final spanMs = (endMs - startMs).clamp(1, 600000);
-    final progress = isActive ? ((curMs - startMs) / spanMs).clamp(0.0, 1.0) : 0.0;
+    final spanMs = (endMs - startMs).clamp(500, 600000);
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (int i = 0; i < 3; i++) ...[
-          Container(
-            width: isActive ? 11 : 8,
-            height: isActive ? 11 : 8,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isActive && progress >= (i * 0.30)
-                  ? accent
-                  : Colors.white.withOpacity(isActive ? 0.38 : 0.25),
-              boxShadow: isActive && progress >= (i * 0.30)
-                  ? [
-                      BoxShadow(
-                        color: accent.withOpacity(0.6),
-                        blurRadius: 10,
+    return ValueListenableBuilder<int>(
+      valueListenable: _smoothPosMs,
+      builder: (context, curMs, _) {
+        final progress = ((curMs - startMs) / spanMs).clamp(0.0, 1.0);
+        final phase = curMs / 240.0;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(3, (i) {
+              // Each dot fills up across its 1/3rd segment of the interlude
+              final segStart = i / 3.0;
+              final dotFill = ((progress - segStart) * 3.0).clamp(0.0, 1.0);
+              // Smooth rhythmic wave bounce like Spotify & Apple Music
+              final wave = math.sin(phase - (i * 0.95));
+              final dy = -3.2 * ((wave + 1.0) * 0.5);
+              final scale = 0.88 + 0.24 * ((wave + 1.0) * 0.5);
+
+              return Transform.translate(
+                offset: Offset(0, dy),
+                child: Transform.scale(
+                  scale: scale,
+                  child: Container(
+                    margin: EdgeInsets.only(right: i < 2 ? 12 : 0),
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color.lerp(
+                        Colors.white.withOpacity(0.32),
+                        Colors.white,
+                        dotFill,
                       ),
-                    ]
-                  : null,
-            ),
+                      boxShadow: dotFill > 0.2
+                          ? [
+                              BoxShadow(
+                                color: accent.withOpacity(0.65 * dotFill),
+                                blurRadius: 12,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
-          if (i < 2) const SizedBox(width: 10),
-        ],
-        if (isActive) ...[
-          const SizedBox(width: 14),
-          Text(
-            'Instrumental',
-            style: TextStyle(
-              color: accent,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 

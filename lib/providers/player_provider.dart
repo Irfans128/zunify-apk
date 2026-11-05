@@ -57,6 +57,7 @@ class PlayerProvider extends ChangeNotifier {
 
   bool _autoplayEnabled = true;
   bool _isFetchingAutoplay = false;
+  int _autoplayToken = 0;
 
   // Lightweight taste signals for the recommendation algorithm
   final List<String> _recentHistoryIds = [];
@@ -97,8 +98,8 @@ class PlayerProvider extends ChangeNotifier {
   Timer? _lyricsTicker;
 
   /// Lines light up slightly before they are sung (like Spotify / Apple Music)
-  /// so the highlight animation finishes exactly when the vocal starts.
-  static const int _lyricsLeadMs = 280;
+  /// so the scroll settles right as the first word starts.
+  static const int _lyricsLeadMs = 140;
 
   // Sleep Timer State
   Timer? _sleepTimer;
@@ -675,14 +676,24 @@ class PlayerProvider extends ChangeNotifier {
   // Playback
   // ---------------------------------------------------------------------------
 
-  /// Starts playing [song]. If [customQueue] is given it becomes the new context
-  /// (e.g. a playlist, search results, a home section) named [contextName].
+  /// Starts playing [song]. If [customQueue] has multiple tracks it becomes the new context
+  /// (e.g. a playlist or mood mix) named [contextName]. If [customQueue] is empty or a single
+  /// track (e.g. tapped from Search or Quick Picks), it starts a Spotify-style Genre Radio
+  /// around [song] while preserving any user-queued tracks.
   Future<void> playSong(
     ZunifySong song, {
     List<ZunifySong>? customQueue,
     String? contextName,
   }) async {
-    if (customQueue != null && customQueue.isNotEmpty) {
+    // Preserve any manually queued user tracks ("Tambahkan ke Antrean" / "Putar Berikutnya")
+    final userTracks = <ZunifySong>[];
+    for (int i = _currentIndex + 1; i < _queue.length && i < _sources.length; i++) {
+      if (_sources[i] == QueueSource.user && _queue[i].videoId != song.videoId) {
+        userTracks.add(_queue[i]);
+      }
+    }
+
+    if (customQueue != null && customQueue.length > 1) {
       final ctx = <ZunifySong>[];
       final seen = <String>{};
       for (final s in customQueue) {
@@ -694,26 +705,47 @@ class PlayerProvider extends ChangeNotifier {
       _contextName = contextName ?? 'Daftar putar';
 
       if (_shuffleEnabled) {
-        final rest = ctx.where((s) => s.videoId != song.videoId).toList()
+        final rest = ctx
+            .where((s) =>
+                s.videoId != song.videoId &&
+                !userTracks.any((u) => u.videoId == s.videoId))
+            .toList()
           ..shuffle(_random);
-        _queue = [song, ...rest];
+        _queue = [song, ...userTracks, ...rest];
+        _sources = [
+          QueueSource.context,
+          ...List.filled(userTracks.length, QueueSource.user),
+          ...List.filled(rest.length, QueueSource.context),
+        ];
         _currentIndex = 0;
       } else {
-        _queue = ctx;
-        _currentIndex = ctx.indexWhere((s) => s.videoId == song.videoId);
+        final songIdx = ctx.indexWhere((s) => s.videoId == song.videoId);
+        final before = ctx.sublist(0, songIdx + 1);
+        final after = ctx
+            .sublist(songIdx + 1)
+            .where((s) => !userTracks.any((u) => u.videoId == s.videoId))
+            .toList();
+        _queue = [...before, ...userTracks, ...after];
+        _sources = [
+          ...List.filled(before.length, QueueSource.context),
+          ...List.filled(userTracks.length, QueueSource.user),
+          ...List.filled(after.length, QueueSource.context),
+        ];
+        _currentIndex = before.length - 1;
       }
-      _sources = List.filled(_queue.length, QueueSource.context, growable: true);
     } else {
-      final existing = _queue.indexWhere((s) => s.videoId == song.videoId);
-      if (existing >= 0) {
-        _currentIndex = existing;
-      } else {
-        _queue = [song];
-        _sources = [QueueSource.context];
-        _currentIndex = 0;
-        _originalContextOrder = [song];
-        _contextName = contextName ?? song.artist;
-      }
+      // Single-song playback (e.g. from Search or Quick Picks):
+      // Start fresh Spotify-style Genre / Mood Radio around `song`
+      _queue = [song, ...userTracks];
+      _sources = [
+        QueueSource.context,
+        ...List.filled(userTracks.length, QueueSource.user),
+      ];
+      _currentIndex = 0;
+      _originalContextOrder = [song];
+      _contextName = contextName ?? 'Radio ${song.title}';
+      _isFetchingAutoplay = false;
+      _autoplayToken++;
     }
     await _playAt(_currentIndex);
   }
@@ -736,6 +768,7 @@ class PlayerProvider extends ChangeNotifier {
 
     unawaited(_loadLyricsForSong(song));
     _rememberInHistory(song);
+    _maybeFillAutoplay();
 
     try {
       final offlineCopy = _libraryProvider.getDownloadedSong(song.videoId);
@@ -898,6 +931,20 @@ class PlayerProvider extends ChangeNotifier {
     while (cleaned.isNotEmpty && cleaned.last.originalText.isEmpty) {
       cleaned.removeLast();
     }
+    // Ensure offline cached lyrics with >= 3.5s intro also have the 3-dot intro row
+    if (lyrics.isSynced &&
+        cleaned.isNotEmpty &&
+        cleaned.first.timestamp.inMilliseconds >= 3500 &&
+        !cleaned.first.originalText.contains('•')) {
+      cleaned.insert(
+        0,
+        LyricLine(
+          timestamp: Duration.zero,
+          endTimeMs: cleaned.first.timestamp.inMilliseconds,
+          originalText: '♪ • • • ♪',
+        ),
+      );
+    }
     return lyrics.copyWith(lines: cleaned);
   }
 
@@ -998,18 +1045,43 @@ class PlayerProvider extends ChangeNotifier {
       .first
       .trim();
 
-  String _titleKey(String title) => title
-      .toLowerCase()
-      .replaceAll(RegExp(r'[\(\[].*?[\)\]]'), '')
-      .replaceAll(RegExp(r'feat\..*|ft\..*'), '')
-      .replaceAll(RegExp(r'[^a-z0-9 ]'), '')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
+  String _titleKey(String title) {
+    String s = title.toLowerCase();
+    // Strip parentheticals & brackets
+    s = s.replaceAll(RegExp(r'[\(\[\{].*?[\)\]\}]'), ' ');
+    // If title contains "Artist - Song Title", keep the part after '-' when reasonable
+    if (s.contains(' - ')) {
+      final parts = s.split(' - ');
+      if (parts.length >= 2 && parts[1].trim().length >= 3) {
+        s = parts[1];
+      }
+    }
+    s = s
+        .replaceAll(RegExp(r'\b(feat|ft|official|music|video|audio|lyric|lyrics|lirik|live|acoustic|akustik|cover|remix|version|versi|karaoke|instrumental|slowed|reverb|sped|up|hd|hq|mv|visualizer)\b.*'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    return s;
+  }
+
+  bool _isDuplicateOrCoverTitle(String candidateKey, Set<String> existingKeys) {
+    if (candidateKey.isEmpty) return true;
+    for (final ex in existingKeys) {
+      if (ex.isEmpty) continue;
+      if (candidateKey == ex) return true;
+      if (candidateKey.length >= 5 &&
+          ex.length >= 5 &&
+          (candidateKey.contains(ex) || ex.contains(candidateKey))) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   bool _looksLikeNonSong(ZunifySong s) {
     final t = s.title.toLowerCase();
     if (s.durationSeconds > 0 &&
-        (s.durationSeconds < 60 || s.durationSeconds > 12 * 60)) {
+        (s.durationSeconds < 60 || s.durationSeconds > 10 * 60)) {
       return true;
     }
     return t.contains('full album') ||
@@ -1017,27 +1089,31 @@ class PlayerProvider extends ChangeNotifier {
         t.contains('1 jam') ||
         t.contains('playlist') ||
         t.contains('compilation') ||
+        t.contains('kompilasi') ||
         t.contains('nonstop') ||
-        t.contains('mashup');
+        t.contains('mashup') ||
+        t.contains('karaoke') ||
+        t.contains('instrumental');
   }
 
   Future<void> _appendAutoplayRecommendations() async {
     final seed = _currentSong;
     if (seed == null || _isFetchingAutoplay) return;
     _isFetchingAutoplay = true;
+    final myAutoToken = ++_autoplayToken;
     notifyListeners();
 
     try {
       final excludeIds = <String>{
         ..._queue.map((s) => s.videoId),
-        ..._recentHistoryIds.take(50),
+        ..._recentHistoryIds.take(45),
       };
       final raw = await _ytMusicService.getRadioRecommendations(
         seed,
         excludeVideoIds: excludeIds,
       );
-      if (_currentSong?.videoId != seed.videoId &&
-          upcomingCount >= 3) {
+      if (myAutoToken != _autoplayToken) return;
+      if (_currentSong?.videoId != seed.videoId && upcomingCount >= 3) {
         return; // user moved on and the queue is already filled
       }
 
@@ -1048,49 +1124,71 @@ class PlayerProvider extends ChangeNotifier {
       final recentArtists = _libraryProvider.recentlyPlayed
           .map((s) => _artistKey(s.artist))
           .toSet();
-      final queuedTitles = _queue.map((s) => _titleKey(s.title)).toSet();
+      final knownTitleKeys = <String>{
+        _titleKey(seed.title),
+        ..._queue.map((s) => _titleKey(s.title)),
+      };
 
       final candidates = <_ScoredSong>[];
-      final seenTitles = <String>{};
       for (int i = 0; i < raw.length; i++) {
         final s = raw[i];
         if (excludeIds.contains(s.videoId)) continue;
         if (_looksLikeNonSong(s)) continue;
         final tKey = _titleKey(s.title);
-        if (tKey.isEmpty || queuedTitles.contains(tKey) || !seenTitles.add(tKey)) {
-          continue; // drop covers / duplicates of the same song
+        if (_isDuplicateOrCoverTitle(tKey, knownTitleKeys)) {
+          continue; // Strictly drop covers, live versions, or duplicates of the same title
         }
+        knownTitleKeys.add(tKey);
 
         final aKey = _artistKey(s.artist);
-        double score = (raw.length - i).toDouble(); // keep YT radio relevance
-        if (favArtists.contains(aKey)) score += 6;
+        // Preserve YouTube Music RDAMVM genre/mood similarity rank while blending user taste
+        double score = (raw.length - i) * 1.4;
+        if (favArtists.contains(aKey)) score += 5.5;
         if (recentArtists.contains(aKey)) score += 2.5;
-        score -= (_artistSkipPenalty[aKey] ?? 0) * 4;
-        score += _random.nextDouble() * 1.5; // a little freshness
+        score -= (_artistSkipPenalty[aKey] ?? 0) * 5.0;
+        score += _random.nextDouble() * 2.0; // Natural radio variety
         candidates.add(_ScoredSong(s, score, aKey));
       }
 
       candidates.sort((a, b) => b.score.compareTo(a.score));
 
-      // Diversity pass: avoid the same artist back-to-back
+      // Spotify Radio Diversity Pass:
+      // 1. Never place the same artist back-to-back
+      // 2. Cap any single artist to at most 2 tracks per batch so the mix stays varied across the genre
       final picked = <ZunifySong>[];
-      String lastArtist = _artistKey(_queue.isNotEmpty ? _queue.last.artist : seed.artist);
-      while (candidates.isNotEmpty && picked.length < 10) {
-        int idx = candidates.indexWhere((c) => c.artistKey != lastArtist);
+      final artistCounts = <String, int>{};
+      String lastArtist =
+          _artistKey(_queue.isNotEmpty ? _queue.last.artist : seed.artist);
+      artistCounts[ _artistKey(seed.artist)] = 1;
+
+      while (candidates.isNotEmpty && picked.length < 14) {
+        int idx = candidates.indexWhere(
+          (c) =>
+              c.artistKey != lastArtist &&
+              (artistCounts[c.artistKey] ?? 0) < 2,
+        );
+        if (idx < 0) {
+          idx = candidates.indexWhere((c) => c.artistKey != lastArtist);
+        }
         if (idx < 0) idx = 0;
+
         final chosen = candidates.removeAt(idx);
         picked.add(chosen.song);
         lastArtist = chosen.artistKey;
+        artistCounts[chosen.artistKey] =
+            (artistCounts[chosen.artistKey] ?? 0) + 1;
       }
 
-      if (picked.isNotEmpty) {
+      if (picked.isNotEmpty && myAutoToken == _autoplayToken) {
         _queue.addAll(picked);
         _sources.addAll(List.filled(picked.length, QueueSource.autoplay));
         _prefetchNext();
       }
     } catch (_) {
     } finally {
-      _isFetchingAutoplay = false;
+      if (myAutoToken == _autoplayToken) {
+        _isFetchingAutoplay = false;
+      }
       notifyListeners();
     }
   }
