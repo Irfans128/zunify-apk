@@ -74,8 +74,8 @@ jobs:
         run: |
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.0-Lite-arm64-by-Fannz.apk
           cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.0-Universal-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.7.1-Lite-arm64-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.7.1-Universal-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.7.2-Lite-arm64-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.7.2-Universal-by-Fannz.apk
 
       - name: Upload Zunify APK Artifacts
         uses: actions/upload-artifact@v4
@@ -86,18 +86,17 @@ jobs:
             Zunify-v1.0-Universal-by-Fannz.apk
 
       - name: Publish GitHub Release for In-App Auto Updater
-        if: false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           APP_VER=$(grep "kAppVersion =" lib/app_version.dart | cut -d"'" -f2)
           TAG="v${APP_VER}"
-          NOTES="- Tampilan Lirik Baru Apple Music 'Liquid Glass' (Efek kaca bening kilap pada lirik aktif, sapuan warna karaoke per kata yang smooth, & blur optik bertingkat)\n- Perbaikan Lirik Lagu Ber-Intro Monolog/MV (Surat Cinta Untuk Starla & lagu sejenis lengkap dengan monolog awal)\n- Bagikan Lirik ke SW / Story dengan Suara Lagu Asli (.MP4 Video + Potongan Audio Lagu Persis di Detik Lirik)\n- Rekap Mingguan (Weekly Wrapped) 2-Slide Story Baru Lebih Rapi di Semua Layar HP\n- Dukungan Notifikasi Bergambar & Aksi Putar Lagu dari Fannz (Panel Admin kini dipisah ke APK khusus Admin)\n- Fitur Crossfade Transisi Lagu Mulus (0s / 3s / 4s / 6s / 8s) & Kualitas Audio Otomatis Pintar (Wi-Fi 160kbps / Data 96kbps)"
+          NOTES="- Perbaikan lirik lagu dan pengoptimalan performa\n- Algoritma lagu\n- Update Equalizer"
           gh release delete "$TAG" --yes || true
           git tag -f "$TAG"
           git push origin "$TAG" --force
           gh release create "$TAG" \
-            Zunify-v1.7.1-Lite-arm64-by-Fannz.apk \
-            Zunify-v1.7.1-Universal-by-Fannz.apk \
+            Zunify-v1.7.2-Lite-arm64-by-Fannz.apk \
+            Zunify-v1.7.2-Universal-by-Fannz.apk \
             --title "Zunify $TAG (Crafted by Fannz)" \
             --notes "$(echo -e "$NOTES")"

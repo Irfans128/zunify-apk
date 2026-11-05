@@ -86,25 +86,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     _lastSongId = videoId;
     _lastScrolledLyricIdx = activeIdx;
 
-    if (activeIdx < 0) {
-      if (_lyricsScrollController.hasClients) {
-        _lyricsScrollController.animateTo(
-          0,
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.easeOutCubic,
-        );
-      }
-      return;
-    }
-
-    final itemKey = GlobalObjectKey('lyric_${videoId}_$activeIdx');
+    final targetIdx = activeIdx < 0 ? 0 : activeIdx;
+    final itemKey = GlobalObjectKey('lyric_${videoId}_$targetIdx');
     final ctx = itemKey.currentContext;
     if (ctx != null) {
       Scrollable.ensureVisible(
         ctx,
-        alignment: 0.28,
-        duration: const Duration(milliseconds: 520),
-        curve: Curves.easeOutQuart,
+        alignment: 0.42,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
       );
       return;
     }
@@ -112,11 +102,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     if (_lyricsScrollController.hasClients && totalLines > 0) {
       final maxExtent = _lyricsScrollController.position.maxScrollExtent;
       final approxOffset =
-          ((activeIdx / totalLines) * maxExtent).clamp(0.0, maxExtent);
+          ((targetIdx / totalLines) * maxExtent).clamp(0.0, maxExtent);
       _lyricsScrollController.animateTo(
         approxOffset,
-        duration: const Duration(milliseconds: 520),
-        curve: Curves.easeOutQuart,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
       );
     }
   }
@@ -643,7 +633,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     lyrics.shouldShowTranslation)
                   GestureDetector(
                     onTap: () => player.toggleTranslationDisplay(),
-                    child: Container(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
                       margin: const EdgeInsets.only(right: 8),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
@@ -651,7 +642,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                       decoration: BoxDecoration(
                         color: player.showTranslation
-                            ? accent.withOpacity(0.22)
+                            ? accent
                             : Colors.white.withOpacity(0.09),
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -660,23 +651,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         children: [
                           Icon(
                             Icons.translate_rounded,
-                            color:
-                                player.showTranslation ? accent : Colors.white70,
+                            color: player.showTranslation
+                                ? Colors.black
+                                : Colors.white70,
                             size: 10.5,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             player.isTranslatingLyrics
                                 ? 'Proses...'
-                                : (player.showTranslation
-                                    ? 'Terjemahan ON'
-                                    : 'Terjemahkan'),
+                                : 'Terjemahkan',
                             style: TextStyle(
                               color: player.showTranslation
-                                  ? accent
+                                  ? Colors.black
                                   : Colors.white70,
                               fontSize: 9.5,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ],
@@ -726,9 +716,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       children: [
                         Text(
                           isIntro
-                              ? '♪ Intro Musik...'
-                              : (activeLine.originalText.isEmpty
-                                  ? '♪ • • • ♪'
+                              ? '•  •  •'
+                              : (activeLine.originalText.isEmpty ||
+                                      activeLine.originalText.contains('•')
+                                  ? '•  •  •'
                                   : activeLine.originalText),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -875,9 +866,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         Text(
                           player.isTranslatingLyrics
                               ? 'Menerjemahkan...'
-                              : (player.showTranslation
-                                  ? 'Indonesia ON'
-                                  : 'Terjemahkan'),
+                              : 'Terjemahkan',
                           style: TextStyle(
                             color: player.showTranslation
                                 ? Colors.black
@@ -954,197 +943,216 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
 
-        // Smooth Apple Music "Liquid Glass" Synced Lyrics Scroll List (Zero-Jank 60/120fps)
+        // Smooth Apple Music "Liquid Glass" Synced Lyrics Scroll List (Locked Center Position)
         Expanded(
-          child: Stack(
-            children: [
-              ShaderMask(
-                shaderCallback: (rect) => const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.transparent,
-                    Colors.white,
-                    Colors.white,
-                    Colors.transparent,
-                  ],
-                  stops: [0.0, 0.06, 0.90, 1.0],
-                ).createShader(rect),
-                blendMode: BlendMode.dstIn,
-                child: NotificationListener<UserScrollNotification>(
-                  onNotification: (n) {
-                    _onUserScrollNotification(n);
-                    return false;
-                  },
-                  child: ListView.builder(
-                    controller: _lyricsScrollController,
-                    physics: const BouncingScrollPhysics(),
-                    cacheExtent: 600,
-                    padding: const EdgeInsets.only(top: 24, bottom: 145),
-                    itemCount: lyrics.lines.length,
-                    itemBuilder: (context, index) {
-                      final line = lyrics.lines[index];
-                      final activeIdx = player.activeLyricIndex < 0
-                          ? 0
-                          : player.activeLyricIndex;
-                      final isActive = index == activeIdx;
-                      final isPassed = index < activeIdx;
-                      final distance = (index - activeIdx).abs();
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final verticalPad =
+                  (constraints.maxHeight * 0.40).clamp(100.0, 210.0);
+              final activeIdx = player.activeLyricIndex < 0
+                  ? 0
+                  : player.activeLyricIndex;
 
-                      final double itemOpacity = isActive
-                          ? 1.0
-                          : (distance == 1
-                              ? 0.48
-                              : (distance == 2
-                                  ? 0.28
-                                  : (isPassed ? 0.14 : 0.18)));
+              return Stack(
+                children: [
+                  ShaderMask(
+                    shaderCallback: (rect) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.transparent,
+                        Colors.white,
+                        Colors.white,
+                        Colors.transparent,
+                      ],
+                      stops: [0.0, 0.08, 0.90, 1.0],
+                    ).createShader(rect),
+                    blendMode: BlendMode.dstIn,
+                    child: NotificationListener<UserScrollNotification>(
+                      onNotification: (n) {
+                        _onUserScrollNotification(n);
+                        return false;
+                      },
+                      child: SingleChildScrollView(
+                        controller: _lyricsScrollController,
+                        physics: const BouncingScrollPhysics(),
+                        padding: EdgeInsets.symmetric(vertical: verticalPad),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: List.generate(lyrics.lines.length, (index) {
+                            final line = lyrics.lines[index];
+                            final isActive = index == activeIdx;
+                            final isPassed = index < activeIdx;
+                            final distance = (index - activeIdx).abs();
 
-                      final isInterlude = line.originalText.isEmpty ||
-                          line.originalText.contains('•');
-                      final nextTimestamp = index + 1 < lyrics.lines.length
-                          ? lyrics.lines[index + 1].timestamp
-                          : player.duration;
+                            final double itemOpacity = isActive
+                                ? 1.0
+                                : (distance == 1
+                                    ? 0.48
+                                    : (distance == 2
+                                        ? 0.28
+                                        : (isPassed ? 0.14 : 0.18)));
 
-                      final Widget lineBody = isInterlude
-                          ? _buildInterludeIndicator(
-                              isActive: isActive,
-                              accent: accent,
-                              lineTimestamp: line.timestamp,
-                              nextTimestamp: nextTimestamp,
-                            )
-                          : _buildAppleMusicLyricContent(
-                              isActive: isActive,
-                              line: line,
-                              translatedText: (player.showTranslation &&
-                                      lyrics.shouldShowTranslation)
-                                  ? line.translatedIndoText
-                                  : null,
-                              accent: accent,
-                              nextTimestamp: nextTimestamp,
-                            );
+                            final isInterlude = line.originalText.isEmpty ||
+                                line.originalText.contains('•');
+                            final nextTimestamp =
+                                index + 1 < lyrics.lines.length
+                                    ? lyrics.lines[index + 1].timestamp
+                                    : player.duration;
 
-                      return RepaintBoundary(
-                        key: GlobalObjectKey('lyric_${videoId}_$index'),
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            setState(() => _userScrollingLyrics = false);
-                            player.seekTo(line.timestamp);
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 340),
-                            curve: Curves.easeOutCubic,
-                            margin: EdgeInsets.symmetric(
-                              vertical: isActive ? 6 : 2,
-                            ),
-                            padding: EdgeInsets.symmetric(
-                              vertical: isActive ? 14 : 9,
-                              horizontal: isActive ? 18 : 14,
-                            ),
-                            decoration: isActive
-                                ? BoxDecoration(
-                                    borderRadius: BorderRadius.circular(24),
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topLeft,
-                                      end: Alignment.bottomRight,
-                                      colors: [
-                                        Colors.white.withOpacity(0.20),
-                                        accent.withOpacity(0.14),
-                                        Colors.white.withOpacity(0.05),
-                                      ],
-                                      stops: const [0.0, 0.50, 1.0],
-                                    ),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.32),
-                                      width: 1.15,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: accent.withOpacity(0.18),
-                                        blurRadius: 22,
-                                        offset: const Offset(0, 6),
-                                      ),
-                                    ],
+                            final Widget lineBody = isInterlude
+                                ? _buildInterludeIndicator(
+                                    isActive: isActive,
+                                    accent: accent,
+                                    lineTimestamp: line.timestamp,
+                                    nextTimestamp: nextTimestamp,
                                   )
-                                : const BoxDecoration(),
-                            child: AnimatedScale(
-                              scale: isActive
-                                  ? 1.0
-                                  : (distance == 1 ? 0.94 : 0.90),
-                              alignment: Alignment.centerLeft,
-                              duration: const Duration(milliseconds: 360),
-                              curve: Curves.easeOutCubic,
-                              child: AnimatedOpacity(
-                                duration: const Duration(milliseconds: 280),
-                                curve: Curves.easeOutCubic,
-                                opacity: itemOpacity,
-                                child: lineBody,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
+                                : _buildAppleMusicLyricContent(
+                                    isActive: isActive,
+                                    line: line,
+                                    translatedText: (player.showTranslation &&
+                                            lyrics.shouldShowTranslation)
+                                        ? line.translatedIndoText
+                                        : null,
+                                    accent: accent,
+                                    nextTimestamp: nextTimestamp,
+                                  );
 
-              // "Ikuti Lagu" button when user scrolls manually
-              if (_userScrollingLyrics)
-                Positioned(
-                  right: 8,
-                  bottom: 12,
-                  child: GestureDetector(
-                    onTap: () {
-                      _resumeAutoScrollTimer?.cancel();
-                      setState(() {
-                        _userScrollingLyrics = false;
-                        _lastScrolledLyricIdx = -2;
-                      });
-                      _autoScrollLyrics(
-                        videoId,
-                        player.activeLyricIndex,
-                        lyrics.lines.length,
-                      );
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(18),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.4),
-                            blurRadius: 10,
-                          ),
-                        ],
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.my_location_rounded,
-                            color: Colors.black,
-                            size: 14,
-                          ),
-                          SizedBox(width: 5),
-                          Text(
-                            'Ikuti Lirik',
-                            style: TextStyle(
-                              color: Colors.black,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
+                            return RepaintBoundary(
+                              key: GlobalObjectKey('lyric_${videoId}_$index'),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () {
+                                  setState(() => _userScrollingLyrics = false);
+                                  player.seekTo(line.timestamp);
+                                },
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 300),
+                                  curve: Curves.easeOutCubic,
+                                  margin:
+                                      const EdgeInsets.symmetric(vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 12,
+                                    horizontal: 16,
+                                  ),
+                                  decoration: isActive
+                                      ? BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(22),
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              Colors.white.withOpacity(0.20),
+                                              accent.withOpacity(0.14),
+                                              Colors.white.withOpacity(0.05),
+                                            ],
+                                            stops: const [0.0, 0.50, 1.0],
+                                          ),
+                                          border: Border.all(
+                                            color:
+                                                Colors.white.withOpacity(0.30),
+                                            width: 1.15,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: accent.withOpacity(0.16),
+                                              blurRadius: 20,
+                                              offset: const Offset(0, 5),
+                                            ),
+                                          ],
+                                        )
+                                      : BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(22),
+                                          border: Border.all(
+                                            color: Colors.transparent,
+                                            width: 1.15,
+                                          ),
+                                        ),
+                                  child: AnimatedScale(
+                                    scale: isActive
+                                        ? 1.0
+                                        : (distance == 1 ? 0.94 : 0.91),
+                                    alignment: Alignment.centerLeft,
+                                    duration:
+                                        const Duration(milliseconds: 320),
+                                    curve: Curves.easeOutCubic,
+                                    child: AnimatedOpacity(
+                                      duration:
+                                          const Duration(milliseconds: 260),
+                                      curve: Curves.easeOutCubic,
+                                      opacity: itemOpacity,
+                                      child: lineBody,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+
+                  // "Ikuti Lirik" button when user scrolls manually
+                  if (_userScrollingLyrics)
+                    Positioned(
+                      right: 8,
+                      bottom: 12,
+                      child: GestureDetector(
+                        onTap: () {
+                          _resumeAutoScrollTimer?.cancel();
+                          setState(() {
+                            _userScrollingLyrics = false;
+                            _lastScrolledLyricIdx = -2;
+                          });
+                          _autoScrollLyrics(
+                            videoId,
+                            player.activeLyricIndex,
+                            lyrics.lines.length,
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.4),
+                                blurRadius: 10,
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.my_location_rounded,
+                                color: Colors.black,
+                                size: 14,
+                              ),
+                              SizedBox(width: 5),
+                              Text(
+                                'Ikuti Lirik',
+                                style: TextStyle(
+                                  color: Colors.black,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
           ),
         ),
       ],
@@ -1159,27 +1167,37 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required Duration nextTimestamp,
   }) {
     final displayText = line.originalText;
+    final words = line.words;
+
+    final baseStyle = GoogleFonts.plusJakartaSans(
+      color: Colors.white,
+      fontSize: 21.5,
+      fontWeight: FontWeight.w800,
+      height: 1.32,
+      letterSpacing: -0.40,
+    );
+
     if (!isActive) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            displayText,
-            style: GoogleFonts.plusJakartaSans(
-              color: Colors.white,
-              fontSize: 19.5,
-              fontWeight: FontWeight.w800,
-              height: 1.32,
-              letterSpacing: -0.35,
-            ),
-          ),
+          if (words.isNotEmpty)
+            Wrap(
+              spacing: 6.0,
+              runSpacing: 4,
+              children: words
+                  .map((w) => Text(w.text, style: baseStyle))
+                  .toList(),
+            )
+          else
+            Text(displayText, style: baseStyle),
           if (translatedText != null && translatedText.isNotEmpty) ...[
-            const SizedBox(height: 5),
+            const SizedBox(height: 6),
             Text(
               translatedText,
               style: GoogleFonts.dmSans(
                 color: Colors.white70,
-                fontSize: 13.8,
+                fontSize: 14.2,
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w600,
                 height: 1.3,
@@ -1190,13 +1208,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       );
     }
 
-    final startMs = line.timestamp.inMilliseconds;
-    final endMs = line.endTimeMs ??
-        (nextTimestamp.inMilliseconds > startMs
-            ? nextTimestamp.inMilliseconds
-            : startMs + 3200);
-    final words = line.words;
-
     return ValueListenableBuilder<int>(
       valueListenable: _smoothPosMs,
       builder: (context, curMs, _) {
@@ -1205,22 +1216,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           children: [
             if (words.isNotEmpty)
               Wrap(
-                spacing: 6.5,
+                spacing: 6.0,
                 runSpacing: 4,
                 children: words.map((w) {
                   final span = (w.endMs - w.startMs).clamp(60, 15000);
                   final wProg = ((curMs - w.startMs) / span).clamp(0.0, 1.0);
-                  // Smooth sinusoidal lift while singing the word
-                  final lift = wProg >= 1.0
-                      ? -1.4
-                      : (wProg <= 0.0 ? 0.0 : -2.2 * math.sin(wProg * math.pi));
 
-                  final baseStyle = GoogleFonts.plusJakartaSans(
-                    color: Colors.white,
-                    fontSize: 23.0,
-                    fontWeight: FontWeight.w800,
-                    height: 1.30,
-                    letterSpacing: -0.45,
+                  final activeWordStyle = baseStyle.copyWith(
                     shadows: wProg > 0.05
                         ? [
                             Shadow(
@@ -1231,55 +1233,44 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         : null,
                   );
 
-                  return Transform.translate(
-                    offset: Offset(0, lift),
-                    child: wProg >= 0.99
-                        ? Text(w.text, style: baseStyle)
-                        : (wProg <= 0.01
-                            ? Text(
-                                w.text,
-                                style: baseStyle.copyWith(
-                                  color: Colors.white.withOpacity(0.38),
-                                  shadows: null,
-                                ),
-                              )
-                            : ShaderMask(
-                                shaderCallback: (rect) => LinearGradient(
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                  colors: [
-                                    Colors.white,
-                                    Colors.white.withOpacity(0.38),
-                                  ],
-                                  stops: [
-                                    wProg.clamp(0.0, 1.0),
-                                    (wProg + 0.22).clamp(0.0, 1.0),
-                                  ],
-                                ).createShader(rect),
-                                blendMode: BlendMode.srcIn,
-                                child: Text(w.text, style: baseStyle),
-                              )),
+                  if (wProg >= 0.99) {
+                    return Text(w.text, style: activeWordStyle);
+                  }
+                  if (wProg <= 0.01) {
+                    return Text(
+                      w.text,
+                      style: baseStyle.copyWith(
+                        color: Colors.white.withOpacity(0.38),
+                      ),
+                    );
+                  }
+                  return ShaderMask(
+                    shaderCallback: (rect) => LinearGradient(
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
+                      colors: [
+                        Colors.white,
+                        Colors.white.withOpacity(0.38),
+                      ],
+                      stops: [
+                        wProg.clamp(0.0, 1.0),
+                        (wProg + 0.22).clamp(0.0, 1.0),
+                      ],
+                    ).createShader(rect),
+                    blendMode: BlendMode.srcIn,
+                    child: Text(w.text, style: activeWordStyle),
                   );
                 }).toList(),
               )
             else
-              Text(
-                displayText,
-                style: GoogleFonts.plusJakartaSans(
-                  color: Colors.white,
-                  fontSize: 23.0,
-                  fontWeight: FontWeight.w800,
-                  height: 1.30,
-                  letterSpacing: -0.45,
-                ),
-              ),
+              Text(displayText, style: baseStyle),
             if (translatedText != null && translatedText.isNotEmpty) ...[
-              const SizedBox(height: 7),
+              const SizedBox(height: 6),
               Text(
                 translatedText,
                 style: GoogleFonts.dmSans(
                   color: accent,
-                  fontSize: 15.0,
+                  fontSize: 14.2,
                   fontStyle: FontStyle.italic,
                   fontWeight: FontWeight.w700,
                   height: 1.3,
