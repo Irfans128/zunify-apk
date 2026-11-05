@@ -1,14 +1,25 @@
 {
-  "id": "fannz_1793847498477",
+  "id": "fannz_1793847548126",
   "active": true,
   "title": "Testing",
-  "message": "Hallo semua",
-  "imageUrl": "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/announcements/fannz_1793847498477.jpg",
+  "message": "kyahh",
+  "imageUrl": "",
   "actionUrl": "",
   "songQuery": "",
   "sender": "Fannz",
-  "createdAt": "2026-11-05T02:58:20.517163Z",
+  "createdAt": "2026-11-05T02:59:08.588407Z",
   "history": [
+    {
+      "id": "fannz_1793847548126",
+      "active": true,
+      "title": "Testing",
+      "message": "kyahh",
+      "imageUrl": "",
+      "actionUrl": "",
+      "songQuery": "",
+      "sender": "Fannz",
+      "createdAt": "2026-11-05T02:59:08.588407Z"
+    },
     {
       "id": "fannz_1793847498477",
       "active": true,
