@@ -1,8 +1,24 @@
 {
-  "id": "welcome_v170",
-  "active": false,
-  "title": "🎧 Info dari Fannz",
-  "message": "Selamat mendengarkan musik di Zunify! Nikmati fitur baru Crossfade, Share Video Lirik + Lagu ke SW, dan Lirik Sinkronisasi Presisi.",
+  "id": "fannz_1793847498477",
+  "active": true,
+  "title": "Testing",
+  "message": "Hallo semua",
+  "imageUrl": "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/announcements/fannz_1793847498477.jpg",
+  "actionUrl": "",
+  "songQuery": "",
   "sender": "Fannz",
-  "createdAt": "2026-11-05T00:00:00Z"
+  "createdAt": "2026-11-05T02:58:20.517163Z",
+  "history": [
+    {
+      "id": "fannz_1793847498477",
+      "active": true,
+      "title": "Testing",
+      "message": "Hallo semua",
+      "imageUrl": "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/announcements/fannz_1793847498477.jpg",
+      "actionUrl": "",
+      "songQuery": "",
+      "sender": "Fannz",
+      "createdAt": "2026-11-05T02:58:20.517163Z"
+    }
+  ]
 }
