@@ -142,6 +142,10 @@ class PlayerProvider extends ChangeNotifier {
   // Getters
   // ---------------------------------------------------------------------------
   AudioPlayer get audioPlayer => _audioPlayer;
+  Duration get position => _audioPlayer.position;
+  Duration get duration =>
+      _audioPlayer.duration ??
+      Duration(seconds: _currentSong?.durationSeconds ?? 240);
   ZunifySong? get currentSong => _currentSong;
   List<ZunifySong> get queue => List.unmodifiable(_queue);
   int get currentIndex => _currentIndex;
