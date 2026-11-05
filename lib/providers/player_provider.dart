@@ -868,7 +868,7 @@ class PlayerProvider extends ChangeNotifier {
     final rawLyrics = await _lyricsService.fetchRawLyricsInstant(song);
     if (_currentSong?.videoId != song.videoId) return;
 
-    _currentLyrics = rawLyrics == null ? null : _sanitizeLyrics(rawLyrics);
+    _currentLyrics = _sanitizeLyrics(rawLyrics);
     _isLoadingLyrics = false;
     _updateActiveLyricLine(_audioPlayer.position);
     if (_audioPlayer.playing) _startLyricsTicker();

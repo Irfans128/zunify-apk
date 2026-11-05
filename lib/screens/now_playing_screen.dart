@@ -939,7 +939,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 final firstMs =
                     lyrics.lines.first.timestamp.inMilliseconds.clamp(1, 600000);
                 final posMs =
-                    (player.position.inMilliseconds + player.lyricsOffsetMs)
+                    (player.currentPosition.inMilliseconds +
+                            player.lyricsOffsetMs)
                         .clamp(0, firstMs);
                 final progress = (posMs / firstMs).clamp(0.0, 1.0);
                 final remainSec =
@@ -1125,7 +1126,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             index + 1 < lyrics.lines.length
                                                 ? lyrics.lines[index + 1]
                                                     .timestamp
-                                                : player.duration,
+                                                : player.totalDuration,
                                       )
                                     : Column(
                                         crossAxisAlignment:
@@ -1257,7 +1258,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final endMs = nextTimestamp.inMilliseconds > startMs
         ? nextTimestamp.inMilliseconds
         : startMs + 6000;
-    final curMs = (player.position.inMilliseconds + player.lyricsOffsetMs)
+    final curMs = (player.currentPosition.inMilliseconds + player.lyricsOffsetMs)
         .clamp(startMs, endMs);
     final spanMs = (endMs - startMs).clamp(1, 600000);
     final progress = isActive ? ((curMs - startMs) / spanMs).clamp(0.0, 1.0) : 0.0;
