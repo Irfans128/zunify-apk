@@ -1,14 +1,25 @@
 {
-  "id": "fannz_1793867290419",
-  "active": false,
-  "title": "Zunify Premium",
-  "message": "saya akan membuat aplikasi ini berbayar, dan harganya awalnya gratis jadi 0 Rp",
-  "imageUrl": "",
+  "id": "fannz_1793882439472",
+  "active": true,
+  "title": "foto kalian",
+  "message": "fotomu kesebar",
+  "imageUrl": "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/announcements/fannz_1793882439472.jpg",
   "actionUrl": "",
-  "songQuery": "",
+  "songQuery": "What if i call",
   "sender": "Fannz",
-  "createdAt": "2026-11-05T08:28:10.918620Z",
+  "createdAt": "2026-11-05T12:40:41.988915Z",
   "history": [
+    {
+      "id": "fannz_1793882439472",
+      "active": true,
+      "title": "foto kalian",
+      "message": "fotomu kesebar",
+      "imageUrl": "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/announcements/fannz_1793882439472.jpg",
+      "actionUrl": "",
+      "songQuery": "What if i call",
+      "sender": "Fannz",
+      "createdAt": "2026-11-05T12:40:41.988915Z"
+    },
     {
       "id": "fannz_1793867290419",
       "active": true,
