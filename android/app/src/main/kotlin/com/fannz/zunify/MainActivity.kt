@@ -1,5 +1,6 @@
 package com.fannz.zunify
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -18,12 +19,15 @@ import android.media.audiofx.Equalizer
 import android.media.audiofx.Virtualizer
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.nio.ByteBuffer
 
@@ -41,6 +45,8 @@ class MainActivity : AudioServiceFragmentActivity() {
     private var virtualizer: Virtualizer? = null
     private var currentSessionId: Int = -1
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingImageResult: MethodChannel.Result? = null
+    private val REQ_PICK_IMAGE = 9401
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -153,8 +159,91 @@ class MainActivity : AudioServiceFragmentActivity() {
                         }
                     }
                 }
+                "pickImageFromGallery" -> {
+                    try {
+                        pendingImageResult = result
+                        val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                            type = "image/*"
+                            addCategory(Intent.CATEGORY_OPENABLE)
+                        }
+                        startActivityForResult(
+                            Intent.createChooser(intent, "Pilih Gambar Notifikasi"),
+                            REQ_PICK_IMAGE
+                        )
+                    } catch (e: Exception) {
+                        pendingImageResult = null
+                        result.error("PICK_ERR", e.message, null)
+                    }
+                }
+                "openExternalUrl" -> {
+                    val url = call.argument<String>("url") ?: ""
+                    if (url.isBlank()) {
+                        result.success(false)
+                    } else {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                            result.success(true)
+                        } catch (e: Exception) {
+                            result.success(false)
+                        }
+                    }
+                }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_PICK_IMAGE) {
+            val cb = pendingImageResult
+            pendingImageResult = null
+            if (cb == null) return
+            if (resultCode != Activity.RESULT_OK || data?.data == null) {
+                cb.success(null)
+                return
+            }
+            val uri = data.data!!
+            Thread {
+                try {
+                    val rawBmp = contentResolver.openInputStream(uri)?.use { stream ->
+                        BitmapFactory.decodeStream(stream)
+                    }
+                    if (rawBmp == null) {
+                        mainHandler.post { cb.success(null) }
+                        return@Thread
+                    }
+                    val maxDim = 960
+                    val scaledBmp = if (rawBmp.width > maxDim || rawBmp.height > maxDim) {
+                        val ratio = maxDim.toFloat() / maxOf(rawBmp.width, rawBmp.height).toFloat()
+                        val nw = (rawBmp.width * ratio).toInt().coerceAtLeast(1)
+                        val nh = (rawBmp.height * ratio).toInt().coerceAtLeast(1)
+                        Bitmap.createScaledBitmap(rawBmp, nw, nh, true)
+                    } else {
+                        rawBmp
+                    }
+                    val baos = ByteArrayOutputStream()
+                    scaledBmp.compress(Bitmap.CompressFormat.JPEG, 82, baos)
+                    val jpgBytes = baos.toByteArray()
+                    val outFile = File(cacheDir, "notif_picked_${System.currentTimeMillis()}.jpg")
+                    outFile.writeBytes(jpgBytes)
+                    val b64 = Base64.encodeToString(jpgBytes, Base64.NO_WRAP)
+                    mainHandler.post {
+                        cb.success(
+                            mapOf(
+                                "path" to outFile.absolutePath,
+                                "base64" to b64
+                            )
+                        )
+                    }
+                } catch (e: Exception) {
+                    mainHandler.post { cb.success(null) }
+                }
+            }.start()
         }
     }
 

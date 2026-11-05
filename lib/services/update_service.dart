@@ -38,6 +38,9 @@ class BroadcastAnnouncement {
   final bool active;
   final String title;
   final String message;
+  final String imageUrl;
+  final String actionUrl;
+  final String songQuery;
   final String sender;
   final String createdAt;
 
@@ -46,6 +49,9 @@ class BroadcastAnnouncement {
     required this.active,
     required this.title,
     required this.message,
+    this.imageUrl = '',
+    this.actionUrl = '',
+    this.songQuery = '',
     required this.sender,
     required this.createdAt,
   });
@@ -56,10 +62,25 @@ class BroadcastAnnouncement {
       active: json['active'] == true,
       title: (json['title'] ?? 'Info Zunify').toString(),
       message: (json['message'] ?? '').toString(),
+      imageUrl: (json['imageUrl'] ?? '').toString().trim(),
+      actionUrl: (json['actionUrl'] ?? '').toString().trim(),
+      songQuery: (json['songQuery'] ?? '').toString().trim(),
       sender: (json['sender'] ?? 'Fannz').toString(),
       createdAt: (json['createdAt'] ?? '').toString(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'active': active,
+        'title': title,
+        'message': message,
+        'imageUrl': imageUrl,
+        'actionUrl': actionUrl,
+        'songQuery': songQuery,
+        'sender': sender,
+        'createdAt': createdAt,
+      };
 }
 
 /// Serverless in-app updater & developer broadcast notification service
@@ -94,25 +115,85 @@ class UpdateService {
   }
 
   /// Displays a system status-bar notification on the user's phone.
+  /// Supports optional [imageUrl] or [localImagePath] (not mandatory).
   static Future<void> showSystemPushNotification({
     required int id,
     required String title,
     required String body,
+    String? imageUrl,
+    String? localImagePath,
   }) async {
     try {
       await _ensureNotifInitialized();
-      const androidDetails = AndroidNotificationDetails(
+      String? resolvedImgPath = localImagePath;
+      if ((resolvedImgPath == null || resolvedImgPath.isEmpty) &&
+          imageUrl != null &&
+          imageUrl.trim().isNotEmpty) {
+        try {
+          final res = await http
+              .get(Uri.parse(imageUrl.trim()))
+              .timeout(const Duration(seconds: 6));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            final dir = await getTemporaryDirectory();
+            final f = File('${dir.path}/notif_img_$id.jpg');
+            await f.writeAsBytes(res.bodyBytes, flush: true);
+            resolvedImgPath = f.path;
+          }
+        } catch (_) {}
+      }
+
+      StyleInformation styleInfo = BigTextStyleInformation(
+        body,
+        contentTitle: title,
+      );
+      AndroidBitmap<Object>? largeIconBmp;
+
+      if (resolvedImgPath != null &&
+          resolvedImgPath.isNotEmpty &&
+          await File(resolvedImgPath).exists()) {
+        final bmp = FilePathAndroidBitmap(resolvedImgPath);
+        largeIconBmp = bmp;
+        styleInfo = BigPictureStyleInformation(
+          bmp,
+          largeIcon: bmp,
+          contentTitle: title,
+          summaryText: body,
+          hideExpandedLargeIcon: true,
+        );
+      }
+
+      final androidDetails = AndroidNotificationDetails(
         'zunify_updates_broadcast',
         'Update & Info Zunify (Fannz)',
         channelDescription:
             'Notifikasi update aplikasi dan pengumuman resmi dari Fannz',
         icon: '@drawable/ic_stat_zunify',
+        largeIcon: largeIconBmp,
         importance: Importance.max,
         priority: Priority.high,
-        styleInformation: BigTextStyleInformation(''),
+        styleInformation: styleInfo,
       );
-      const details = NotificationDetails(android: androidDetails);
+      final details = NotificationDetails(android: androidDetails);
       await _notifPlugin.show(id, title, body, details);
+    } catch (_) {}
+  }
+
+  static Future<Map<String, String>?> pickImageFromGallery() async {
+    try {
+      final res = await _nativeChannel.invokeMethod('pickImageFromGallery');
+      if (res is Map) {
+        return {
+          'path': (res['path'] ?? '').toString(),
+          'base64': (res['base64'] ?? '').toString(),
+        };
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<void> openExternalUrl(String url) async {
+    try {
+      await _nativeChannel.invokeMethod('openExternalUrl', {'url': url});
     } catch (_) {}
   }
 
@@ -220,6 +301,7 @@ class UpdateService {
         id: 889,
         title: announcement.title,
         body: announcement.message,
+        imageUrl: announcement.imageUrl,
       );
       return announcement;
     } catch (_) {
@@ -227,19 +309,42 @@ class UpdateService {
     }
   }
 
+  /// Fetches the current active announcement + history list for the Admin APK.
+  Future<Map<String, dynamic>> fetchAnnouncementData() async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
+            ),
+            headers: const {
+              'Accept': 'application/vnd.github.raw+json',
+              'User-Agent': 'Zunify-Admin-Fannz',
+              'Cache-Control': 'no-cache',
+            },
+          )
+          .timeout(const Duration(seconds: 7));
+      if (res.statusCode == 200) {
+        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      }
+    } catch (_) {}
+    return {};
+  }
+
   /// Admin feature for Fannz: publishes a live broadcast notification to all Zunify users
-  /// by updating `announcements.json` on GitHub (`[skip ci]` so it takes effect immediately).
+  /// with optional gallery image (uploaded to GitHub repo), optional image URL, and optional action link/song.
   Future<bool> publishBroadcastAnnouncement({
     required String title,
     required String message,
+    String? imageBase64,
+    String? imageUrl,
+    String? actionUrl,
+    String? songQuery,
     required String githubToken,
   }) async {
     final cleanToken = githubToken.trim();
     if (cleanToken.isEmpty) return false;
 
-    final apiUri = Uri.parse(
-      'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
-    );
     final headers = {
       'Authorization': 'Bearer $cleanToken',
       'Accept': 'application/vnd.github+json',
@@ -247,23 +352,82 @@ class UpdateService {
       'User-Agent': 'Zunify-Admin-Fannz',
     };
 
+    final notifId = 'fannz_${DateTime.now().millisecondsSinceEpoch}';
+    String finalImageUrl = (imageUrl ?? '').trim();
+
+    // If Fannz picked an image from Gallery, upload it to `announcements/<notifId>.jpg`
+    if (imageBase64 != null && imageBase64.trim().isNotEmpty) {
+      final imgPath = 'announcements/$notifId.jpg';
+      final imgApiUri = Uri.parse(
+        'https://api.github.com/repos/$kUpdateRepo/contents/$imgPath',
+      );
+      final imgPutRes = await http
+          .put(
+            imgApiUri,
+            headers: headers,
+            body: jsonEncode({
+              'message': 'chore(broadcast): upload notif image $notifId [skip ci]',
+              'content': imageBase64.trim(),
+            }),
+          )
+          .timeout(const Duration(seconds: 15));
+      if (imgPutRes.statusCode == 200 || imgPutRes.statusCode == 201) {
+        finalImageUrl =
+            'https://raw.githubusercontent.com/$kUpdateRepo/main/$imgPath';
+      }
+    }
+
+    final apiUri = Uri.parse(
+      'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
+    );
+
     String? existingSha;
+    List<Map<String, dynamic>> history = [];
     try {
-      final getRes =
-          await http.get(apiUri, headers: headers).timeout(const Duration(seconds: 8));
+      final getRes = await http
+          .get(apiUri, headers: headers)
+          .timeout(const Duration(seconds: 8));
       if (getRes.statusCode == 200) {
-        final meta = jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
+        final meta =
+            jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
         existingSha = meta['sha']?.toString();
+        final rawB64 = (meta['content'] ?? '').toString().replaceAll('\n', '');
+        if (rawB64.isNotEmpty) {
+          final existingJson = jsonDecode(utf8.decode(base64Decode(rawB64)))
+              as Map<String, dynamic>;
+          final oldList = existingJson['history'];
+          if (oldList is List) {
+            for (final item in oldList) {
+              if (item is Map<String, dynamic>) {
+                history.add(item);
+              }
+            }
+          }
+        }
       }
     } catch (_) {}
 
-    final newPayload = {
-      'id': 'fannz_${DateTime.now().millisecondsSinceEpoch}',
+    final createdAt = DateTime.now().toUtc().toIso8601String();
+    final currentEntry = <String, dynamic>{
+      'id': notifId,
       'active': true,
       'title': title.trim().isEmpty ? '🎧 Info dari Fannz' : title.trim(),
       'message': message.trim(),
+      'imageUrl': finalImageUrl,
+      'actionUrl': (actionUrl ?? '').trim(),
+      'songQuery': (songQuery ?? '').trim(),
       'sender': 'Fannz',
-      'createdAt': DateTime.now().toUtc().toIso8601String(),
+      'createdAt': createdAt,
+    };
+
+    history.insert(0, Map<String, dynamic>.from(currentEntry));
+    if (history.length > 20) {
+      history = history.sublist(0, 20);
+    }
+
+    final newPayload = <String, dynamic>{
+      ...currentEntry,
+      'history': history,
     };
 
     final jsonBytes = utf8.encode(
@@ -279,6 +443,59 @@ class UpdateService {
         .put(apiUri, headers: headers, body: jsonEncode(body))
         .timeout(const Duration(seconds: 10));
     return putRes.statusCode == 200 || putRes.statusCode == 201;
+  }
+
+  /// Recalls/deactivates the currently active announcement so users no longer see it.
+  Future<bool> recallActiveAnnouncement({
+    required String githubToken,
+  }) async {
+    final cleanToken = githubToken.trim();
+    if (cleanToken.isEmpty) return false;
+
+    final apiUri = Uri.parse(
+      'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
+    );
+    final headers = {
+      'Authorization': 'Bearer $cleanToken',
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'Zunify-Admin-Fannz',
+    };
+
+    try {
+      final getRes = await http
+          .get(apiUri, headers: headers)
+          .timeout(const Duration(seconds: 8));
+      if (getRes.statusCode != 200) return false;
+      final meta =
+          jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
+      final existingSha = meta['sha']?.toString();
+      final rawB64 = (meta['content'] ?? '').toString().replaceAll('\n', '');
+      Map<String, dynamic> existingJson = {};
+      if (rawB64.isNotEmpty) {
+        existingJson =
+            jsonDecode(utf8.decode(base64Decode(rawB64))) as Map<String, dynamic>;
+      }
+      existingJson['active'] = false;
+
+      final jsonBytes = utf8.encode(
+        const JsonEncoder.withIndent('  ').convert(existingJson),
+      );
+      final putRes = await http
+          .put(
+            apiUri,
+            headers: headers,
+            body: jsonEncode({
+              'message': 'chore(broadcast): recall active notification [skip ci]',
+              'content': base64Encode(jsonBytes),
+              if (existingSha != null) 'sha': existingSha,
+            }),
+          )
+          .timeout(const Duration(seconds: 10));
+      return putRes.statusCode == 200 || putRes.statusCode == 201;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> skipVersion(String version) async {

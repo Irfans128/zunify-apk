@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../app_version.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
-import '../services/update_service.dart';
 import '../widgets/equalizer_sheet.dart';
 import '../widgets/update_sheet.dart';
 
@@ -57,246 +55,6 @@ class SettingsScreen extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Future<void> _showBroadcastAdminDialog(
-    BuildContext context,
-    Color accent,
-  ) async {
-    final prefs = await SharedPreferences.getInstance();
-    final savedToken = prefs.getString('fannz_admin_gh_token') ?? '';
-    final titleCtrl = TextEditingController(text: 'Pesan dari Fannz 🎵');
-    final msgCtrl = TextEditingController();
-    final tokenCtrl = TextEditingController(text: savedToken);
-    bool sending = false;
-
-    if (!context.mounted) return;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF121622),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-            side: BorderSide(color: accent.withOpacity(0.35)),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.campaign_rounded, color: accent, size: 22),
-              const SizedBox(width: 8),
-              const Expanded(
-                child: Text(
-                  'Broadcast Notif Fannz',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Kirim notifikasi bar HP & popup ke semua pengguna Zunify:',
-                  style: TextStyle(color: Colors.white60, fontSize: 12),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: titleCtrl,
-                  style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                  decoration: InputDecoration(
-                    labelText: 'Judul Notifikasi',
-                    labelStyle: TextStyle(color: accent, fontSize: 12),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: msgCtrl,
-                  maxLines: 3,
-                  style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                  decoration: InputDecoration(
-                    labelText: 'Isi Pesan ke User',
-                    hintText: 'Contoh: Halo guys, jangan lupa update ya!',
-                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 12),
-                    labelStyle: TextStyle(color: accent, fontSize: 12),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: tokenCtrl,
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white, fontSize: 12.5),
-                  decoration: InputDecoration(
-                    labelText: 'GitHub Token Admin (Simpan Sekali)',
-                    hintText: 'ghp_... (khusus Fannz untuk broadcast)',
-                    hintStyle: const TextStyle(color: Colors.white30, fontSize: 11.5),
-                    labelStyle: const TextStyle(color: Colors.white54, fontSize: 11.5),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: accent,
-                      side: BorderSide(color: accent.withOpacity(0.45)),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onPressed: () async {
-                      final t = titleCtrl.text.trim().isEmpty
-                          ? 'Pesan dari Fannz 🎵'
-                          : titleCtrl.text.trim();
-                      final m = msgCtrl.text.trim().isEmpty
-                          ? 'Tes notifikasi Zunify dari Fannz berhasil muncul di HP kamu!'
-                          : msgCtrl.text.trim();
-                      await UpdateService.showSystemPushNotification(
-                        id: 890,
-                        title: t,
-                        body: m,
-                      );
-                      if (ctx.mounted) {
-                        ScaffoldMessenger.of(ctx).showSnackBar(
-                          const SnackBar(
-                            content: Text('Notifikasi tes dikirim ke bar HP ini!'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    },
-                    icon: const Icon(Icons.notifications_active_rounded, size: 16),
-                    label: const Text(
-                      'Tes Notif di HP Ini',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: sending ? null : () => Navigator.pop(ctx),
-              child: const Text('Tutup', style: TextStyle(color: Colors.white54)),
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: accent,
-                foregroundColor: Colors.black,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-              ),
-              onPressed: sending
-                  ? null
-                  : () async {
-                      final msg = msgCtrl.text.trim();
-                      final token = tokenCtrl.text.trim();
-                      if (msg.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Isi pesan tidak boleh kosong'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      if (token.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Masukkan GitHub Token Admin Fannz untuk kirim ke semua user',
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                      setDialogState(() => sending = true);
-                      await prefs.setString('fannz_admin_gh_token', token);
-                      final ok = await UpdateService()
-                          .publishBroadcastAnnouncement(
-                            title: titleCtrl.text.trim(),
-                            message: msg,
-                            githubToken: token,
-                          );
-                      if (!ctx.mounted) return;
-                      setDialogState(() => sending = false);
-                      if (ok) {
-                        Navigator.pop(ctx);
-                        await UpdateService.showSystemPushNotification(
-                          id: 891,
-                          title: titleCtrl.text.trim(),
-                          body: msg,
-                        );
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Broadcast berhasil dikirim ke semua user Zunify!',
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Gagal kirim broadcast. Pastikan GitHub Token punya izin repo.',
-                            ),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      }
-                    },
-              icon: sending
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.black,
-                      ),
-                    )
-                  : const Icon(Icons.send_rounded, size: 16),
-              label: Text(
-                sending ? 'Mengirim...' : 'Kirim ke Semua User',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12.5,
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -622,67 +380,42 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 20),
 
             // Aplikasi & Update
-            _sectionLabel('Aplikasi & Notifikasi'),
+            _sectionLabel('Aplikasi & Pembaruan'),
             const SizedBox(height: 10),
             _glassCard(
-              child: Column(
-                children: [
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.system_update_rounded, color: accent),
-                    title: const Text(
-                      'Cek Update Aplikasi',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Versi saat ini: v$kAppVersion • Notifikasi aktif',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                    trailing: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        'Cek',
-                        style: TextStyle(
-                          color: accent,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                    onTap: () => runManualUpdateCheck(context),
+              child: ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.system_update_rounded, color: accent),
+                title: const Text(
+                  'Cek Update Aplikasi',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const Divider(color: Colors.white12),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.campaign_rounded, color: accent),
-                    title: const Text(
-                      'Kirim Broadcast Notifikasi (Admin Fannz)',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Kirim pengumuman & notifikasi ke semua user Zunify',
-                      style: TextStyle(color: Colors.white54, fontSize: 12),
-                    ),
-                    trailing: const Icon(
-                      Icons.chevron_right_rounded,
-                      color: Colors.white54,
-                    ),
-                    onTap: () => _showBroadcastAdminDialog(context, accent),
+                ),
+                subtitle: const Text(
+                  'Versi saat ini: v$kAppVersion',
+                  style: TextStyle(color: Colors.white54, fontSize: 12),
+                ),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
                   ),
-                ],
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Text(
+                    'Cek',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                onTap: () => runManualUpdateCheck(context),
               ),
             ),
             const SizedBox(height: 20),

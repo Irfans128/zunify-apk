@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -28,16 +29,46 @@ class MainShell extends StatefulWidget {
   State<MainShell> createState() => _MainShellState();
 }
 
-class _MainShellState extends State<MainShell> {
+class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _selectedIndex = 0;
+  Timer? _broadcastPollTimer;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkSunday18WIBRapotPopup();
       _checkBackgroundUpdate();
     });
+    _broadcastPollTimer = Timer.periodic(
+      const Duration(minutes: 3),
+      (_) => _pollBroadcastOnly(),
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _broadcastPollTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _pollBroadcastOnly();
+    }
+  }
+
+  Future<void> _pollBroadcastOnly() async {
+    if (!mounted) return;
+    try {
+      final broadcast = await UpdateService().checkBroadcastAnnouncement();
+      if (broadcast != null && mounted) {
+        _showBroadcastDialog(context, broadcast);
+      }
+    } catch (_) {}
   }
 
   Future<void> _checkBackgroundUpdate() async {
@@ -63,6 +94,7 @@ class _MainShellState extends State<MainShell> {
 
   void _showBroadcastDialog(BuildContext context, BroadcastAnnouncement item) {
     final accent = context.read<ThemeProvider>().accentColor;
+    final player = context.read<PlayerProvider>();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -94,28 +126,102 @@ class _MainShellState extends State<MainShell> {
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item.message,
-              style: const TextStyle(
-                color: Colors.white70,
-                fontSize: 13.8,
-                height: 1.45,
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (item.imageUrl.isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: CachedNetworkImage(
+                    imageUrl: item.imageUrl,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
+              Text(
+                item.message,
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 13.8,
+                  height: 1.45,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '— ${item.sender}',
-              style: TextStyle(
-                color: accent,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
+              const SizedBox(height: 12),
+              Text(
+                '— ${item.sender}',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
-            ),
-          ],
+              if (item.songQuery.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: accent,
+                      side: BorderSide(color: accent.withOpacity(0.5)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () async {
+                      Navigator.pop(ctx);
+                      try {
+                        final songs = await widget.ytMusicService
+                            .searchSongs(item.songQuery);
+                        if (songs.isNotEmpty) {
+                          await player.playSong(
+                            songs.first,
+                            customQueue: songs,
+                            contextName: 'Pilihan Fannz',
+                          );
+                        }
+                      } catch (_) {}
+                    },
+                    icon: const Icon(Icons.play_circle_fill_rounded, size: 18),
+                    label: Text(
+                      'Putar: ${item.songQuery}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+              if (item.actionUrl.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Colors.white24),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      UpdateService.openExternalUrl(item.actionUrl);
+                    },
+                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
+                    label: const Text(
+                      'Buka Link',
+                      style: TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
         ),
         actions: [
           ElevatedButton(
