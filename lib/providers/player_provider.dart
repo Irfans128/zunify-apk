@@ -143,6 +143,7 @@ class PlayerProvider extends ChangeNotifier {
   // Getters
   // ---------------------------------------------------------------------------
   AudioPlayer get audioPlayer => _audioPlayer;
+  YTMusicService get ytMusicService => _ytMusicService;
   Duration get position => _audioPlayer.position;
   Duration get duration =>
       _audioPlayer.duration ??

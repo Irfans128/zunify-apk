@@ -15,6 +15,7 @@ import '../widgets/share_card_modal.dart';
 import '../widgets/sleep_timer_sheet.dart';
 import '../widgets/song_tile_widget.dart';
 import '../widgets/vinyl_disc_widget.dart';
+import 'artist_profile_screen.dart';
 
 class NowPlayingScreen extends StatefulWidget {
   const NowPlayingScreen({super.key});
@@ -298,14 +299,49 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             ),
                           ),
                           const SizedBox(height: 3),
-                          Text(
-                            song.artist,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.68),
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {
+                              final primaryArtist = song.artist
+                                  .split(RegExp(
+                                    r'\s*(?:,|&|\bfeat\.?|\bft\.?)\s*',
+                                    caseSensitive: false,
+                                  ))
+                                  .first
+                                  .trim();
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => ArtistProfileScreen(
+                                    artistName: primaryArtist.isNotEmpty
+                                        ? primaryArtist
+                                        : song.artist,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.72),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 2),
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  color: Colors.white.withOpacity(0.50),
+                                  size: 17,
+                                ),
+                              ],
                             ),
                           ),
                         ],

@@ -86,6 +86,7 @@ jobs:
             Zunify-v1.0-Universal-by-Fannz.apk
 
       - name: Publish GitHub Release for In-App Auto Updater
+        if: false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

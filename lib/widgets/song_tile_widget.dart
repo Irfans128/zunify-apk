@@ -5,6 +5,7 @@ import '../models/song_model.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
+import '../screens/artist_profile_screen.dart';
 import 'share_card_modal.dart';
 import 'vinyl_disc_widget.dart';
 
@@ -352,6 +353,29 @@ void showSongActionSheet(
                           color: Colors.black,
                           fontWeight: FontWeight.bold,
                         ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              _sheetActionTile(
+                icon: Icons.person_search_rounded,
+                title: 'Lihat Profil Artis',
+                subtitle: 'Buka lagu populer & album dari ${song.artist}',
+                accent: accent,
+                onTap: () {
+                  final primaryArtist = song.artist
+                      .split(RegExp(r'\s*(?:,|&|\bfeat\.?|\bft\.?)\s*', caseSensitive: false))
+                      .first
+                      .trim();
+                  Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ArtistProfileScreen(
+                        artistName: primaryArtist.isNotEmpty
+                            ? primaryArtist
+                            : song.artist,
                       ),
                     ),
                   );

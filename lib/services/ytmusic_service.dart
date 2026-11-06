@@ -604,7 +604,7 @@ class YTMusicService {
     return searchSongs(moodQueries[mood] ?? mood, limit: 14);
   }
 
-  /// Fetches tracks from a public YouTube / YouTube Music playlist ID
+  /// Fetches tracks from a public YouTube / YouTube Music playlist ID (Unlimited pagination)
   Future<List<ZunifySong>> fetchYouTubePlaylistTracks(String playlistId) async {
     try {
       final browseId = playlistId.startsWith('VL') ? playlistId : 'VL$playlistId';
@@ -624,12 +624,12 @@ class YTMusicService {
             Uri.parse(_ytmBrowseUrl),
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
               'Origin': 'https://music.youtube.com',
             },
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 10));
+          .timeout(const Duration(seconds: 12));
       if (res.statusCode != 200) return [];
 
       final raw = utf8.decode(res.bodyBytes);
@@ -637,18 +637,524 @@ class YTMusicService {
       final uniqueIds = <String>{};
       for (final m in vidMatches) {
         uniqueIds.add(m.group(1)!);
-        if (uniqueIds.length >= 25) break;
       }
 
       final songs = <ZunifySong>[];
-      for (final id in uniqueIds) {
-        final found = await searchSongs(id, limit: 1);
-        if (found.isNotEmpty) songs.add(found.first);
+      final idList = uniqueIds.toList();
+      const int batchSize = 8;
+      for (int s = 0; s < idList.length; s += batchSize) {
+        final end = (s + batchSize < idList.length) ? s + batchSize : idList.length;
+        final batch = await Future.wait(
+          idList.sublist(s, end).map((id) => searchSongs(id, limit: 1)),
+        );
+        for (final found in batch) {
+          if (found.isNotEmpty) songs.add(found.first);
+        }
       }
       return songs;
     } catch (_) {
       return [];
     }
+  }
+
+  /// Real-time Autocomplete Search Suggestions (`get_search_suggestions`)
+  Future<List<String>> getSearchSuggestions(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return const [];
+    try {
+      final payload = {
+        'input': trimmed,
+        'context': {
+          'client': {
+            'clientName': 'WEB_REMIX',
+            'clientVersion': '1.20250101.01.00',
+            'hl': 'id',
+            'gl': 'ID',
+          },
+        },
+      };
+      final res = await _http
+          .post(
+            Uri.parse(
+              'https://music.youtube.com/youtubei/v1/music/get_search_suggestions?prettyPrint=false',
+            ),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+              'Origin': 'https://music.youtube.com',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 5));
+
+      if (res.statusCode == 200) {
+        final data =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final contents = data['contents'] as List<dynamic>? ?? const [];
+        final suggestions = <String>[];
+        final seen = <String>{};
+
+        for (final sec in contents) {
+          final secItems = (sec as Map<String, dynamic>)
+                  ['searchSuggestionsSectionRenderer']?['contents']
+              as List<dynamic>?;
+          if (secItems == null) continue;
+          for (final item in secItems) {
+            final itemMap = item as Map<String, dynamic>;
+            final runs = itemMap['searchSuggestionRenderer']?['suggestion']
+                ?['runs'] as List<dynamic>?;
+            if (runs != null && runs.isNotEmpty) {
+              final text = runs
+                  .map((r) => (r as Map<String, dynamic>)['text']?.toString() ?? '')
+                  .join()
+                  .trim();
+              if (text.isNotEmpty && seen.add(text.toLowerCase())) {
+                suggestions.add(text);
+              }
+            }
+          }
+        }
+        if (suggestions.isNotEmpty) {
+          return suggestions.take(8).toList();
+        }
+      }
+    } catch (_) {}
+    return const [];
+  }
+
+  /// Resolves an artist's YouTube Music Channel `browseId` (`UC...`) by name
+  Future<ZunifyArtistSummary?> searchTopArtistMatch(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      final payload = {
+        'query': trimmed,
+        'params': 'EgWKAQIgAWoKEAkQChADEAUQBA%3D%3D', // Artists filter
+        'context': {
+          'client': {
+            'clientName': 'WEB_REMIX',
+            'clientVersion': '1.20250101.01.00',
+            'hl': 'id',
+            'gl': 'ID',
+          },
+        },
+      };
+      final res = await _http
+          .post(
+            Uri.parse(_ytmSearchUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+              'Origin': 'https://music.youtube.com',
+            },
+            body: jsonEncode(payload),
+          )
+          .timeout(const Duration(seconds: 7));
+      if (res.statusCode != 200) return null;
+
+      final data =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final tabs = data['contents']?['tabbedSearchResultsRenderer']?['tabs']
+          as List<dynamic>?;
+      final sections = tabs?[0]?['tabRenderer']?['content']
+          ?['sectionListRenderer']?['contents'] as List<dynamic>?;
+      if (sections == null) return null;
+
+      for (final sec in sections) {
+        final items = (sec as Map<String, dynamic>)['musicShelfRenderer']
+            ?['contents'] as List<dynamic>?;
+        if (items == null || items.isEmpty) continue;
+        final r = (items.first
+                as Map<String, dynamic>)['musicResponsiveListItemRenderer']
+            as Map<String, dynamic>?;
+        if (r == null) continue;
+
+        final browseId = r['navigationEndpoint']?['browseEndpoint']?['browseId']
+            ?.toString();
+        if (browseId == null || !browseId.startsWith('UC')) continue;
+
+        final flex = r['flexColumns'] as List<dynamic>? ?? const [];
+        String name = trimmed;
+        String subtitle = 'Artis';
+        if (flex.isNotEmpty) {
+          final runs0 = (flex[0] as Map<String, dynamic>)
+                  ['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']
+              as List<dynamic>?;
+          if (runs0 != null && runs0.isNotEmpty) {
+            name = runs0[0]['text']?.toString() ?? trimmed;
+          }
+        }
+        if (flex.length >= 2) {
+          final runs1 = (flex[1] as Map<String, dynamic>)
+                  ['musicResponsiveListItemFlexColumnRenderer']?['text']?['runs']
+              as List<dynamic>?;
+          if (runs1 != null && runs1.isNotEmpty) {
+            subtitle = runs1
+                .map((e) => (e as Map<String, dynamic>)['text']?.toString() ?? '')
+                .join();
+          }
+        }
+
+        final thumbs = r['thumbnail']?['musicThumbnailRenderer']?['thumbnail']
+                ?['thumbnails'] as List<dynamic>? ??
+            const [];
+        String avatar = '';
+        if (thumbs.isNotEmpty) {
+          avatar = _upgradeThumbnailToSquareHD(
+            (thumbs.last as Map<String, dynamic>)['url']?.toString() ?? '',
+          );
+        }
+
+        return ZunifyArtistSummary(
+          browseId: browseId,
+          name: name,
+          subtitle: subtitle,
+          avatarUrl: avatar,
+        );
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  /// Fetches full Artist Profile (`UC...` channel page + top songs + albums/singles + similar artists)
+  Future<ZunifyArtistProfile> fetchArtistProfile(
+    String artistName, {
+    String? browseId,
+  }) async {
+    final cleanName = artistName
+        .split(RegExp(r',|&| x | feat\.?| ft\.?', caseSensitive: false))
+        .first
+        .trim();
+    final targetName = cleanName.isNotEmpty ? cleanName : artistName.trim();
+
+    String? resolvedBrowseId = browseId;
+    String fallbackAvatar = '';
+    if (resolvedBrowseId == null || !resolvedBrowseId.startsWith('UC')) {
+      final matched = await searchTopArtistMatch(targetName);
+      resolvedBrowseId = matched?.browseId;
+      fallbackAvatar = matched?.avatarUrl ?? '';
+    }
+
+    String resolvedTitle = targetName;
+    String bannerUrl = fallbackAvatar;
+    String description = '';
+    final topSongs = <ZunifySong>[];
+    final albums = <ZunifyAlbumSummary>[];
+    final similarArtists = <ZunifyArtistSummary>[];
+    final seenVideoIds = <String>{};
+
+    // Fetch Artist Channel Browse Page and Popular Songs in parallel
+    final futures = await Future.wait([
+      if (resolvedBrowseId != null && resolvedBrowseId.isNotEmpty)
+        _http
+            .post(
+              Uri.parse(_ytmBrowseUrl),
+              headers: {
+                'Content-Type': 'application/json',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'Origin': 'https://music.youtube.com',
+              },
+              body: jsonEncode({
+                'browseId': resolvedBrowseId,
+                'context': {
+                  'client': {
+                    'clientName': 'WEB_REMIX',
+                    'clientVersion': '1.20250101.01.00',
+                    'hl': 'id',
+                    'gl': 'ID',
+                  },
+                },
+              }),
+            )
+            .timeout(const Duration(seconds: 9))
+      else
+        Future<http.Response?>.value(null),
+      searchSongs('$targetName populer', limit: 15),
+    ]);
+
+    final browseRes = futures[0] as http.Response?;
+    final searchedSongs = futures[1] as List<ZunifySong>;
+
+    if (browseRes != null && browseRes.statusCode == 200) {
+      try {
+        final data =
+            jsonDecode(utf8.decode(browseRes.bodyBytes)) as Map<String, dynamic>;
+        final header = (data['header']?['musicImmersiveHeaderRenderer'] ??
+                data['header']?['musicVisualHeaderRenderer'])
+            as Map<String, dynamic>?;
+        if (header != null) {
+          resolvedTitle =
+              header['title']?['runs']?[0]?['text']?.toString() ?? resolvedTitle;
+          description =
+              header['description']?['runs']?[0]?['text']?.toString() ?? '';
+          final thumbs = (header['thumbnail']?['musicThumbnailRenderer'] ??
+                  header['foregroundThumbnail']?['musicThumbnailRenderer'])
+              ?['thumbnail']?['thumbnails'] as List<dynamic>?;
+          if (thumbs != null && thumbs.isNotEmpty) {
+            final rawUrl =
+                (thumbs.last as Map<String, dynamic>)['url']?.toString() ?? '';
+            if (rawUrl.isNotEmpty) {
+              bannerUrl = rawUrl.replaceAll(
+                RegExp(r'=w\d+-h\d+.*'),
+                '=w1200-h800-p-l90-rj',
+              );
+            }
+          }
+        }
+
+        final sections = data['contents']?['singleColumnBrowseResultsRenderer']
+                ?['tabs']?[0]?['tabRenderer']?['content']
+            ?['sectionListRenderer']?['contents'] as List<dynamic>?;
+
+        if (sections != null) {
+          for (final sec in sections) {
+            final secMap = sec as Map<String, dynamic>;
+
+            // 1. Top Songs Shelf ("Lagu teratas")
+            final shelf = secMap['musicShelfRenderer'] as Map<String, dynamic>?;
+            if (shelf != null) {
+              final items = shelf['contents'] as List<dynamic>? ?? const [];
+              for (final item in items) {
+                final r = (item as Map<String, dynamic>)
+                    ['musicResponsiveListItemRenderer'] as Map<String, dynamic>?;
+                if (r == null) continue;
+                final vid = r['playlistItemData']?['videoId']?.toString();
+                if (vid == null || !seenVideoIds.add(vid)) continue;
+
+                final flex = r['flexColumns'] as List<dynamic>? ?? const [];
+                String sTitle = 'Unknown';
+                String sAlbum = resolvedTitle;
+                if (flex.isNotEmpty) {
+                  final runs = (flex[0] as Map<String, dynamic>)
+                          ['musicResponsiveListItemFlexColumnRenderer']?['text']
+                      ?['runs'] as List<dynamic>?;
+                  if (runs != null && runs.isNotEmpty) {
+                    sTitle = runs[0]['text']?.toString() ?? sTitle;
+                  }
+                }
+                if (flex.length >= 3) {
+                  final runs = (flex[2] as Map<String, dynamic>)
+                          ['musicResponsiveListItemFlexColumnRenderer']?['text']
+                      ?['runs'] as List<dynamic>?;
+                  if (runs != null && runs.isNotEmpty) {
+                    sAlbum = runs[0]['text']?.toString() ?? sAlbum;
+                  }
+                }
+                final thumbs = r['thumbnail']?['musicThumbnailRenderer']
+                        ?['thumbnail']?['thumbnails'] as List<dynamic>? ??
+                    const [];
+                String thumb = 'https://i.ytimg.com/vi/$vid/hqdefault.jpg';
+                if (thumbs.isNotEmpty) {
+                  thumb = (thumbs.last as Map<String, dynamic>)['url']
+                          ?.toString() ??
+                      thumb;
+                }
+                topSongs.add(
+                  ZunifySong(
+                    videoId: vid,
+                    title: sTitle,
+                    artist: resolvedTitle,
+                    album: sAlbum,
+                    durationSeconds: 215,
+                    thumbnailUrl: thumb,
+                    highResArtUrl: _upgradeThumbnailToSquareHD(thumb),
+                    addedAt: DateTime.now(),
+                  ),
+                );
+              }
+            }
+
+            // 2. Carousels: Albums, Singles & EP, Similar Artists
+            final carousel =
+                secMap['musicCarouselShelfRenderer'] as Map<String, dynamic>?;
+            if (carousel != null) {
+              final cTitle = (carousel['header']
+                              ?['musicCarouselShelfBasicHeaderRenderer']
+                          ?['title']?['runs']?[0]?['text'] ??
+                      '')
+                  .toString()
+                  .toLowerCase();
+              final cItems = carousel['contents'] as List<dynamic>? ?? const [];
+
+              for (final ci in cItems) {
+                final twoRow = (ci as Map<String, dynamic>)
+                    ['musicTwoRowItemRenderer'] as Map<String, dynamic>?;
+                if (twoRow == null) continue;
+
+                final itemTitle =
+                    twoRow['title']?['runs']?[0]?['text']?.toString() ?? '';
+                final subRuns =
+                    twoRow['subtitle']?['runs'] as List<dynamic>? ?? const [];
+                final itemSub = subRuns
+                    .map((e) => (e as Map<String, dynamic>)['text']?.toString() ?? '')
+                    .join()
+                    .trim();
+                final itemBrowseId = twoRow['navigationEndpoint']
+                        ?['browseEndpoint']?['browseId']
+                    ?.toString();
+                final thumbs = twoRow['thumbnailRenderer']
+                        ?['musicThumbnailRenderer']?['thumbnail']?['thumbnails']
+                    as List<dynamic>?;
+                String thumbUrl = '';
+                if (thumbs != null && thumbs.isNotEmpty) {
+                  thumbUrl = _upgradeThumbnailToSquareHD(
+                    (thumbs.last as Map<String, dynamic>)['url']?.toString() ??
+                        '',
+                  );
+                }
+
+                if (itemBrowseId != null &&
+                    itemBrowseId.startsWith('MPREb') &&
+                    itemTitle.isNotEmpty) {
+                  albums.add(
+                    ZunifyAlbumSummary(
+                      browseId: itemBrowseId,
+                      title: itemTitle,
+                      artist: resolvedTitle,
+                      yearOrSubtitle: itemSub,
+                      coverUrl: thumbUrl,
+                    ),
+                  );
+                } else if (itemBrowseId != null &&
+                    itemBrowseId.startsWith('UC') &&
+                    itemTitle.isNotEmpty &&
+                    (cTitle.contains('penggemar') ||
+                        cTitle.contains('fans') ||
+                        cTitle.contains('mirip') ||
+                        cTitle.contains('similar'))) {
+                  similarArtists.add(
+                    ZunifyArtistSummary(
+                      browseId: itemBrowseId,
+                      name: itemTitle,
+                      subtitle: itemSub,
+                      avatarUrl: thumbUrl,
+                    ),
+                  );
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
+
+    for (final s in searchedSongs) {
+      if (seenVideoIds.add(s.videoId)) {
+        topSongs.add(s);
+        if (topSongs.length >= 15) break;
+      }
+    }
+
+    if (bannerUrl.isEmpty && topSongs.isNotEmpty) {
+      bannerUrl = topSongs.first.highResArtUrl;
+    }
+
+    return ZunifyArtistProfile(
+      browseId: resolvedBrowseId ?? '',
+      name: resolvedTitle,
+      bannerUrl: bannerUrl,
+      description: description,
+      topSongs: topSongs,
+      albums: albums,
+      similarArtists: similarArtists,
+    );
+  }
+
+  /// Fetches all tracks inside a YouTube Music Album / EP (`MPREb_...`)
+  Future<ZunifyAlbumDetail> fetchAlbumDetail(ZunifyAlbumSummary album) async {
+    final songs = <ZunifySong>[];
+    try {
+      final res = await _http
+          .post(
+            Uri.parse(_ytmBrowseUrl),
+            headers: {
+              'Content-Type': 'application/json',
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+              'Origin': 'https://music.youtube.com',
+            },
+            body: jsonEncode({
+              'browseId': album.browseId,
+              'context': {
+                'client': {
+                  'clientName': 'WEB_REMIX',
+                  'clientVersion': '1.20250101.01.00',
+                  'hl': 'id',
+                  'gl': 'ID',
+                },
+              },
+            }),
+          )
+          .timeout(const Duration(seconds: 9));
+
+      if (res.statusCode == 200) {
+        final data =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        final shelfContents = (data['contents']?['twoColumnBrowseResultsRenderer']
+                    ?['secondaryContents']?['sectionListRenderer']?['contents']
+                ?[0]?['musicShelfRenderer']?['contents'] ??
+            data['contents']?['singleColumnBrowseResultsRenderer']?['tabs']?[0]
+                    ?['tabRenderer']?['content']?['sectionListRenderer']
+                ?['contents']?[0]?['musicShelfRenderer']?['contents'])
+            as List<dynamic>?;
+
+        if (shelfContents != null) {
+          for (final item in shelfContents) {
+            final r = (item as Map<String, dynamic>)
+                ['musicResponsiveListItemRenderer'] as Map<String, dynamic>?;
+            if (r == null) continue;
+            final vid = r['playlistItemData']?['videoId']?.toString();
+            if (vid == null || vid.isEmpty) continue;
+
+            final flex = r['flexColumns'] as List<dynamic>? ?? const [];
+            String title = 'Track';
+            if (flex.isNotEmpty) {
+              final runs = (flex[0] as Map<String, dynamic>)
+                      ['musicResponsiveListItemFlexColumnRenderer']?['text']
+                  ?['runs'] as List<dynamic>?;
+              if (runs != null && runs.isNotEmpty) {
+                title = runs[0]['text']?.toString() ?? title;
+              }
+            }
+
+            final fixed = r['fixedColumns'] as List<dynamic>? ?? const [];
+            String durText = '3:30';
+            if (fixed.isNotEmpty) {
+              final runs = (fixed[0] as Map<String, dynamic>)
+                      ['musicResponsiveListItemFixedColumnRenderer']?['text']
+                  ?['runs'] as List<dynamic>?;
+              if (runs != null && runs.isNotEmpty) {
+                durText = runs[0]['text']?.toString() ?? durText;
+              }
+            }
+
+            songs.add(
+              ZunifySong(
+                videoId: vid,
+                title: title,
+                artist: album.artist,
+                album: album.title,
+                durationSeconds: _parseDurationText(durText),
+                thumbnailUrl: album.coverUrl.isNotEmpty
+                    ? album.coverUrl
+                    : 'https://i.ytimg.com/vi/$vid/hqdefault.jpg',
+                highResArtUrl: album.coverUrl.isNotEmpty
+                    ? album.coverUrl
+                    : 'https://i.ytimg.com/vi/$vid/maxresdefault.jpg',
+                addedAt: DateTime.now(),
+              ),
+            );
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (songs.isEmpty) {
+      final fallback =
+          await searchSongs('${album.artist} ${album.title}', limit: 12);
+      songs.addAll(fallback);
+    }
+
+    return ZunifyAlbumDetail(summary: album, tracks: songs);
   }
 
   String _upgradeThumbnailToSquareHD(String url) {
@@ -673,4 +1179,64 @@ class YTMusicService {
     }
     return 210;
   }
+}
+
+class ZunifyAlbumSummary {
+  final String browseId;
+  final String title;
+  final String artist;
+  final String yearOrSubtitle;
+  final String coverUrl;
+
+  const ZunifyAlbumSummary({
+    required this.browseId,
+    required this.title,
+    required this.artist,
+    required this.yearOrSubtitle,
+    required this.coverUrl,
+  });
+}
+
+class ZunifyArtistSummary {
+  final String browseId;
+  final String name;
+  final String subtitle;
+  final String avatarUrl;
+
+  const ZunifyArtistSummary({
+    required this.browseId,
+    required this.name,
+    required this.subtitle,
+    required this.avatarUrl,
+  });
+}
+
+class ZunifyArtistProfile {
+  final String browseId;
+  final String name;
+  final String bannerUrl;
+  final String description;
+  final List<ZunifySong> topSongs;
+  final List<ZunifyAlbumSummary> albums;
+  final List<ZunifyArtistSummary> similarArtists;
+
+  const ZunifyArtistProfile({
+    required this.browseId,
+    required this.name,
+    required this.bannerUrl,
+    required this.description,
+    required this.topSongs,
+    required this.albums,
+    required this.similarArtists,
+  });
+}
+
+class ZunifyAlbumDetail {
+  final ZunifyAlbumSummary summary;
+  final List<ZunifySong> tracks;
+
+  const ZunifyAlbumDetail({
+    required this.summary,
+    required this.tracks,
+  });
 }
