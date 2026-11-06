@@ -1,14 +1,25 @@
 {
-  "id": "fannz_1793882439472",
-  "active": false,
-  "title": "foto kalian",
-  "message": "fotomu kesebar",
-  "imageUrl": "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/announcements/fannz_1793882439472.jpg",
+  "id": "fannz_1793930112945",
+  "active": true,
+  "title": "GoodMorning",
+  "message": "update 2.0.0 kapan ya enaknya🤔",
+  "imageUrl": "",
   "actionUrl": "",
-  "songQuery": "What if i call",
+  "songQuery": "",
   "sender": "Fannz",
-  "createdAt": "2026-11-05T12:40:41.988915Z",
+  "createdAt": "2026-11-06T01:55:13.467956Z",
   "history": [
+    {
+      "id": "fannz_1793930112945",
+      "active": true,
+      "title": "GoodMorning",
+      "message": "update 2.0.0 kapan ya enaknya🤔",
+      "imageUrl": "",
+      "actionUrl": "",
+      "songQuery": "",
+      "sender": "Fannz",
+      "createdAt": "2026-11-06T01:55:13.467956Z"
+    },
     {
       "id": "fannz_1793882439472",
       "active": true,
