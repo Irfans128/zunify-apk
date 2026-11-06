@@ -289,7 +289,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         secondaryColor: theme.secondaryAccentColor,
         baseColor: theme.scaffoldBgColor,
         imageUrl: player.currentSong?.highResArtUrl,
-        intensity: 0.24,
+        intensity: (0.26 * theme.blurIntensity).clamp(0.10, 0.34),
         child: Stack(
           children: [
             IndexedStack(
@@ -307,6 +307,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   context,
                   player,
                   library,
+                  theme,
                   accent,
                 ),
               ),
@@ -315,7 +316,10 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       ),
       bottomNavigationBar: ClipRRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 22, sigmaY: 22),
+          filter: ImageFilter.blur(
+            sigmaX: theme.glassBlurSigma * 0.85,
+            sigmaY: theme.glassBlurSigma * 0.85,
+          ),
           child: Container(
             decoration: BoxDecoration(
               color: theme.scaffoldBgColor.withOpacity(0.88),
@@ -413,15 +417,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     BuildContext context,
     PlayerProvider player,
     LibraryProvider library,
+    ThemeProvider theme,
     Color accent,
   ) {
     final song = player.currentSong!;
     final isFav = library.isFavorite(song.videoId);
 
     return GestureDetector(
+      onHorizontalDragEnd: (details) {
+        final vx = details.primaryVelocity ?? 0.0;
+        if (vx < -280) {
+          player.playNext();
+        } else if (vx > 280) {
+          player.playPrevious();
+        }
+      },
       onTap: () {
         Navigator.of(context).push(
           PageRouteBuilder(
+            transitionDuration: theme.animDuration(320),
+            reverseTransitionDuration: theme.animDuration(260),
             pageBuilder: (_, __, ___) => const NowPlayingScreen(),
             transitionsBuilder: (_, anim, __, child) {
               return SlideTransition(
@@ -438,14 +453,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         );
       },
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-          child: Container(
+          filter: ImageFilter.blur(
+            sigmaX: theme.glassBlurSigma,
+            sigmaY: theme.glassBlurSigma,
+          ),
+          child: AnimatedContainer(
+            duration: theme.animDuration(340),
             decoration: BoxDecoration(
               color: const Color(0xFF141824).withOpacity(0.92),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.11)),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: theme.playerAmbientColor.withOpacity(0.24),
+                width: 1.1,
+              ),
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withOpacity(0.45),

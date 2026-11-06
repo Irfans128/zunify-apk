@@ -2,10 +2,11 @@ import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../providers/theme_provider.dart';
 
-/// Dynamic Liquid + Ambient Blur Background Engine for Zunify v1.1
-/// Renders organic, flowing liquid color blobs combined with album artwork
-/// under a deep frosted glass blur layer (Apple Music iOS 18 style).
+/// Dynamic Liquid + Ambient Blur Background Engine for Zunify 2.0
+/// Respects user's blur settings & animation speed multiplier while staying ultra-lightweight.
 class LiquidBackgroundWidget extends StatefulWidget {
   final Color primaryColor;
   final Color secondaryColor;
@@ -49,6 +50,13 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
 
   @override
   Widget build(BuildContext context) {
+    final theme = context.watch<ThemeProvider>();
+    final blurMult = theme.blurIntensity;
+    final effectiveIntensity = (widget.intensity * (0.55 + 0.55 * blurMult))
+        .clamp(0.14, 0.78);
+    final blurSigma = (44.0 * blurMult).clamp(16.0, 52.0);
+    final speedFactor = (1.0 / theme.animationSpeedMultiplier).clamp(0.55, 1.55);
+
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -60,18 +68,18 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
               ColoredBox(color: widget.baseColor),
               if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
                 Opacity(
-                  opacity: widget.intensity * 0.68,
+                  opacity: effectiveIntensity * 0.72,
                   child: ImageFiltered(
                     imageFilter: ImageFilter.blur(
-                      sigmaX: 42,
-                      sigmaY: 42,
+                      sigmaX: blurSigma,
+                      sigmaY: blurSigma,
                       tileMode: TileMode.decal,
                     ),
                     child: CachedNetworkImage(
                       imageUrl: widget.imageUrl!,
                       memCacheWidth: 140,
                       fit: BoxFit.cover,
-                      fadeInDuration: const Duration(milliseconds: 220),
+                      fadeInDuration: const Duration(milliseconds: 240),
                       errorWidget: (_, __, ___) => const SizedBox.shrink(),
                     ),
                   ),
@@ -80,20 +88,20 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
           ),
         ),
 
-        // Animated Dynamic Liquid Orbs (Already uses smooth RadialGradients — no BackdropFilter needed!)
+        // Animated Dynamic Liquid Orbs (RadialGradients — lightweight & smooth)
         RepaintBoundary(
           child: IgnorePointer(
             child: AnimatedBuilder(
               animation: _controller,
               builder: (context, _) {
-                final t = _controller.value * 2 * math.pi;
+                final t = _controller.value * 2 * math.pi * speedFactor;
                 return CustomPaint(
                   painter: _LiquidOrbsPainter(
                     phase: t,
                     primaryColor:
-                        widget.primaryColor.withOpacity(widget.intensity),
+                        widget.primaryColor.withOpacity(effectiveIntensity),
                     secondaryColor: widget.secondaryColor
-                        .withOpacity(widget.intensity * 0.85),
+                        .withOpacity(effectiveIntensity * 0.85),
                   ),
                 );
               },
@@ -109,8 +117,8 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  widget.baseColor.withOpacity(0.32),
-                  widget.baseColor.withOpacity(0.75),
+                  widget.baseColor.withOpacity(0.28),
+                  widget.baseColor.withOpacity(0.72),
                   widget.baseColor.withOpacity(0.94),
                 ],
               ),

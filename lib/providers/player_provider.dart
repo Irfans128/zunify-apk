@@ -76,6 +76,11 @@ class PlayerProvider extends ChangeNotifier {
   bool _crossfadeTriggeredForCurrent = false;
   Timer? _fadeInTimer;
 
+  // Zunify 2.0 Studio Speed & Pitch + Audio Output Format Badge
+  double _playbackSpeed = 1.0;
+  double _playbackPitch = 1.0;
+  String _activeAudioFormatBadge = 'HI-RES AAC • 160 kbps';
+
   static const MethodChannel _nativeChannel =
       MethodChannel('com.fannz.zunify/equalizer');
 
@@ -169,6 +174,29 @@ class PlayerProvider extends ChangeNotifier {
   bool get autoQualityEnabled => _autoQualityEnabled;
   String get detectedNetworkType => _detectedNetworkType;
   int get crossfadeSeconds => _crossfadeSeconds;
+  double get playbackSpeed => _playbackSpeed;
+  double get playbackPitch => _playbackPitch;
+  String get activeAudioFormatBadge => _activeAudioFormatBadge;
+
+  bool get hasCustomSpeedOrPitch =>
+      (_playbackSpeed - 1.0).abs() > 0.01 ||
+      (_playbackPitch - 1.0).abs() > 0.01;
+
+  String get speedPitchModeLabel {
+    if ((_playbackSpeed - 0.86).abs() < 0.03 &&
+        (_playbackPitch - 0.88).abs() < 0.04) {
+      return 'Slowed + Aesthetic';
+    }
+    if ((_playbackSpeed - 1.20).abs() < 0.03 &&
+        (_playbackPitch - 1.20).abs() < 0.04) {
+      return 'Nightcore';
+    }
+    if ((_playbackSpeed - 1.12).abs() < 0.03) {
+      return 'Sped Up';
+    }
+    if (!hasCustomSpeedOrPitch) return 'Normal 1.0x';
+    return '${_playbackSpeed.toStringAsFixed(2)}x';
+  }
 
   String get activeQualityLabel {
     if (_autoQualityEnabled) {
@@ -767,6 +795,14 @@ class PlayerProvider extends ChangeNotifier {
     _lyricsOffsetMs = 0;
     notifyListeners();
 
+    if (song.highResArtUrl.isNotEmpty) {
+      unawaited(
+        _themeProvider.updateDynamicColorFromImage(
+          CachedNetworkImageProvider(song.highResArtUrl),
+        ),
+      );
+    }
+
     unawaited(_loadLyricsForSong(song));
     _rememberInHistory(song);
     _maybeFillAutoplay();
@@ -786,6 +822,7 @@ class PlayerProvider extends ChangeNotifier {
       _audioHandler?.updateNowPlayingMediaItem(mediaItemTag);
 
       if (offlineCopy != null && offlineCopy.localFilePath != null) {
+        _activeAudioFormatBadge = 'OFFLINE VAULT • HI-RES';
         await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
       } else {
         if (_offlineModeEnabled) {
@@ -804,6 +841,15 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
+
+        final isOpus =
+            resolvedStream.mimeType.toLowerCase().contains('webm') ||
+                resolvedStream.mimeType.toLowerCase().contains('opus');
+        final codecName = isOpus ? 'OPUS STUDIO' : 'HI-RES AAC';
+        final br = resolvedStream.bitrateKbps > 0
+            ? resolvedStream.bitrateKbps
+            : (effectiveHq ? 160 : 96);
+        _activeAudioFormatBadge = '$codecName • $br kbps';
 
         try {
           await _audioPlayer.setAudioSource(
@@ -841,6 +887,10 @@ class PlayerProvider extends ChangeNotifier {
       } else {
         _fadeInTimer?.cancel();
         _audioPlayer.setVolume(1.0);
+      }
+      if (hasCustomSpeedOrPitch) {
+        unawaited(_audioPlayer.setSpeed(_playbackSpeed));
+        unawaited(_audioPlayer.setPitch(_playbackPitch));
       }
       notifyListeners();
       unawaited(_audioPlayer.play());
@@ -1349,6 +1399,36 @@ class PlayerProvider extends ChangeNotifier {
     _virtualizerStrength = strength;
     if (_eqEnabled) await _equalizerService.setVirtualizer(strength);
     notifyListeners();
+  }
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    _playbackSpeed = speed.clamp(0.65, 1.50);
+    try {
+      await _audioPlayer.setSpeed(_playbackSpeed);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> setPlaybackPitch(double pitch) async {
+    _playbackPitch = pitch.clamp(0.65, 1.50);
+    try {
+      await _audioPlayer.setPitch(_playbackPitch);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> setSpeedPitchPreset(double speed, double pitch) async {
+    _playbackSpeed = speed.clamp(0.65, 1.50);
+    _playbackPitch = pitch.clamp(0.65, 1.50);
+    try {
+      await _audioPlayer.setSpeed(_playbackSpeed);
+      await _audioPlayer.setPitch(_playbackPitch);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> resetSpeedPitch() async {
+    await setSpeedPitchPreset(1.0, 1.0);
   }
 
   // ---------------------------------------------------------------------------

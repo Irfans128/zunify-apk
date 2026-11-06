@@ -57,7 +57,7 @@ jobs:
           rm -rf test
           flutter pub get
 
-      - name: Generate App Launcher Icons (Gaya 2 Vinyl Logo)
+      - name: Generate App Launcher Icons (Zunify 2.0 Crimson Z Logo)
         run: |
           dart run flutter_launcher_icons || true
 
@@ -74,8 +74,8 @@ jobs:
         run: |
           cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.0-Lite-arm64-by-Fannz.apk
           cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.0-Universal-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v1.7.2-Lite-arm64-by-Fannz.apk
-          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v1.7.2-Universal-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk Zunify-v2.0.0-Lite-arm64-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-release.apk Zunify-v2.0.0-Universal-by-Fannz.apk
 
       - name: Upload Zunify APK Artifacts
         uses: actions/upload-artifact@v4
@@ -86,18 +86,17 @@ jobs:
             Zunify-v1.0-Universal-by-Fannz.apk
 
       - name: Publish GitHub Release for In-App Auto Updater
-        if: false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           APP_VER=$(grep "kAppVersion =" lib/app_version.dart | cut -d"'" -f2)
           TAG="v${APP_VER}"
-          NOTES="- Perbaikan lirik lagu dan pengoptimalan performa\n- Algoritma lagu\n- Update Equalizer"
+          NOTES="- Major Overhaul Zunify v2.0.0\n- Dynamic Artwork Theme & Kustomisasi Tampilan Lengkap (Animation Speed, Player Spacing, Blur Glass, Sampul 3D/Vinyl)\n- Perbaikan Posisi Lirik Presisi di Tengah Layar + Multi-Provider Word Sync\n- Zunify Audio & Tempo Studio (Speed, Pitch, Crossfade & Hi-Res Audio Badge)\n- Logo Baru Zunify Crimson Z"
           gh release delete "$TAG" --yes || true
           git tag -f "$TAG"
           git push origin "$TAG" --force
           gh release create "$TAG" \
-            Zunify-v1.7.2-Lite-arm64-by-Fannz.apk \
-            Zunify-v1.7.2-Universal-by-Fannz.apk \
+            Zunify-v2.0.0-Lite-arm64-by-Fannz.apk \
+            Zunify-v2.0.0-Universal-by-Fannz.apk \
             --title "Zunify $TAG (Crafted by Fannz)" \
             --notes "$(echo -e "$NOTES")"

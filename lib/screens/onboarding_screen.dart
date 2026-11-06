@@ -49,13 +49,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const VinylDiscWidget(
-                    imageUrl: '',
-                    isPlaying: true,
-                    accentColor: Color(0xFF00F5A0),
-                    size: 165,
+                  Container(
+                    width: 132,
+                    height: 132,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(34),
+                      boxShadow: [
+                        BoxShadow(
+                          color: accent.withOpacity(0.42),
+                          blurRadius: 34,
+                          spreadRadius: 2,
+                          offset: const Offset(0, 12),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(34),
+                      child: Image.asset(
+                        'assets/images/zunify_logo.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => VinylDiscWidget(
+                          imageUrl: '',
+                          isPlaying: true,
+                          accentColor: accent,
+                          size: 132,
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 28),
 
                   const Text(
                     'Zunify',
