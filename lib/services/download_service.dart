@@ -33,9 +33,11 @@ class DownloadService {
   }) async {
     try {
       final vaultDir = await _getVaultDir();
+      // Always download in High Quality ('high') automatically
       final resolvedStream = await _ytMusicService.resolveAudioStream(
         song.videoId,
-        highQuality: highQuality,
+        highQuality: true,
+        qualityTier: 'high',
       );
       if (resolvedStream == null) return null;
 

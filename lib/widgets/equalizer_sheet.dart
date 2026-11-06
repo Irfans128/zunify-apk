@@ -71,7 +71,7 @@ class EqualizerSheet extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'Studio Audio Equalizer',
+                        'Equalizer',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 17,
@@ -82,11 +82,10 @@ class EqualizerSheet extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         player.eqEnabled
-                            ? (activePreset != null &&
-                                    activePreset.subtitle.isNotEmpty
-                                ? '${activePreset.name} • ${activePreset.subtitle}'
-                                : 'Aktif • ${player.selectedEqPresetName}')
-                            : 'Nonaktif (Bypass Suara Original)',
+                            ? (activePreset != null
+                                ? activePreset.name
+                                : player.selectedEqPresetName)
+                            : 'Nonaktif',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(

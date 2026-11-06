@@ -20,8 +20,11 @@ import android.media.audiofx.Virtualizer
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
+import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognizerIntent
 import android.util.Base64
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
@@ -32,10 +35,10 @@ import java.io.File
 import java.nio.ByteBuffer
 
 /**
- * Zunify MainActivity - Crafted with ❤️ by Fannz
+ * Zunify MainActivity
  * Bridges Flutter audioSessionId directly to Android's hardware DSP Equalizer,
  * BassBoost, Virtualizer, Network Type Detector, Story MP4 Video+Audio Muxer,
- * and native APK update installer.
+ * 90/120Hz High Refresh Rate Display Unlocker, Voice Search, and APK installer.
  */
 class MainActivity : AudioServiceFragmentActivity() {
     private val CHANNEL = "com.fannz.zunify/equalizer"
@@ -46,7 +49,45 @@ class MainActivity : AudioServiceFragmentActivity() {
     private var currentSessionId: Int = -1
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingImageResult: MethodChannel.Result? = null
+    private var pendingVoiceResult: MethodChannel.Result? = null
     private val REQ_PICK_IMAGE = 9401
+    private val REQ_VOICE_SEARCH = 9402
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableHighRefreshRate()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        enableHighRefreshRate()
+    }
+
+    /**
+     * Unlocks native 90Hz / 120Hz / 144Hz High Refresh Rate display mode on Android M+
+     */
+    @Suppress("DEPRECATION")
+    private fun enableHighRefreshRate() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val display = windowManager.defaultDisplay ?: return
+                val modes = display.supportedModes ?: return
+                val currentMode = display.mode ?: return
+                val bestMode = modes
+                    .filter {
+                        it.physicalWidth == currentMode.physicalWidth &&
+                        it.physicalHeight == currentMode.physicalHeight
+                    }
+                    .maxByOrNull { it.refreshRate }
+                if (bestMode != null && bestMode.refreshRate > 60f) {
+                    val params = window.attributes
+                    params.preferredDisplayModeId = bestMode.modeId
+                    params.preferredRefreshRate = bestMode.refreshRate
+                    window.attributes = params
+                }
+            } catch (_: Exception) {}
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -191,6 +232,27 @@ class MainActivity : AudioServiceFragmentActivity() {
                         }
                     }
                 }
+                "startVoiceSearch" -> {
+                    try {
+                        pendingVoiceResult = result
+                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                            putExtra(
+                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                            )
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
+                            putExtra(
+                                RecognizerIntent.EXTRA_PROMPT,
+                                "Sebutkan judul lagu, artis, atau lirik..."
+                            )
+                            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                        }
+                        startActivityForResult(intent, REQ_VOICE_SEARCH)
+                    } catch (e: Exception) {
+                        pendingVoiceResult = null
+                        result.success(null)
+                    }
+                }
                 else -> result.notImplemented()
             }
         }
@@ -199,6 +261,19 @@ class MainActivity : AudioServiceFragmentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_VOICE_SEARCH) {
+            val cb = pendingVoiceResult
+            pendingVoiceResult = null
+            if (cb == null) return
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                val matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                val topMatch = matches?.firstOrNull { it.isNotBlank() }?.trim()
+                cb.success(topMatch)
+            } else {
+                cb.success(null)
+            }
+            return
+        }
         if (requestCode == REQ_PICK_IMAGE) {
             val cb = pendingImageResult
             pendingImageResult = null

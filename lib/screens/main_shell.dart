@@ -283,6 +283,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     return Scaffold(
       backgroundColor: theme.scaffoldBgColor,
       extendBody: true,
+      resizeToAvoidBottomInset: false,
       body: LiquidBackgroundWidget(
         primaryColor: theme.playerAmbientColor,
         secondaryColor: theme.secondaryAccentColor,
@@ -293,13 +294,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           children: [
             TweenAnimationBuilder<double>(
               key: ValueKey<int>(_selectedIndex),
-              tween: Tween<double>(begin: 0.982, end: 1.0),
-              duration: theme.animDuration(240),
+              tween: Tween<double>(begin: 0.985, end: 1.0),
+              duration: theme.animDuration(210),
               curve: Curves.easeOutCubic,
               builder: (context, value, child) {
-                final opacity = ((value - 0.982) / 0.018).clamp(0.0, 1.0);
+                final opacity = ((value - 0.985) / 0.015).clamp(0.0, 1.0);
                 return Opacity(
-                  opacity: 0.72 + (0.28 * opacity),
+                  opacity: 0.76 + (0.24 * opacity),
                   child: Transform.scale(
                     scale: value,
                     child: child,
@@ -312,11 +313,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ),
             ),
 
-            // BitChord Floating Bottom Stack: Liquid Glass MiniPlayer + FloatingTabBar Capsule
+            // Floating Bottom Stack: Never pushed up by keyboard (`resizeToAvoidBottomInset: false`)
             Positioned(
               left: 12,
               right: 12,
-              bottom: MediaQuery.of(context).padding.bottom + 8,
+              bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [

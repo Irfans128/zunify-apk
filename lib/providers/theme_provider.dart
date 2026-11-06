@@ -34,71 +34,59 @@ class ThemeProvider extends ChangeNotifier {
   static const List<ZunifyAccentPreset> accentPresets = [
     ZunifyAccentPreset(
       id: 'ios_liquid',
-      name: 'iOS Liquid Pearl',
-      subtitle: 'Biru kristal & kilau mutiara iOS 26',
+      name: 'Liquid Pearl',
+      subtitle: 'Biru kristal',
       primary: Color(0xFF60A5FA),
       secondary: Color(0xFFC084FC),
     ),
     ZunifyAccentPreset(
+      id: 'saweria_amber',
+      name: 'Saweria Gold',
+      subtitle: 'Kuning khas Saweria',
+      primary: Color(0xFFFAAE2B),
+      secondary: Color(0xFFFFD166),
+    ),
+    ZunifyAccentPreset(
       id: 'crimson_z',
-      name: 'Crimson Velvet',
-      subtitle: 'Merah elegan khas Zunify',
+      name: 'Crimson Red',
+      subtitle: 'Merah tegas',
       primary: Color(0xFFFF3358),
       secondary: Color(0xFFFF758F),
     ),
     ZunifyAccentPreset(
       id: 'rose_quartz',
-      name: 'Rose Quartz',
-      subtitle: 'Pink pastel lembut & estetik',
+      name: 'Rose Pink',
+      subtitle: 'Pink lembut',
       primary: Color(0xFFF472B6),
       secondary: Color(0xFFFB7185),
     ),
     ZunifyAccentPreset(
       id: 'lavender',
-      name: 'Lavender Dream',
-      subtitle: 'Ungu pastel sinematik',
+      name: 'Lavender',
+      subtitle: 'Ungu pastel',
       primary: Color(0xFFA78BFA),
       secondary: Color(0xFFF472B6),
     ),
     ZunifyAccentPreset(
       id: 'matcha',
-      name: 'Matcha Sage',
-      subtitle: 'Hijau emerald tenang & segar',
+      name: 'Matcha Mint',
+      subtitle: 'Hijau segar',
       primary: Color(0xFF34D399),
       secondary: Color(0xFF6EE7B7),
     ),
-    ZunifyAccentPreset(
-      id: 'sunset_peach',
-      name: 'Sunset Peach',
-      subtitle: 'Oranye senja hangat (Golden Hour)',
-      primary: Color(0xFFFB923C),
-      secondary: Color(0xFFFBBF24),
-    ),
-    ZunifyAccentPreset(
-      id: 'ocean_teal',
-      name: 'Oceanic Teal',
-      subtitle: 'Biru laut dalam & cyan jernih',
-      primary: Color(0xFF2DD4BF),
-      secondary: Color(0xFF38BDF8),
-    ),
-    ZunifyAccentPreset(
-      id: 'champagne',
-      name: 'Champagne Gold',
-      subtitle: 'Emas hangat mewah & klasik',
-      primary: Color(0xFFFBBF24),
-      secondary: Color(0xFFFDE68A),
-    ),
   ];
 
+  /// 2 Core Visual Themes: 'liquid_glass' | 'saweria'
+  String _uiThemeMode = 'liquid_glass';
   String _selectedPresetId = 'ios_liquid';
   bool _oledPureBlack = false;
   bool _dynamicAlbumColorEnabled = true;
   bool _dynamicFullAccentEnabled = true;
 
   // Appearance & UI Control Settings
-  double _animationSpeedMultiplier = 1.0; // 0.72 = Cepat, 1.0 = Normal, 1.38 = Sinematik
+  double _animationSpeedMultiplier = 0.88; // Tuned for snappy 90/120fps feel
   String _playerSpacingMode = 'balanced'; // 'compact' | 'balanced' | 'spacious'
-  double _blurIntensity = 0.80; // 0.40 = Ringan, 0.80 = Seimbang, 1.0 = Ultra Glass
+  double _blurIntensity = 0.80; // 0.40 = Ringan, 0.80 = Seimbang, 1.0 = Ultra
   String _playerCoverStyle = 'artwork'; // 'artwork' | 'vinyl'
   bool _lyricsCenterAligned = false; // false = Rata Kiri, true = Rata Tengah
   double _lyricsFontScale = 1.0; // 0.90 = Kompak, 1.0 = Normal, 1.14 = Besar
@@ -108,6 +96,8 @@ class ThemeProvider extends ChangeNotifier {
   Color? _dynamicSecondaryAccent;
   final Map<Object, _CachedPalettePair> _paletteCache = {};
 
+  String get uiThemeMode => _uiThemeMode;
+  bool get isSaweriaTheme => _uiThemeMode == 'saweria';
   String get selectedPresetId => _selectedPresetId;
   bool get oledPureBlack => _oledPureBlack;
   bool get dynamicAlbumColorEnabled => _dynamicAlbumColorEnabled;
@@ -122,12 +112,13 @@ class ThemeProvider extends ChangeNotifier {
 
   /// Scales any base animation duration (ms) by the user's chosen animation speed
   Duration animDuration(int baseMs) {
-    final scaled = (baseMs * _animationSpeedMultiplier).round().clamp(80, 1200);
+    final scaled = (baseMs * _animationSpeedMultiplier).round().clamp(65, 900);
     return Duration(milliseconds: scaled);
   }
 
-  /// Dynamic blur sigma for floating iOS 26 Liquid Glass bars
-  double get glassBlurSigma => (24.0 * _blurIntensity).clamp(10.0, 30.0);
+  /// Dynamic blur sigma for floating Liquid Glass bars
+  double get glassBlurSigma =>
+      isSaweriaTheme ? 0.0 : (24.0 * _blurIntensity).clamp(10.0, 30.0);
 
   /// Vertical spacing multiplier for NowPlayingScreen based on playerSpacingMode
   double get playerSpacingFactor {
@@ -157,40 +148,49 @@ class ThemeProvider extends ChangeNotifier {
         orElse: () => accentPresets.first,
       );
 
-  Color get accentColor =>
-      (_dynamicAlbumColorEnabled &&
-              _dynamicFullAccentEnabled &&
-              _dynamicVibrantAccent != null)
-          ? _dynamicVibrantAccent!
-          : activePreset.primary;
+  Color get accentColor {
+    if (_dynamicAlbumColorEnabled &&
+        _dynamicFullAccentEnabled &&
+        _dynamicVibrantAccent != null) {
+      return _dynamicVibrantAccent!;
+    }
+    return activePreset.primary;
+  }
 
-  Color get secondaryAccentColor =>
-      (_dynamicAlbumColorEnabled &&
-              _dynamicFullAccentEnabled &&
-              _dynamicSecondaryAccent != null)
-          ? _dynamicSecondaryAccent!
-          : activePreset.secondary;
+  Color get secondaryAccentColor {
+    if (_dynamicAlbumColorEnabled &&
+        _dynamicFullAccentEnabled &&
+        _dynamicSecondaryAccent != null) {
+      return _dynamicSecondaryAccent!;
+    }
+    return activePreset.secondary;
+  }
 
   Color get playerAmbientColor =>
       (_dynamicAlbumColorEnabled && _dynamicAlbumColor != null)
           ? _dynamicAlbumColor!
           : activePreset.primary;
 
-  Color get scaffoldBgColor =>
-      _oledPureBlack ? const Color(0xFF000000) : const Color(0xFF07090F);
+  Color get scaffoldBgColor {
+    if (_oledPureBlack) return const Color(0xFF000000);
+    return isSaweriaTheme ? const Color(0xFF111217) : const Color(0xFF07090F);
+  }
 
-  Color get cardBgColor =>
-      _oledPureBlack ? const Color(0xFF0B0D13) : const Color(0xFF121622);
+  Color get cardBgColor {
+    if (_oledPureBlack) return const Color(0xFF0B0D13);
+    return isSaweriaTheme ? const Color(0xFF1B1D26) : const Color(0xFF121622);
+  }
 
   Future<void> loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
+    _uiThemeMode = prefs.getString('ui_theme_mode_v2') ?? 'liquid_glass';
     _selectedPresetId = prefs.getString('theme_preset_id_v2') ?? 'ios_liquid';
     _oledPureBlack = prefs.getBool('oled_pure_black') ?? false;
     _dynamicAlbumColorEnabled = prefs.getBool('dynamic_album_color') ?? true;
     _dynamicFullAccentEnabled =
         prefs.getBool('dynamic_full_accent_v2') ?? true;
     _animationSpeedMultiplier =
-        prefs.getDouble('anim_speed_mult_v2') ?? 1.0;
+        prefs.getDouble('anim_speed_mult_v2') ?? 0.88;
     _playerSpacingMode =
         prefs.getString('player_spacing_mode_v2') ?? 'balanced';
     _blurIntensity = prefs.getDouble('blur_intensity_v2') ?? 0.80;
@@ -200,6 +200,19 @@ class ThemeProvider extends ChangeNotifier {
         prefs.getBool('lyrics_center_aligned_v2') ?? false;
     _lyricsFontScale = prefs.getDouble('lyrics_font_scale_v2') ?? 1.0;
     notifyListeners();
+  }
+
+  Future<void> setUiThemeMode(String mode) async {
+    _uiThemeMode = mode;
+    if (mode == 'saweria' && _selectedPresetId == 'ios_liquid') {
+      _selectedPresetId = 'saweria_amber';
+    } else if (mode == 'liquid_glass' && _selectedPresetId == 'saweria_amber') {
+      _selectedPresetId = 'ios_liquid';
+    }
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('ui_theme_mode_v2', mode);
+    await prefs.setString('theme_preset_id_v2', _selectedPresetId);
   }
 
   Future<void> setAccentPreset(String presetId) async {
@@ -280,7 +293,6 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setDouble('lyrics_font_scale_v2', _lyricsFontScale);
   }
 
-  /// Softens & balances extracted album art colors so they look aesthetic (like iOS 26 / Apple Music)
   Color _boostForAestheticDarkUi(Color raw) {
     final hsl = HSLColor.fromColor(raw);
     final sat = hsl.saturation < 0.45

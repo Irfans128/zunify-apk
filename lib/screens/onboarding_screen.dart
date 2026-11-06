@@ -88,17 +88,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Liquid Glass Music Experience',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.62),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
-                  const SizedBox(height: 36),
+                  const SizedBox(height: 30),
 
                   // iOS 27.2 Liquid Glass Login Box
                   LiquidGlassBox(

@@ -406,21 +406,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
                 SizedBox(height: 6 * theme.playerSpacingFactor),
 
-                // Audio Pipeline & Tempo Studio Badge (iOS 26 Liquid Glass Pill)
+                // Minimalist Tempo Button
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Padding(
                     padding: const EdgeInsets.only(bottom: 6),
                     child: IosGlassPillButton(
-                      icon: Icons.graphic_eq_rounded,
+                      icon: Icons.speed_rounded,
                       label: player.hasCustomSpeedOrPitch
-                          ? '${player.activeAudioFormatBadge} • ${player.speedPitchModeLabel}'
-                          : player.activeAudioFormatBadge,
-                      height: 26,
+                          ? player.speedPitchModeLabel
+                          : 'Tempo 1.0x',
+                      height: 25,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       activeColor: accent,
                       isActive: player.hasCustomSpeedOrPitch,
-                      fontSize: 10.2,
+                      fontSize: 10.5,
                       onTap: () =>
                           _showSpeedPitchStudioSheet(context, player, accent),
                     ),
@@ -1532,32 +1532,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Icon(Icons.lyrics_rounded, color: accent, size: 22),
+                        Icon(Icons.lyrics_rounded, color: accent, size: 20),
                         const SizedBox(width: 8),
                         const Text(
-                          'Pilih Penyedia Lirik',
+                          'Sumber Lirik',
                           style: TextStyle(
                             color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Ganti sumber lirik jika waktu sinkronisasi kurang pas dengan lagu ini.',
-                      style: TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     if (options.isEmpty)
                       const Padding(
                         padding: EdgeInsets.symmetric(vertical: 16),
                         child: Text(
-                          'Hanya 1 sumber lirik tersedia untuk lagu ini.',
+                          'Hanya 1 sumber lirik tersedia.',
                           style: TextStyle(color: Colors.white60, fontSize: 13),
                         ),
                       )
@@ -1566,7 +1558,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         final isSelected = opt.sourceName == currentSource;
                         final hasWordSync =
                             opt.lines.any((l) => l.words.length > 1);
-                        return GestureDetector(
+                        return IosSpringButton(
                           onTap: () {
                             livePlayer.selectLyricsProvider(opt);
                             Navigator.pop(ctx);
@@ -1575,13 +1567,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             margin: const EdgeInsets.only(bottom: 8),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 14,
-                              vertical: 12,
+                              vertical: 11,
                             ),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? accent.withOpacity(0.16)
                                   : Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(14),
                               border: Border.all(
                                 color: isSelected
                                     ? accent.withOpacity(0.55)
@@ -1595,39 +1587,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       ? Icons.auto_awesome_rounded
                                       : Icons.subtitles_rounded,
                                   color: isSelected ? accent : Colors.white70,
-                                  size: 19,
+                                  size: 18,
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        opt.sourceName,
-                                        style: TextStyle(
-                                          color: isSelected
-                                              ? Colors.white
-                                              : Colors.white.withOpacity(0.88),
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${opt.lines.length} baris • ${hasWordSync ? "Word-by-Word Karaoke Sync" : "Line Synced LRC"}',
-                                        style: const TextStyle(
-                                          color: Colors.white54,
-                                          fontSize: 11.5,
-                                        ),
-                                      ),
-                                    ],
+                                  child: Text(
+                                    '${opt.sourceName} (${opt.lines.length} baris)',
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? Colors.white
+                                          : Colors.white.withOpacity(0.88),
+                                      fontSize: 13.5,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                                 if (isSelected)
                                   Icon(
                                     Icons.check_circle_rounded,
                                     color: accent,
-                                    size: 20,
+                                    size: 19,
                                   ),
                               ],
                             ),
@@ -1950,16 +1929,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// Audio Tempo & Pitch Studio Bottom Sheet
+  /// Minimalist Tempo & Pitch Bottom Sheet
   void _showSpeedPitchStudioSheet(
     BuildContext context,
     PlayerProvider player,
     Color accent,
   ) {
     final presets = <Map<String, dynamic>>[
-      {'label': 'Normal (1.0x)', 'speed': 1.0, 'pitch': 1.0},
-      {'label': 'Slowed + Aesthetic', 'speed': 0.86, 'pitch': 0.88},
-      {'label': 'Daycore Deep', 'speed': 0.92, 'pitch': 0.92},
+      {'label': 'Normal', 'speed': 1.0, 'pitch': 1.0},
+      {'label': 'Slowed', 'speed': 0.86, 'pitch': 0.88},
+      {'label': 'Daycore', 'speed': 0.92, 'pitch': 0.92},
       {'label': 'Sped Up', 'speed': 1.12, 'pitch': 1.08},
       {'label': 'Nightcore', 'speed': 1.20, 'pitch': 1.20},
     ];
@@ -1968,21 +1947,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
       context: context,
       backgroundColor: const Color(0xFF101420),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
       builder: (ctx) {
         return Consumer<PlayerProvider>(
           builder: (context, livePlayer, _) {
             return SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Center(
                       child: Container(
-                        width: 40,
+                        width: 36,
                         height: 4,
                         decoration: BoxDecoration(
                           color: Colors.white24,
@@ -1990,85 +1969,100 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.tune_rounded, color: accent, size: 22),
+                            Icon(Icons.speed_rounded, color: accent, size: 20),
                             const SizedBox(width: 8),
                             const Text(
-                              'Zunify Audio & Tempo Studio',
+                              'Tempo',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w900,
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
                               ),
                             ),
                           ],
                         ),
                         if (livePlayer.hasCustomSpeedOrPitch)
-                          GestureDetector(
+                          IosSpringButton(
                             onTap: () => livePlayer.resetSpeedPitch(),
-                            child: Text(
-                              'Reset 1.0x',
-                              style: TextStyle(
-                                color: accent,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Text(
+                                'Reset',
+                                style: TextStyle(
+                                  color: accent,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
                               ),
                             ),
                           ),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: presets.map((p) {
-                        final sp = p['speed'] as double;
-                        final pt = p['pitch'] as double;
-                        final isSelected =
-                            (livePlayer.playbackSpeed - sp).abs() < 0.02 &&
-                                (livePlayer.playbackPitch - pt).abs() < 0.02;
-                        return GestureDetector(
-                          onTap: () => livePlayer.setSpeedPitchPreset(sp, pt),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? accent
-                                  : Colors.white.withOpacity(0.07),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isSelected ? accent : Colors.white12,
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: presets.map((p) {
+                          final sp = p['speed'] as double;
+                          final pt = p['pitch'] as double;
+                          final isSelected =
+                              (livePlayer.playbackSpeed - sp).abs() < 0.02 &&
+                                  (livePlayer.playbackPitch - pt).abs() < 0.02;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: IosSpringButton(
+                              onTap: () => livePlayer.setSpeedPitchPreset(sp, pt),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 13,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: isSelected
+                                      ? accent
+                                      : Colors.white.withOpacity(0.07),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: isSelected ? accent : Colors.white12,
+                                  ),
+                                ),
+                                child: Text(
+                                  p['label'] as String,
+                                  style: TextStyle(
+                                    color: isSelected ? Colors.black : Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: Text(
-                              p['label'] as String,
-                              style: TextStyle(
-                                color: isSelected ? Colors.black : Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ),
-                        );
-                      }).toList(),
+                          );
+                        }).toList(),
+                      ),
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Kecepatan Lagu (Speed)',
+                          'Kecepatan',
                           style: TextStyle(
                             color: Colors.white70,
-                            fontSize: 12.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -2076,28 +2070,36 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           '${livePlayer.playbackSpeed.toStringAsFixed(2)}x',
                           style: TextStyle(
                             color: accent,
-                            fontSize: 12.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
-                    Slider(
-                      value: livePlayer.playbackSpeed.clamp(0.70, 1.35),
-                      min: 0.70,
-                      max: 1.35,
-                      activeColor: accent,
-                      inactiveColor: Colors.white12,
-                      onChanged: (v) => livePlayer.setPlaybackSpeed(v),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 3.5,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 6.5,
+                        ),
+                      ),
+                      child: Slider(
+                        value: livePlayer.playbackSpeed.clamp(0.70, 1.35),
+                        min: 0.70,
+                        max: 1.35,
+                        activeColor: accent,
+                        inactiveColor: Colors.white12,
+                        onChanged: (v) => livePlayer.setPlaybackSpeed(v),
+                      ),
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text(
-                          'Nada Vokal (Pitch)',
+                          'Nada',
                           style: TextStyle(
                             color: Colors.white70,
-                            fontSize: 12.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -2105,19 +2107,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           '${livePlayer.playbackPitch.toStringAsFixed(2)}x',
                           style: TextStyle(
                             color: accent,
-                            fontSize: 12.5,
+                            fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                       ],
                     ),
-                    Slider(
-                      value: livePlayer.playbackPitch.clamp(0.70, 1.35),
-                      min: 0.70,
-                      max: 1.35,
-                      activeColor: accent,
-                      inactiveColor: Colors.white12,
-                      onChanged: (v) => livePlayer.setPlaybackPitch(v),
+                    SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        trackHeight: 3.5,
+                        thumbShape: const RoundSliderThumbShape(
+                          enabledThumbRadius: 6.5,
+                        ),
+                      ),
+                      child: Slider(
+                        value: livePlayer.playbackPitch.clamp(0.70, 1.35),
+                        min: 0.70,
+                        max: 1.35,
+                        activeColor: accent,
+                        inactiveColor: Colors.white12,
+                        onChanged: (v) => livePlayer.setPlaybackPitch(v),
+                      ),
                     ),
                   ],
                 ),

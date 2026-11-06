@@ -7,12 +7,12 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 
-/// iOS 27.2 Fluid Spring Interactive Wrapper.
+/// High-Refresh-Rate (90/120Hz) Fluid Spring & Saweria Neo-Brutalist Button Wrapper.
 ///
-/// Solves Flutter's scroll gesture-arena `0ms` quick-tap swallow by reacting
-/// immediately on `Listener.onPointerDown`, enforcing a minimum `90ms` visual
-/// press phase so quick taps always animate down, and releasing with an
-/// authentic iOS 27.2 `Curves.easeOutBack` spring overshoot + specular bloom.
+/// - In **Liquid Glass** mode: instant `0ms` touch-down squish (`90ms` min hold) +
+///   radial specular bloom + under-damped iOS 27.2 spring bounce.
+/// - In **Saweria** mode: tactile neo-brutalist press that shifts `+2.5px, +2.5px`
+///   into its hard offset shadow + snappy spring release.
 class IosSpringButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -72,7 +72,7 @@ class _IosSpringButtonState extends State<IosSpringButton> {
     final elapsed = _pressDownTime != null
         ? DateTime.now().difference(_pressDownTime!).inMilliseconds
         : 100;
-    const minPressMs = 90;
+    const minPressMs = 85;
     if (elapsed < minPressMs) {
       _releaseTimer?.cancel();
       _releaseTimer = Timer(Duration(milliseconds: minPressMs - elapsed), () {
@@ -121,6 +121,61 @@ class _IosSpringButtonState extends State<IosSpringButton> {
   Widget build(BuildContext context) {
     if (!_isInteractive) return widget.child;
 
+    final isSaweria =
+        context.select<ThemeProvider, bool>((t) => t.isSaweriaTheme);
+
+    Widget animatedBody = AnimatedScale(
+      scale: _pressed ? (isSaweria ? 0.97 : widget.scaleDown) : 1.0,
+      duration: Duration(milliseconds: _pressed ? 80 : 320),
+      curve: _pressed ? Curves.easeOutCubic : const _Ios27SpringCurve(),
+      child: widget.enableBloom && !isSaweria
+          ? Stack(
+              alignment: Alignment.center,
+              children: [
+                widget.child,
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: AnimatedOpacity(
+                      opacity: _pressed ? 1.0 : 0.0,
+                      duration: Duration(milliseconds: _pressed ? 65 : 220),
+                      curve: Curves.easeOut,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          borderRadius:
+                              BorderRadius.circular(widget.borderRadius),
+                          gradient: RadialGradient(
+                            center: const Alignment(-0.25, -0.35),
+                            radius: 1.15,
+                            colors: [
+                              Colors.white.withOpacity(0.18),
+                              Colors.white.withOpacity(0.05),
+                              Colors.transparent,
+                            ],
+                            stops: const [0.0, 0.55, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            )
+          : widget.child,
+    );
+
+    if (isSaweria) {
+      animatedBody = AnimatedContainer(
+        duration: Duration(milliseconds: _pressed ? 70 : 180),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(
+          _pressed ? 2.5 : 0.0,
+          _pressed ? 2.5 : 0.0,
+          0.0,
+        ),
+        child: animatedBody,
+      );
+    }
+
     return Listener(
       behavior: widget.behavior,
       onPointerDown: _handlePointerDown,
@@ -131,68 +186,26 @@ class _IosSpringButtonState extends State<IosSpringButton> {
         behavior: widget.behavior,
         onTap: widget.onTap != null ? _handleTap : null,
         onLongPress: widget.onLongPress,
-        child: AnimatedScale(
-          scale: _pressed ? widget.scaleDown : 1.0,
-          duration: Duration(milliseconds: _pressed ? 95 : 360),
-          curve: _pressed ? Curves.easeOutCubic : const _Ios27SpringCurve(),
-          child: widget.enableBloom
-              ? Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    widget.child,
-                    Positioned.fill(
-                      child: IgnorePointer(
-                        child: AnimatedOpacity(
-                          opacity: _pressed ? 1.0 : 0.0,
-                          duration: Duration(milliseconds: _pressed ? 75 : 260),
-                          curve: Curves.easeOut,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              borderRadius:
-                                  BorderRadius.circular(widget.borderRadius),
-                              gradient: RadialGradient(
-                                center: const Alignment(-0.25, -0.35),
-                                radius: 1.15,
-                                colors: [
-                                  Colors.white.withOpacity(0.18),
-                                  Colors.white.withOpacity(0.05),
-                                  Colors.transparent,
-                                ],
-                                stops: const [0.0, 0.55, 1.0],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                )
-              : widget.child,
-        ),
+        child: animatedBody,
       ),
     );
   }
 }
 
-/// Custom iOS 27.2 Fluid Spring Curve with subtle elastic overshoot
+/// Custom 90/120Hz iOS 27.2 Fluid Spring Curve with subtle elastic overshoot
 class _Ios27SpringCurve extends Curve {
   const _Ios27SpringCurve();
 
   @override
   double transformInternal(double t) {
-    // Under-damped spring response similar to iOS 27.2 CASpringAnimation(damping: 0.62)
     final inv = 1.0 - t;
-    return 1.0 -
-        (inv * inv * (math.cos(t * math.pi * 2.15) * 0.28 + 0.72));
+    return 1.0 - (inv * inv * (math.cos(t * math.pi * 2.15) * 0.28 + 0.72));
   }
 }
 
-/// Authentic iOS 27.2 Optical Liquid Glass Container.
-///
-/// Performance-engineered for 60/120fps:
-/// - Multi-layered 3D optical lens refraction: top convex specular arc,
-///   dual-layer `-135°` chromatic rim, and bottom internal caustic reflection.
-/// - Automatically animates with iOS 27.2 fluid spring physics when `onTap != null`.
+/// Dual-Theme Container:
+/// - **Liquid Glass**: 3D optical lens refraction + `-135°` specular rim.
+/// - **Saweria**: Neo-Brutalist solid surface + crisp `2px` border + hard offset shadow.
 class LiquidGlassBox extends StatelessWidget {
   final Widget child;
   final double borderRadius;
@@ -235,10 +248,72 @@ class LiquidGlassBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isSaweria =
+        context.select<ThemeProvider, bool>((t) => t.isSaweriaTheme);
+    final accent =
+        context.select<ThemeProvider, Color>((t) => t.accentColor);
     final baseTint = tintColor ?? Colors.white;
     final effectiveAlignment = alignment ??
         ((width != null || height != null) ? Alignment.center : null);
 
+    if (isSaweria) {
+      // Saweria Neo-Brutalist Box (Crisp border + hard offset shadow)
+      final hasCustomTint = tintColor != null && tintColor != Colors.white;
+      final fillBg = hasCustomTint
+          ? Color.lerp(const Color(0xFF1C1E26), baseTint, (tintOpacity * 1.45).clamp(0.14, 0.38))!
+          : const Color(0xFF1C1E26);
+      final borderColor = hasCustomTint
+          ? Color.lerp(Colors.black, baseTint, 0.65)!
+          : Colors.white.withOpacity(0.82);
+
+      Widget saweriaCard = Container(
+        width: width,
+        height: height,
+        margin: margin,
+        alignment: effectiveAlignment,
+        padding: padding ?? EdgeInsets.zero,
+        decoration: BoxDecoration(
+          color: fillBg,
+          borderRadius: BorderRadius.circular(borderRadius),
+          border: Border.all(
+            color: borderColor,
+            width: 1.8,
+          ),
+          boxShadow: boxShadow ??
+              [
+                BoxShadow(
+                  color: hasCustomTint
+                      ? baseTint.withOpacity(0.55)
+                      : accent.withOpacity(enableShadow ? 0.65 : 0.38),
+                  blurRadius: 0,
+                  offset: Offset(enableShadow ? 4.0 : 3.0, enableShadow ? 4.0 : 3.0),
+                ),
+              ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(math.max(0, borderRadius - 2)),
+          child: child,
+        ),
+      );
+
+      if (onTap != null && enableSpring) {
+        return IosSpringButton(
+          onTap: onTap,
+          scaleDown: scaleDown,
+          borderRadius: borderRadius,
+          child: saweriaCard,
+        );
+      } else if (onTap != null) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: saweriaCard,
+        );
+      }
+      return saweriaCard;
+    }
+
+    // Liquid Glass Mode
     Widget innerSurface = CustomPaint(
       foregroundPainter: _LiquidGlassRimPainter(
         borderRadius: borderRadius,
@@ -338,8 +413,7 @@ class LiquidGlassBox extends StatelessWidget {
   }
 }
 
-/// Reusable iOS 27.2 Circular Liquid Glass Icon Button.
-/// Ensures 100% consistent size, centering, optical lens sheen, and spring bounce.
+/// Reusable Circular Icon Button (Adapts to Liquid Glass & Saweria themes)
 class IosGlassIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
@@ -397,8 +471,7 @@ class IosGlassIconButton extends StatelessWidget {
   }
 }
 
-/// Reusable iOS 27.2 Capsule Liquid Glass Pill Button.
-/// Keeps icon + label uniformly aligned with crisp iOS 27.2 specular border & fluid spring.
+/// Reusable Capsule Pill Button (Adapts to Liquid Glass & Saweria themes)
 class IosGlassPillButton extends StatelessWidget {
   final IconData? icon;
   final String label;
@@ -468,7 +541,7 @@ class IosGlassPillButton extends StatelessWidget {
   }
 }
 
-/// Optical `-135°` iOS 27.2 Dual-Layer Specular Rim + 3D Convex Lens Refraction Painter
+/// Optical `-135°` Dual-Layer Specular Rim + 3D Convex Lens Refraction Painter
 class _LiquidGlassRimPainter extends CustomPainter {
   final double borderRadius;
   final double rimIntensity;
@@ -494,7 +567,7 @@ class _LiquidGlassRimPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rrect);
 
-    // 1. iOS 27.2 Top Convex Lens Specular Cushion (overhead light refraction)
+    // 1. Top Convex Lens Specular Cushion
     final cushionRect = Rect.fromLTWH(0, 0, size.width, size.height * 0.44);
     final cushionPaint = Paint()
       ..shader = LinearGradient(
@@ -509,7 +582,7 @@ class _LiquidGlassRimPainter extends CustomPainter {
       ).createShader(cushionRect);
     canvas.drawRect(cushionRect, cushionPaint);
 
-    // 2. Bottom Internal Caustic Reflection (thick glass base bounce)
+    // 2. Bottom Internal Caustic Reflection
     final causticHeight = (size.height * 0.24).clamp(6.0, 28.0);
     final causticRect = Rect.fromLTWH(
       0,
@@ -531,7 +604,7 @@ class _LiquidGlassRimPainter extends CustomPainter {
 
     canvas.restore();
 
-    // 3. Inner 3D Thickness Sub-Rim (1.5px inset top-left highlight)
+    // 3. Inner 3D Thickness Sub-Rim
     if (size.width > 16 && size.height > 16) {
       final innerRadius = math.max(0.0, radius - 1.2);
       final innerRRect = RRect.fromRectAndRadius(
@@ -554,7 +627,7 @@ class _LiquidGlassRimPainter extends CustomPainter {
       canvas.drawRRect(innerRRect, innerRimPaint);
     }
 
-    // 4. Primary Crisp -135° iOS 27.2 Specular Rim
+    // 4. Primary Crisp -135° Specular Rim
     final rimPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
@@ -582,8 +655,7 @@ class _LiquidGlassRimPainter extends CustomPainter {
       oldDelegate.accentTint != accentTint;
 }
 
-/// Full-Bleed iOS 27.2 Ambient Artwork Mesh Backdrop Engine
-/// Optimized with isolated RepaintBoundaries for zero scroll jank.
+/// Full-Bleed Ambient Backdrop Engine (90/120Hz Optimized)
 class LiquidBackgroundWidget extends StatefulWidget {
   final Color primaryColor;
   final Color secondaryColor;
@@ -627,6 +699,8 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
 
   @override
   Widget build(BuildContext context) {
+    final isSaweria =
+        context.select<ThemeProvider, bool>((t) => t.isSaweriaTheme);
     final blurMult =
         context.select<ThemeProvider, double>((t) => t.blurIntensity);
     final animSpeed = context
@@ -636,10 +710,27 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
     final blurSigma = (44.0 * blurMult).clamp(20.0, 54.0);
     final speedFactor = (1.0 / animSpeed).clamp(0.55, 1.45);
 
+    if (isSaweria) {
+      // Saweria Neo-Brutalist Clean Grid / Dot-Matrix Backdrop
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              painter: _SaweriaBackdropPainter(
+                baseColor: widget.baseColor,
+                accentColor: widget.primaryColor,
+              ),
+            ),
+          ),
+          widget.child,
+        ],
+      );
+    }
+
     return Stack(
       fit: StackFit.expand,
       children: [
-        // 1. Static Blurred Cover Art + Ambient Orbs inside a single isolated RepaintBoundary
         RepaintBoundary(
           child: Stack(
             fit: StackFit.expand,
@@ -703,12 +794,53 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
             ],
           ),
         ),
-
-        // 2. Foreground UI (completely decoupled from background repaints)
         widget.child,
       ],
     );
   }
+}
+
+class _SaweriaBackdropPainter extends CustomPainter {
+  final Color baseColor;
+  final Color accentColor;
+
+  const _SaweriaBackdropPainter({
+    required this.baseColor,
+    required this.accentColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()..color = baseColor);
+
+    // Subtle top accent glow + Saweria dot-grid texture
+    final glowPaint = Paint()
+      ..shader = RadialGradient(
+        center: const Alignment(0.75, -0.75),
+        radius: 1.1,
+        colors: [
+          accentColor.withOpacity(0.14),
+          Colors.transparent,
+        ],
+      ).createShader(rect);
+    canvas.drawRect(rect, glowPaint);
+
+    final dotPaint = Paint()
+      ..color = Colors.white.withOpacity(0.055)
+      ..style = PaintingStyle.fill;
+    const step = 24.0;
+    for (double y = 12; y < size.height; y += step) {
+      for (double x = 12; x < size.width; x += step) {
+        canvas.drawCircle(Offset(x, y), 1.15, dotPaint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SaweriaBackdropPainter oldDelegate) =>
+      oldDelegate.baseColor != baseColor ||
+      oldDelegate.accentColor != accentColor;
 }
 
 class _LiquidOrbsPainter extends CustomPainter {

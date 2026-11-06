@@ -66,8 +66,9 @@ class PlayerProvider extends ChangeNotifier {
 
   bool _isLoadingTrack = false;
   bool _offlineModeEnabled = false;
-  bool _highQualityAudio = true; // true = 160kbps, false = 96kbps (Hemat Kuota)
-  bool _autoQualityEnabled = true; // Feature #3: Wi-Fi = 160kbps, Data = 96kbps
+  String _audioQualityTier = 'high'; // 'low' = Rendah, 'standard' = Standar, 'high' = Tinggi
+  bool _highQualityAudio = true;
+  bool _autoQualityEnabled = false;
   String _detectedNetworkType = 'wifi';
   DateTime? _lastNetCheckAt;
 
@@ -170,6 +171,7 @@ class PlayerProvider extends ChangeNotifier {
   bool get isPlaying => _audioPlayer.playing;
   bool get isLoadingTrack => _isLoadingTrack;
   bool get offlineModeEnabled => _offlineModeEnabled;
+  String get audioQualityTier => _audioQualityTier;
   bool get highQualityAudio => _highQualityAudio;
   bool get autoQualityEnabled => _autoQualityEnabled;
   String get detectedNetworkType => _detectedNetworkType;
@@ -185,7 +187,11 @@ class PlayerProvider extends ChangeNotifier {
   String get speedPitchModeLabel {
     if ((_playbackSpeed - 0.86).abs() < 0.03 &&
         (_playbackPitch - 0.88).abs() < 0.04) {
-      return 'Slowed + Aesthetic';
+      return 'Slowed';
+    }
+    if ((_playbackSpeed - 0.92).abs() < 0.03 &&
+        (_playbackPitch - 0.92).abs() < 0.04) {
+      return 'Daycore';
     }
     if ((_playbackSpeed - 1.20).abs() < 0.03 &&
         (_playbackPitch - 1.20).abs() < 0.04) {
@@ -194,19 +200,19 @@ class PlayerProvider extends ChangeNotifier {
     if ((_playbackSpeed - 1.12).abs() < 0.03) {
       return 'Sped Up';
     }
-    if (!hasCustomSpeedOrPitch) return 'Normal 1.0x';
+    if (!hasCustomSpeedOrPitch) return '1.0x';
     return '${_playbackSpeed.toStringAsFixed(2)}x';
   }
 
   String get activeQualityLabel {
-    if (_autoQualityEnabled) {
-      return _detectedNetworkType == 'cellular'
-          ? 'Otomatis • Data Seluler (96kbps Hemat)'
-          : 'Otomatis • Wi-Fi (160kbps HQ)';
+    switch (_audioQualityTier) {
+      case 'low':
+        return 'Rendah';
+      case 'standard':
+        return 'Standar';
+      default:
+        return 'Tinggi';
     }
-    return _highQualityAudio
-        ? '160 kbps High Quality'
-        : '96 kbps Hemat Kuota';
   }
 
   bool get shuffleEnabled => _shuffleEnabled;
@@ -239,8 +245,9 @@ class PlayerProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   Future<void> initPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    _highQualityAudio = prefs.getBool('high_quality_audio') ?? true;
-    _autoQualityEnabled = prefs.getBool('auto_quality_enabled') ?? true;
+    _audioQualityTier = prefs.getString('audio_quality_tier_v2') ?? 'high';
+    _highQualityAudio = _audioQualityTier == 'high';
+    _autoQualityEnabled = prefs.getBool('auto_quality_enabled') ?? false;
     _crossfadeSeconds = prefs.getInt('crossfade_seconds') ?? 4;
     _offlineModeEnabled = prefs.getBool('offline_mode_enabled') ?? false;
     unawaited(_refreshNetworkType());
@@ -836,7 +843,7 @@ class PlayerProvider extends ChangeNotifier {
       _audioHandler?.updateNowPlayingMediaItem(mediaItemTag);
 
       if (offlineCopy != null && offlineCopy.localFilePath != null) {
-        _activeAudioFormatBadge = 'OFFLINE VAULT • HI-RES';
+        _activeAudioFormatBadge = 'Offline • Tinggi';
         await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
       } else {
         if (_offlineModeEnabled) {
@@ -844,10 +851,10 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
-        final effectiveHq = await _resolveEffectiveHighQuality();
         final resolvedStream = await _ytMusicService.resolveAudioStream(
           song.videoId,
-          highQuality: effectiveHq,
+          highQuality: _audioQualityTier == 'high',
+          qualityTier: _audioQualityTier,
         );
         if (token != _playToken) return; // user already skipped elsewhere
         if (resolvedStream == null) {
@@ -856,14 +863,12 @@ class PlayerProvider extends ChangeNotifier {
           return;
         }
 
-        final isOpus =
-            resolvedStream.mimeType.toLowerCase().contains('webm') ||
-                resolvedStream.mimeType.toLowerCase().contains('opus');
-        final codecName = isOpus ? 'OPUS STUDIO' : 'HI-RES AAC';
         final br = resolvedStream.bitrateKbps > 0
             ? resolvedStream.bitrateKbps
-            : (effectiveHq ? 160 : 96);
-        _activeAudioFormatBadge = '$codecName • $br kbps';
+            : (_audioQualityTier == 'high'
+                ? 160
+                : (_audioQualityTier == 'standard' ? 128 : 64));
+        _activeAudioFormatBadge = '$br kbps';
 
         try {
           await _audioPlayer.setAudioSource(
@@ -931,12 +936,10 @@ class PlayerProvider extends ChangeNotifier {
     if (_currentIndex + 1 < _queue.length) {
       final next = _queue[_currentIndex + 1];
       if (!_libraryProvider.isDownloaded(next.videoId)) {
-        final effectiveHq = _autoQualityEnabled
-            ? (_detectedNetworkType != 'cellular')
-            : _highQualityAudio;
         _ytMusicService.prefetchNextSongStream(
           next.videoId,
-          highQuality: effectiveHq,
+          highQuality: _audioQualityTier == 'high',
+          qualityTier: _audioQualityTier,
         );
       }
     }
@@ -1278,11 +1281,60 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> setHighQualityAudio(bool highQuality) async {
-    _highQualityAudio = highQuality;
+  Future<void> setAudioQualityTier(String tier) async {
+    final normalized =
+        (tier == 'low' || tier == 'standard' || tier == 'high') ? tier : 'high';
+    if (_audioQualityTier == normalized) return;
+    _audioQualityTier = normalized;
+    _highQualityAudio = normalized == 'high';
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('high_quality_audio', highQuality);
+    await prefs.setString('audio_quality_tier_v2', normalized);
+    await prefs.setBool('high_quality_audio', _highQualityAudio);
+
+    // Immediately switch stream bitrate if currently streaming a song online
+    final song = _currentSong;
+    if (song != null &&
+        !_offlineModeEnabled &&
+        !_libraryProvider.isDownloaded(song.videoId)) {
+      final savedPos = _audioPlayer.position;
+      final wasPlaying = _audioPlayer.playing;
+      try {
+        final resolvedStream = await _ytMusicService.resolveAudioStream(
+          song.videoId,
+          highQuality: normalized == 'high',
+          qualityTier: normalized,
+        );
+        if (resolvedStream != null && _currentSong?.videoId == song.videoId) {
+          final br = resolvedStream.bitrateKbps > 0
+              ? resolvedStream.bitrateKbps
+              : (normalized == 'high'
+                  ? 160
+                  : (normalized == 'standard' ? 128 : 64));
+          _activeAudioFormatBadge = '$br kbps';
+          await _audioPlayer.setAudioSource(
+            AudioSource.uri(
+              resolvedStream.url,
+              headers: resolvedStream.headers,
+            ),
+            initialPosition: savedPos,
+          );
+          if (hasCustomSpeedOrPitch) {
+            unawaited(_audioPlayer.setSpeed(_playbackSpeed));
+            unawaited(_audioPlayer.setPitch(_playbackPitch));
+          }
+          if (wasPlaying) {
+            unawaited(_audioPlayer.play());
+          }
+          notifyListeners();
+        }
+      } catch (_) {}
+    }
+    _prefetchNext();
+  }
+
+  Future<void> setHighQualityAudio(bool highQuality) async {
+    await setAudioQualityTier(highQuality ? 'high' : 'low');
   }
 
   Future<void> setAutoQualityEnabled(bool enabled) async {

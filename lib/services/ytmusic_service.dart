@@ -470,9 +470,12 @@ class YTMusicService {
   /// Bypasses PoToken/SABR HTTP 403 on `googlevideo.com` with ExoPlayer (`just_audio`).
   Future<ResolvedAudioStream?> resolveAudioStream(
     String videoId, {
-    required bool highQuality,
+    bool highQuality = true,
+    String? qualityTier,
   }) async {
-    final cacheKey = '${videoId}_${highQuality ? "hq" : "low"}';
+    final effectiveTier =
+        qualityTier ?? (highQuality ? 'high' : 'low');
+    final cacheKey = '${videoId}_$effectiveTier';
     final cached = _streamCache[cacheKey];
     if (cached != null && cached.isValid) {
       return cached.stream;
@@ -563,25 +566,18 @@ class YTMusicService {
             streamingData['adaptiveFormats'] as List<dynamic>? ?? [];
         final formats = streamingData['formats'] as List<dynamic>? ?? [];
 
-        final mp4AudioFormats = <Map<String, dynamic>>[];
-        final otherAudioFormats = <Map<String, dynamic>>[];
+        final allAudioFormats = <Map<String, dynamic>>[];
 
         for (final f in [...adaptive, ...formats]) {
           final map = f as Map<String, dynamic>;
           final mime = map['mimeType']?.toString() ?? '';
           final url = map['url']?.toString();
           if (mime.startsWith('audio/') && url != null && url.isNotEmpty) {
-            if (mime.contains('mp4')) {
-              mp4AudioFormats.add(map);
-            } else {
-              otherAudioFormats.add(map);
-            }
+            allAudioFormats.add(map);
           }
         }
 
-        final candidateFormats =
-            mp4AudioFormats.isNotEmpty ? mp4AudioFormats : otherAudioFormats;
-        if (candidateFormats.isEmpty &&
+        if (allAudioFormats.isEmpty &&
             (hlsManifestUrl == null || hlsManifestUrl.isEmpty)) {
           continue;
         }
@@ -589,15 +585,30 @@ class YTMusicService {
         // Fire non-blocking YouTube playback telemetry ping (same as AusDMusic initPlayback)
         unawaited(_initPlaybackTelemetry(data, cpn: cpn, visitorData: visitorData));
 
-        if (candidateFormats.isNotEmpty) {
-          candidateFormats.sort((a, b) {
+        if (allAudioFormats.isNotEmpty) {
+          allAudioFormats.sort((a, b) {
             final aBr = (a['bitrate'] as num?)?.toInt() ?? 0;
             final bBr = (b['bitrate'] as num?)?.toInt() ?? 0;
             return aBr.compareTo(bBr);
           });
 
-          final chosen =
-              highQuality ? candidateFormats.last : candidateFormats.first;
+          Map<String, dynamic> chosen;
+          if (effectiveTier == 'low') {
+            // Rendah (~48-64 kbps): lowest bitrate stream
+            chosen = allAudioFormats.first;
+          } else if (effectiveTier == 'standard') {
+            // Standar (~96-128 kbps): medium stream closest to 112 kbps
+            chosen = allAudioFormats.firstWhere(
+              (f) {
+                final br = ((f['bitrate'] as num?)?.toInt() ?? 0) ~/ 1000;
+                return br >= 68 && br <= 138;
+              },
+              orElse: () => allAudioFormats[allAudioFormats.length ~/ 2],
+            );
+          } else {
+            // Tinggi (~160-256 kbps): highest bitrate stream
+            chosen = allAudioFormats.last;
+          }
 
           String streamUrl = chosen['url'].toString();
           final contentLen =
@@ -698,10 +709,15 @@ class YTMusicService {
 
   Future<void> prefetchNextSongStream(
     String videoId, {
-    required bool highQuality,
+    bool highQuality = true,
+    String? qualityTier,
   }) async {
     try {
-      await resolveAudioStream(videoId, highQuality: highQuality);
+      await resolveAudioStream(
+        videoId,
+        highQuality: highQuality,
+        qualityTier: qualityTier,
+      );
     } catch (_) {}
   }
 

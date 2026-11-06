@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song_model.dart';
 import '../providers/library_provider.dart';
+import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../widgets/liquid_background_widget.dart';
@@ -24,6 +26,9 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   static const String _kSearchHistoryKey = 'zunify_search_history_v1';
+  static const MethodChannel _nativeChannel = MethodChannel(
+    'com.fannz.zunify/equalizer',
+  );
 
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
@@ -35,6 +40,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   bool _isSearching = false;
   bool _showingSuggestions = false;
+  String _activeFilter = 'all'; // 'all' | 'official' | 'lyrics'
   Timer? _debounceTimer;
 
   @override
@@ -111,7 +117,7 @@ class _SearchScreenState extends State<SearchScreen> {
       _showingSuggestions = true;
     });
 
-    _debounceTimer = Timer(const Duration(milliseconds: 220), () async {
+    _debounceTimer = Timer(const Duration(milliseconds: 200), () async {
       final fetched = await widget.ytMusicService.getSearchSuggestions(trimmed);
       if (!mounted) return;
       if (_searchController.text.trim() == trimmed) {
@@ -125,6 +131,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Future<void> _performSearch(
     String query, {
     bool allowArtistCard = true,
+    String? filterMode,
   }) async {
     final clean = query.trim();
     if (clean.isEmpty) return;
@@ -135,16 +142,28 @@ class _SearchScreenState extends State<SearchScreen> {
       TextPosition(offset: clean.length),
     );
 
+    final effectiveFilter = filterMode ?? _activeFilter;
     unawaited(_saveQueryToHistory(clean));
 
     setState(() {
       _isSearching = true;
       _showingSuggestions = false;
+      _activeFilter = effectiveFilter;
     });
 
-    final res = await widget.ytMusicService.searchSongs(clean, limit: 25);
+    String effectiveQuery = clean;
+    if (effectiveFilter == 'lyrics') {
+      effectiveQuery = '$clean lyrics';
+    } else if (effectiveFilter == 'official') {
+      effectiveQuery = '$clean official audio';
+    }
+
+    final res = await widget.ytMusicService.searchSongs(
+      effectiveQuery,
+      limit: 25,
+    );
     ZunifyArtistSummary? topArtist;
-    if (allowArtistCard && res.isNotEmpty) {
+    if (allowArtistCard && effectiveFilter == 'all' && res.isNotEmpty) {
       try {
         topArtist = await widget.ytMusicService.resolveArtistForSearchQuery(
           clean,
@@ -160,6 +179,212 @@ class _SearchScreenState extends State<SearchScreen> {
       _isSearching = false;
       _showingSuggestions = false;
     });
+  }
+
+  /// Unified Voice & Song Search (seperti YouTube)
+  Future<void> _openVoiceSearchModal(BuildContext context) async {
+    final theme = context.read<ThemeProvider>();
+    final accent = theme.accentColor;
+    _searchFocusNode.unfocus();
+
+    String voiceMode = 'song'; // 'song' | 'lyrics'
+    bool isListening = false;
+    String statusText = 'Ketuk mikrofon untuk mulai bicara';
+
+    Future<void> triggerSpeechRecognition(StateSetter setModalState) async {
+      setModalState(() {
+        isListening = true;
+        statusText = voiceMode == 'lyrics'
+            ? 'Mendengarkan potongan lirik lagu...'
+            : 'Sebutkan judul lagu atau nama artis...';
+      });
+      try {
+        final spoken = await _nativeChannel.invokeMethod<String>(
+          'startVoiceSearch',
+        );
+        if (!mounted) return;
+        final cleaned = (spoken ?? '').trim();
+        if (cleaned.isNotEmpty) {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+          _performSearch(
+            cleaned,
+            filterMode: voiceMode == 'lyrics' ? 'lyrics' : 'all',
+          );
+        } else {
+          setModalState(() {
+            isListening = false;
+            statusText = 'Suara belum terdengar. Ketuk mic untuk coba lagi.';
+          });
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setModalState(() {
+          isListening = false;
+          statusText = 'Pencarian suara tidak tersedia di perangkat ini.';
+        });
+      }
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF101420),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) {
+        var autoStarted = false;
+        return StatefulBuilder(
+          builder: (ctx, setModalState) {
+            if (!autoStarted) {
+              autoStarted = true;
+              Future.microtask(() => triggerSpeechRecognition(setModalState));
+            }
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _voiceModeTab(
+                          label: 'Cari Lagu / Artis',
+                          icon: Icons.music_note_rounded,
+                          selected: voiceMode == 'song',
+                          accent: accent,
+                          onTap: () {
+                            setModalState(() => voiceMode = 'song');
+                            triggerSpeechRecognition(setModalState);
+                          },
+                        ),
+                        const SizedBox(width: 10),
+                        _voiceModeTab(
+                          label: 'Cari dari Lirik',
+                          icon: Icons.lyrics_rounded,
+                          selected: voiceMode == 'lyrics',
+                          accent: accent,
+                          onTap: () {
+                            setModalState(() => voiceMode = 'lyrics');
+                            triggerSpeechRecognition(setModalState);
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 26),
+                    IosSpringButton(
+                      onTap: () => triggerSpeechRecognition(setModalState),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 220),
+                        width: 84,
+                        height: 84,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isListening
+                              ? accent
+                              : accent.withOpacity(0.18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withOpacity(
+                                isListening ? 0.48 : 0.20,
+                              ),
+                              blurRadius: isListening ? 28 : 14,
+                              spreadRadius: isListening ? 4 : 1,
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.32),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.mic_rounded,
+                          color: isListening ? Colors.black : accent,
+                          size: 38,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    Text(
+                      statusText,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      voiceMode == 'lyrics'
+                          ? 'Ucapkan penggalan lirik lagu yang kamu ingat'
+                          : 'Ucapkan judul lagu atau penyanyi seperti di YouTube',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _voiceModeTab({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required Color accent,
+    required VoidCallback onTap,
+  }) {
+    return IosSpringButton(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? accent : Colors.white.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: selected ? accent : Colors.white12,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? Colors.black : Colors.white70,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.black : Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _showImportPlaylistModal(BuildContext context) {
@@ -209,12 +434,12 @@ class _SearchScreenState extends State<SearchScreen> {
                       Icon(
                         Icons.playlist_add_check_circle_rounded,
                         color: accent,
-                        size: 26,
+                        size: 24,
                       ),
                       const SizedBox(width: 10),
                       const Expanded(
                         child: Text(
-                          'Import Playlist Spotify & YT Music',
+                          'Import Playlist',
                           style: TextStyle(
                             color: Colors.white,
                             fontSize: 17,
@@ -224,18 +449,13 @@ class _SearchScreenState extends State<SearchScreen> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Tempel link playlist publik dari Spotify atau YouTube Music. Zunify otomatis mengambil seluruh daftar lagunya tanpa batas jumlah lagu.',
-                    style: TextStyle(color: Colors.white60, fontSize: 12.5),
-                  ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   TextField(
                     controller: urlController,
                     style: const TextStyle(color: Colors.white, fontSize: 13.5),
                     decoration: InputDecoration(
                       hintText:
-                          'https://open.spotify.com/playlist/... atau music.youtube.com/...',
+                          'Link playlist Spotify atau YouTube Music...',
                       hintStyle: const TextStyle(
                         color: Colors.white38,
                         fontSize: 12.5,
@@ -294,8 +514,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
                               setModalState(() {
                                 isImporting = true;
-                                progressStatus =
-                                    'Membaca daftar lagu playlist...';
+                                progressStatus = 'Memuat playlist...';
                               });
 
                               try {
@@ -305,8 +524,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                   onProgress: (cur, tot, name) {
                                     setModalState(() {
                                       progressValue = cur / tot;
-                                      progressStatus =
-                                          'Mencocokkan ($cur/$tot): $name';
+                                      progressStatus = '($cur/$tot) $name';
                                     });
                                   },
                                 );
@@ -317,7 +535,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                     SnackBar(
                                       backgroundColor: accent,
                                       content: Text(
-                                        'Berhasil import "${imported.name}" (${imported.songs.length} lagu)!',
+                                        'Berhasil import "${imported.name}" (${imported.songs.length} lagu)',
                                         style: const TextStyle(
                                           color: Colors.black,
                                           fontWeight: FontWeight.bold,
@@ -338,10 +556,10 @@ class _SearchScreenState extends State<SearchScreen> {
                             },
                       icon: const Icon(Icons.cloud_download_rounded, size: 20),
                       label: const Text(
-                        'Import Playlist Sekarang',
+                        'Import Sekarang',
                         style: TextStyle(
                           fontWeight: FontWeight.w800,
-                          fontSize: 14.5,
+                          fontSize: 14,
                         ),
                       ),
                     ),
@@ -362,6 +580,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: false,
       body: SafeArea(
         bottom: false,
         child: Padding(
@@ -369,7 +588,7 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Clean iOS 26 Header + Import Playlist Pill (No subtitle below Cari)
+              // Clean Header + Quick Tools
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -383,74 +602,189 @@ class _SearchScreenState extends State<SearchScreen> {
                       letterSpacing: -0.6,
                     ),
                   ),
-                  IosGlassPillButton(
-                    icon: Icons.add_link_rounded,
-                    label: 'Import Playlist',
-                    height: 36,
-                    activeColor: accent,
-                    isActive: true,
-                    onTap: () => _showImportPlaylistModal(context),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IosGlassPillButton(
+                        icon: Icons.mic_rounded,
+                        label: 'Suara',
+                        height: 34,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        activeColor: accent,
+                        onTap: () => _openVoiceSearchModal(context),
+                      ),
+                      const SizedBox(width: 8),
+                      IosGlassPillButton(
+                        icon: Icons.add_link_rounded,
+                        label: 'Import',
+                        height: 34,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        activeColor: accent,
+                        isActive: true,
+                        onTap: () => _showImportPlaylistModal(context),
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-              // iOS 26 Liquid Glass Search Capsule
-              LiquidGlassBox(
-                borderRadius: 23,
-                height: 46,
-                tintOpacity: 0.10,
-                rimIntensity: 0.38,
-                alignment: Alignment.center,
-                child: TextField(
-                  controller: _searchController,
-                  focusNode: _searchFocusNode,
-                  textInputAction: TextInputAction.search,
-                  textAlignVertical: TextAlignVertical.center,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+              // Unified Search Bar + Integrated YouTube-Style Mic Button
+              Row(
+                children: [
+                  Expanded(
+                    child: LiquidGlassBox(
+                      borderRadius: 23,
+                      height: 46,
+                      tintOpacity: 0.10,
+                      rimIntensity: 0.38,
+                      alignment: Alignment.center,
+                      child: TextField(
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        textInputAction: TextInputAction.search,
+                        textAlignVertical: TextAlignVertical.center,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                        onChanged: _onSearchTextChanged,
+                        onSubmitted: (val) => _performSearch(val),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'Cari lagu, artis, atau lirik...',
+                          hintStyle: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 13.5,
+                          ),
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(
+                            vertical: 11,
+                          ),
+                          prefixIcon: Icon(
+                            Icons.search_rounded,
+                            color: accent,
+                            size: 20,
+                          ),
+                          suffixIcon: _searchController.text.isNotEmpty
+                              ? IosSpringButton(
+                                  onTap: () {
+                                    _debounceTimer?.cancel();
+                                    _searchController.clear();
+                                    setState(() {
+                                      _results = [];
+                                      _matchedArtist = null;
+                                      _suggestions = [];
+                                      _showingSuggestions = false;
+                                    });
+                                  },
+                                  child: const Icon(
+                                    Icons.cancel_rounded,
+                                    color: Colors.white54,
+                                    size: 18,
+                                  ),
+                                )
+                              : null,
+                        ),
+                      ),
+                    ),
                   ),
-                  onChanged: _onSearchTextChanged,
-                  onSubmitted: (val) => _performSearch(val),
-                  decoration: InputDecoration(
-                    isDense: true,
-                    hintText: 'Cari lagu atau artis...',
-                    hintStyle: const TextStyle(
-                      color: Colors.white54,
-                      fontSize: 13.5,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 11),
-                    prefixIcon: Icon(
-                      Icons.search_rounded,
-                      color: accent,
-                      size: 20,
-                    ),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(
-                              Icons.cancel_rounded,
-                              color: Colors.white54,
-                              size: 18,
-                            ),
-                            onPressed: () {
-                              _debounceTimer?.cancel();
-                              _searchController.clear();
-                              setState(() {
-                                _results = [];
-                                _matchedArtist = null;
-                                _suggestions = [];
-                                _showingSuggestions = false;
-                              });
-                            },
-                          )
-                        : null,
+                  const SizedBox(width: 8),
+                  IosGlassIconButton(
+                    icon: Icons.mic_rounded,
+                    size: 46,
+                    iconSize: 21,
+                    isActive: true,
+                    activeColor: accent,
+                    iconColor: Colors.white,
+                    tooltip: 'Cari lagu pakai suara',
+                    onTap: () => _openVoiceSearchModal(context),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Quick Filter Pills when results or search text active
+              if (_results.isNotEmpty || _isSearching) ...[
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: [
+                      IosGlassPillButton(
+                        icon: Icons.music_note_rounded,
+                        label: 'Semua Lagu',
+                        height: 32,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        activeColor: accent,
+                        isActive: _activeFilter == 'all',
+                        onTap: () {
+                          if (_activeFilter != 'all') {
+                            _performSearch(
+                              _searchController.text,
+                              filterMode: 'all',
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      IosGlassPillButton(
+                        icon: Icons.verified_rounded,
+                        label: 'Audio Resmi',
+                        height: 32,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        activeColor: accent,
+                        isActive: _activeFilter == 'official',
+                        onTap: () {
+                          if (_activeFilter != 'official') {
+                            _performSearch(
+                              _searchController.text,
+                              filterMode: 'official',
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      IosGlassPillButton(
+                        icon: Icons.lyrics_rounded,
+                        label: 'Dari Lirik',
+                        height: 32,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        activeColor: accent,
+                        isActive: _activeFilter == 'lyrics',
+                        onTap: () {
+                          if (_activeFilter != 'lyrics') {
+                            _performSearch(
+                              _searchController.text,
+                              filterMode: 'lyrics',
+                            );
+                          }
+                        },
+                      ),
+                      if (_results.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        IosGlassPillButton(
+                          icon: Icons.play_arrow_rounded,
+                          label: 'Putar Semua',
+                          height: 32,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          activeColor: accent,
+                          onTap: () {
+                            context.read<PlayerProvider>().playSong(
+                              _results.first,
+                              customQueue: _results,
+                              contextName:
+                                  'Pencarian ${_searchController.text.trim()}',
+                            );
+                          },
+                        ),
+                      ],
+                    ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 10),
+              ],
 
               // Results, Live Autocomplete Suggestions, or Browse Categories
               Expanded(
@@ -477,17 +811,16 @@ class _SearchScreenState extends State<SearchScreen> {
       itemCount: _suggestions.length,
       itemBuilder: (context, idx) {
         final suggestion = _suggestions[idx];
-        return InkWell(
-          borderRadius: BorderRadius.circular(12),
+        return IosSpringButton(
           onTap: () => _performSearch(suggestion),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
             child: Row(
               children: [
                 Icon(
                   Icons.search_rounded,
                   color: accent.withOpacity(0.85),
-                  size: 20,
+                  size: 19,
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -497,21 +830,22 @@ class _SearchScreenState extends State<SearchScreen> {
                     accent,
                   ),
                 ),
-                IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'Isi ke kolom pencarian',
-                  icon: const Icon(
-                    Icons.north_west_rounded,
-                    color: Colors.white38,
-                    size: 18,
-                  ),
-                  onPressed: () {
+                IosSpringButton(
+                  onTap: () {
                     _searchController.text = suggestion;
                     _searchController.selection = TextSelection.fromPosition(
                       TextPosition(offset: suggestion.length),
                     );
                     _onSearchTextChanged(suggestion);
                   },
+                  child: const Padding(
+                    padding: EdgeInsets.all(6.0),
+                    child: Icon(
+                      Icons.north_west_rounded,
+                      color: Colors.white38,
+                      size: 17,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -531,7 +865,7 @@ class _SearchScreenState extends State<SearchScreen> {
         suggestion,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 14.2,
+          fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
       );
@@ -544,7 +878,7 @@ class _SearchScreenState extends State<SearchScreen> {
         suggestion,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 14.2,
+          fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
       );
@@ -558,7 +892,7 @@ class _SearchScreenState extends State<SearchScreen> {
       text: TextSpan(
         style: const TextStyle(
           color: Colors.white70,
-          fontSize: 14.2,
+          fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
         children: [
@@ -620,28 +954,28 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: artist.avatarUrl.isNotEmpty
                         ? CachedNetworkImage(
                             imageUrl: artist.avatarUrl,
-                            width: 56,
-                            height: 56,
+                            width: 52,
+                            height: 52,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => Container(
-                              width: 56,
-                              height: 56,
+                              width: 52,
+                              height: 52,
                               color: Colors.white10,
                               child: Icon(
                                 Icons.person_rounded,
                                 color: accent,
-                                size: 28,
+                                size: 26,
                               ),
                             ),
                           )
                         : Container(
-                            width: 56,
-                            height: 56,
+                            width: 52,
+                            height: 52,
                             color: Colors.white10,
                             child: Icon(
                               Icons.person_rounded,
                               color: accent,
-                              size: 28,
+                              size: 26,
                             ),
                           ),
                   ),
@@ -650,61 +984,27 @@ class _SearchScreenState extends State<SearchScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: accent.withOpacity(0.22),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                'PROFIL ARTIS',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: 9.5,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.7,
-                                ),
-                              ),
-                            ),
-                            if (artist.subtitle.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              Flexible(
-                                child: Text(
-                                  artist.subtitle,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white54,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        const SizedBox(height: 4),
                         Text(
                           artist.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: Colors.white,
-                            fontSize: 16.5,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
-                          'Lihat lagu populer, album & single lengkap',
+                        Text(
+                          artist.subtitle.isNotEmpty
+                              ? artist.subtitle
+                              : 'Profil Artis',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 11.5,
+                            color: accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ],
@@ -725,8 +1025,8 @@ class _SearchScreenState extends State<SearchScreen> {
         final item = _results[songIdx];
         return ZunifySongTile(
           song: item,
-          queueContext: const [],
-          contextName: 'Radio ${item.title}',
+          queueContext: _results,
+          contextName: 'Pencarian',
         );
       },
     );
@@ -734,12 +1034,12 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildBrowseAndSuggestions(Color accent) {
     const categories = [
-      {'title': 'Pop Indonesia', 'query': 'Lagu Pop Indonesia Hits', 'color': 0xFF10B981},
-      {'title': 'Hits Global', 'query': 'Top Global Hits 2025', 'color': 0xFF6366F1},
-      {'title': 'Galau Malam', 'query': 'Lagu Galau Indonesia Terbaik', 'color': 0xFF3B82F6},
-      {'title': 'Indie & Senja', 'query': 'Hindia Perunggu Feast Indie', 'color': 0xFFF59E0B},
-      {'title': 'J-Pop & Anime', 'query': 'YOASOBI Kenshi Yonezu Anime', 'color': 0xFFEC4899},
-      {'title': 'K-Pop Hits', 'query': 'NewJeans aespa DAY6 Kpop', 'color': 0xFF8B5CF6},
+      {'title': 'Pop Indonesia', 'query': 'Lagu Pop Indonesia Hits', 'color': 0xFF10B981, 'icon': Icons.music_note_rounded},
+      {'title': 'Hits Global', 'query': 'Top Global Hits 2025', 'color': 0xFF6366F1, 'icon': Icons.public_rounded},
+      {'title': 'Galau Malam', 'query': 'Lagu Galau Indonesia Terbaik', 'color': 0xFF3B82F6, 'icon': Icons.nightlight_round},
+      {'title': 'Indie & Senja', 'query': 'Hindia Perunggu Feast Indie', 'color': 0xFFF59E0B, 'icon': Icons.wb_twilight_rounded},
+      {'title': 'J-Pop & Anime', 'query': 'YOASOBI Kenshi Yonezu Anime', 'color': 0xFFEC4899, 'icon': Icons.auto_awesome_rounded},
+      {'title': 'K-Pop Hits', 'query': 'NewJeans aespa DAY6 Kpop', 'color': 0xFF8B5CF6, 'icon': Icons.bolt_rounded},
     ];
 
     const quickQueries = [
@@ -764,74 +1064,87 @@ class _SearchScreenState extends State<SearchScreen> {
                 style: TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.w800,
-                  fontSize: 16,
+                  fontSize: 15.5,
                 ),
               ),
-              GestureDetector(
+              IosSpringButton(
                 onTap: _clearAllHistory,
-                child: Text(
-                  'Hapus Semua',
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 12.2,
-                    fontWeight: FontWeight.w700,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  child: Text(
+                    'Hapus Semua',
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          ..._searchHistory.take(8).map((historyQuery) {
-            return InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => _performSearch(historyQuery),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _searchHistory.take(8).map((historyQuery) {
+              return LiquidGlassBox(
+                borderRadius: 16,
+                padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
+                tintOpacity: 0.08,
+                rimIntensity: 0.28,
+                onTap: () => _performSearch(historyQuery),
                 child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(
                       Icons.history_rounded,
-                      color: Colors.white54,
-                      size: 19,
+                      color: Colors.white60,
+                      size: 15,
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                    const SizedBox(width: 6),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 170),
                       child: Text(
                         historyQuery,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 13.8,
+                          fontSize: 12.5,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-                    GestureDetector(
+                    const SizedBox(width: 4),
+                    IosSpringButton(
                       onTap: () => _removeHistoryItem(historyQuery),
                       child: const Padding(
-                        padding: EdgeInsets.all(4.0),
+                        padding: EdgeInsets.all(2.0),
                         child: Icon(
                           Icons.close_rounded,
                           color: Colors.white38,
-                          size: 17,
+                          size: 14,
                         ),
                       ),
                     ),
                   ],
                 ),
-              ),
-            );
-          }),
+              );
+            }).toList(),
+          ),
           const SizedBox(height: 18),
         ],
 
         const Text(
-          'Jelajahi Mood & Genre',
+          'Kategori Musik',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w900,
-            fontSize: 16.5,
+            fontWeight: FontWeight.w800,
+            fontSize: 15.5,
           ),
         ),
         const SizedBox(height: 10),
@@ -843,14 +1156,15 @@ class _SearchScreenState extends State<SearchScreen> {
             crossAxisCount: 2,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            mainAxisExtent: 68,
+            mainAxisExtent: 64,
           ),
           itemBuilder: (context, idx) {
             final item = categories[idx];
             final cardColor = Color(item['color'] as int);
+            final iconData = item['icon'] as IconData;
             return LiquidGlassBox(
               borderRadius: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               tintColor: cardColor,
               tintOpacity: 0.22,
               rimIntensity: 0.38,
@@ -860,35 +1174,41 @@ class _SearchScreenState extends State<SearchScreen> {
                 _performSearch(q, allowArtistCard: false);
               },
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: cardColor.withOpacity(0.28),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(iconData, color: Colors.white, size: 18),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       item['title'] as String,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.w800,
-                        fontSize: 13.8,
+                        fontSize: 13.2,
                       ),
                     ),
-                  ),
-                  Icon(
-                    Icons.play_circle_fill_rounded,
-                    color: Colors.white.withOpacity(0.90),
-                    size: 24,
                   ),
                 ],
               ),
             );
           },
         ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 20),
         const Text(
-          'Lagu Populer Dicari',
+          'Populer Dicari',
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w800,
-            fontSize: 16.5,
+            fontSize: 15.5,
           ),
         ),
         const SizedBox(height: 10),
