@@ -88,29 +88,35 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
 
   List<Color> _getGradientColors(Color dynamicAccent) {
     switch (_selectedThemeIndex) {
-      case 1: // Crimson Z
+      case 1: // Rose Quartz
         return const [
-          Color(0xFF4C0519),
-          Color(0xFF180812),
-          Color(0xFF07060B),
+          Color(0xFF4A152B),
+          Color(0xFF1F0C18),
+          Color(0xFF09070D),
         ];
-      case 2: // Midnight Violet
+      case 2: // Lavender Dream
         return const [
-          Color(0xFF2E1065),
-          Color(0xFF0F172A),
-          Color(0xFF060812),
+          Color(0xFF2E1A47),
+          Color(0xFF141126),
+          Color(0xFF070710),
         ];
-      case 3: // Cyber Emerald
+      case 3: // Matcha Sage
         return const [
-          Color(0xFF064E3B),
-          Color(0xFF09191F),
-          Color(0xFF050A0E),
+          Color(0xFF11382B),
+          Color(0xFF0B1C1A),
+          Color(0xFF060B0C),
         ];
-      default: // Dynamic Liquid Glass
+      case 4: // Champagne Gold
+        return const [
+          Color(0xFF422C12),
+          Color(0xFF1C140C),
+          Color(0xFF090807),
+        ];
+      default: // iOS Liquid Glass
         return [
-          dynamicAccent.withOpacity(0.38),
-          const Color(0xFF0E1424),
-          const Color(0xFF060810),
+          dynamicAccent.withOpacity(0.36),
+          const Color(0xFF101524),
+          const Color(0xFF070911),
         ];
     }
   }
@@ -118,11 +124,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
   Color _getPrimaryAccent(Color dynamicAccent) {
     switch (_selectedThemeIndex) {
       case 1:
-        return const Color(0xFFFF2E4C);
+        return const Color(0xFFF48FB1);
       case 2:
-        return const Color(0xFFA855F7);
+        return const Color(0xFFB39DDB);
       case 3:
-        return const Color(0xFF00F5A0);
+        return const Color(0xFF66BB6A);
+      case 4:
+        return const Color(0xFFFFD54F);
       default:
         return dynamicAccent;
     }
@@ -131,11 +139,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
   Color _getSecondaryAccent(Color dynamicSecondary) {
     switch (_selectedThemeIndex) {
       case 1:
-        return const Color(0xFFFF7A33);
+        return const Color(0xFFCE93D8);
       case 2:
-        return const Color(0xFF38BDF8);
+        return const Color(0xFF90CAF9);
       case 3:
-        return const Color(0xFF00D9F5);
+        return const Color(0xFF26A69A);
+      case 4:
+        return const Color(0xFFFFAB91);
       default:
         return dynamicSecondary;
     }
@@ -186,27 +196,28 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   ),
                   const SizedBox(height: 12),
 
-                  // BitChord Frosted Top Header + Segmented Mode Switcher ("Replay Anda" | "Story & Poster")
+                  // iOS 26 Top Header + Segmented Mode Switcher ("Statistik" | "Poster HD")
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Replay Anda',
+                              'Zunify Wrapped',
                               style: GoogleFonts.plusJakartaSans(
                                 color: Colors.white,
-                                fontSize: 19,
-                                fontWeight: FontWeight.w900,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800,
                                 letterSpacing: -0.4,
                               ),
                             ),
                             Text(
-                              'Statistik & Kartu Musik • ${rapot.weekId}',
+                              'Replay Mingguan • ${rapot.weekId}',
                               style: const TextStyle(
                                 color: Colors.white54,
-                                fontSize: 11,
+                                fontSize: 11.2,
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -214,10 +225,11 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         ),
                       ),
                       LiquidGlassBox(
-                        borderRadius: 20,
+                        height: 36,
+                        borderRadius: 18,
                         padding: const EdgeInsets.all(3),
                         tintOpacity: 0.10,
-                        rimIntensity: 0.40,
+                        rimIntensity: 0.38,
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
@@ -236,19 +248,12 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      LiquidGlassBox(
-                        borderRadius: 18,
-                        width: 34,
-                        height: 34,
-                        tintOpacity: 0.08,
-                        rimIntensity: 0.34,
+                      const SizedBox(width: 8),
+                      IosGlassIconButton(
+                        icon: Icons.close_rounded,
+                        size: 36,
+                        iconSize: 18,
                         onTap: () => Navigator.pop(context),
-                        child: const Icon(
-                          Icons.close_rounded,
-                          color: Colors.white70,
-                          size: 18,
-                        ),
                       ),
                     ],
                   ),
@@ -291,20 +296,29 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required VoidCallback onTap,
   }) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5.5),
+        height: 30,
+        padding: const EdgeInsets.symmetric(horizontal: 13),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
+          color: selected ? Colors.white.withOpacity(0.18) : Colors.transparent,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color:
+                selected ? Colors.white.withOpacity(0.28) : Colors.transparent,
+            width: 0.9,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.black : Colors.white70,
+            color: selected ? Colors.white : Colors.white60,
             fontSize: 11.2,
-            fontWeight: FontWeight.w800,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            height: 1.1,
           ),
         ),
       ),
@@ -643,6 +657,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         // 4. Top Songs Ranked List
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             const Padding(
               padding: EdgeInsets.only(left: 4),
@@ -651,12 +666,19 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 15.5,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
             ),
             if (rapot.topSongs.isNotEmpty)
-              GestureDetector(
+              IosGlassPillButton(
+                icon: Icons.play_arrow_rounded,
+                label: 'Putar Semua',
+                height: 30,
+                padding: const EdgeInsets.symmetric(horizontal: 11),
+                activeColor: primaryAccent,
+                isActive: true,
+                fontSize: 11.2,
                 onTap: () {
                   final songs = rapot.topSongs.map((e) => e.song).toList();
                   player.playSong(
@@ -666,35 +688,6 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   );
                   Navigator.pop(context);
                 },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: primaryAccent.withOpacity(0.18),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.play_arrow_rounded,
-                        color: primaryAccent,
-                        size: 15,
-                      ),
-                      const SizedBox(width: 3),
-                      Text(
-                        'Putar Semua',
-                        style: TextStyle(
-                          color: primaryAccent,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
           ],
         ),
@@ -811,20 +804,21 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         // CTA to open Poster Studio
         SizedBox(
           width: double.infinity,
+          height: 46,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryAccent,
               foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(23),
               ),
             ),
             onPressed: () => setState(() => _viewMode = 1),
-            icon: const Icon(Icons.auto_awesome_motion_rounded, size: 19),
+            icon: const Icon(Icons.auto_awesome_motion_rounded, size: 18),
             label: const Text(
-              'Buat Poster & Kartu Story Replay HD',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13.5),
+              'Buat Poster & Kartu Story Wrapped HD',
+              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.2),
             ),
           ),
         ),
@@ -873,7 +867,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     );
   }
 
-  /// BitChord `ReplayStories` + `ReplayPoster` 3-Slide Studio
+  /// Zunify Wrapped 3-Slide Poster Studio with 5 Aesthetic iOS 26 Themes
   Widget _buildPosterStudio({
     required String username,
     required WeeklyRapot rapot,
@@ -882,10 +876,11 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required List<Color> gradientColors,
   }) {
     const themeLabels = [
-      '✨ Liquid Glass',
-      '🔥 Crimson Z',
-      '🌌 Violet',
-      '💎 Emerald',
+      '💧 iOS Liquid Glass',
+      '🌸 Rose Quartz',
+      '🔮 Lavender Dream',
+      '🍃 Matcha Sage',
+      '✨ Champagne Gold',
     ];
 
     return Column(
@@ -894,12 +889,16 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         // Slide selector pills + Theme selector pills
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
-              _slideTabButton(
+              IosGlassPillButton(
                 label: '1 • Ringkasan',
-                active: _currentSlide == 0,
-                accent: primaryAccent,
+                height: 31,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                activeColor: primaryAccent,
+                isActive: _currentSlide == 0,
+                fontSize: 11.2,
                 onTap: () => _pageController.animateToPage(
                   0,
                   duration: const Duration(milliseconds: 260),
@@ -907,10 +906,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                 ),
               ),
               const SizedBox(width: 6),
-              _slideTabButton(
+              IosGlassPillButton(
                 label: '2 • Top 5 Lagu',
-                active: _currentSlide == 1,
-                accent: primaryAccent,
+                height: 31,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                activeColor: primaryAccent,
+                isActive: _currentSlide == 1,
+                fontSize: 11.2,
                 onTap: () => _pageController.animateToPage(
                   1,
                   duration: const Duration(milliseconds: 260),
@@ -918,10 +920,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                 ),
               ),
               const SizedBox(width: 6),
-              _slideTabButton(
+              IosGlassPillButton(
                 label: '3 • Artis & Aura',
-                active: _currentSlide == 2,
-                accent: primaryAccent,
+                height: 31,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                activeColor: primaryAccent,
+                isActive: _currentSlide == 2,
+                fontSize: 11.2,
                 onTap: () => _pageController.animateToPage(
                   2,
                   duration: const Duration(milliseconds: 260),
@@ -933,41 +938,22 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 30,
-          child: ListView.builder(
+          height: 32,
+          child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
             itemCount: themeLabels.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 7),
             itemBuilder: (context, idx) {
               final selected = _selectedThemeIndex == idx;
-              return Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: GestureDetector(
-                  onTap: () => setState(() => _selectedThemeIndex = idx),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? primaryAccent
-                          : Colors.white.withOpacity(0.07),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: selected ? primaryAccent : Colors.white12,
-                      ),
-                    ),
-                    child: Text(
-                      themeLabels[idx],
-                      style: TextStyle(
-                        color: selected ? Colors.black : Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ),
+              return IosGlassPillButton(
+                label: themeLabels[idx],
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 13),
+                activeColor: primaryAccent,
+                isActive: selected,
+                fontSize: 11.2,
+                onTap: () => setState(() => _selectedThemeIndex = idx),
               );
             },
           ),
@@ -1056,13 +1042,14 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         // Share Active Slide Button
         SizedBox(
           width: double.infinity,
+          height: 46,
           child: ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: primaryAccent,
               foregroundColor: Colors.black,
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              elevation: 0,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(23),
               ),
             ),
             onPressed: _isSharing ? null : _shareActiveSlide,
@@ -1075,49 +1062,19 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       color: Colors.black,
                     ),
                   )
-                : const Icon(Icons.ios_share_rounded, size: 19),
+                : const Icon(Icons.ios_share_rounded, size: 18),
             label: Text(
               _isSharing
                   ? 'Menyiapkan Poster HD...'
-                  : 'Bagikan Poster ${_currentSlide + 1} ke Story / IG / WA',
+                  : 'Bagikan Poster ${_currentSlide + 1} ke IG Story / WA',
               style: const TextStyle(
-                fontWeight: FontWeight.w900,
-                fontSize: 13.5,
+                fontWeight: FontWeight.w800,
+                fontSize: 13.2,
               ),
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _slideTabButton({
-    required String label,
-    required bool active,
-    required Color accent,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-        decoration: BoxDecoration(
-          color:
-              active ? accent.withOpacity(0.20) : Colors.white.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: active ? accent : Colors.white12,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? accent : Colors.white60,
-            fontSize: 11,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
     );
   }
 

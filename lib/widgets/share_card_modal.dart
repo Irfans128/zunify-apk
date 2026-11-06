@@ -12,11 +12,17 @@ import '../models/lyric_model.dart';
 import '../models/song_model.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
+import 'liquid_background_widget.dart';
 
-/// Zunify v1.4 Multi-Line Spotify-Style Lyric & Song Story Share Card Generator
-/// - Select up to 5 lyric lines (like Spotify Lyrics Share!)
-/// - 4 Aesthetic Card Templates: Blur Glass, Vinyl Studio, Polaroid Dark, Cyber Aurora
-/// - Exports crisp 3x PNG directly to WhatsApp Status (SW) / IG Story
+/// Zunify v2.0 iOS 26 Lyric Share Studio
+/// - Select 1–5 lyric lines
+/// - 5 Curated Aesthetic Templates:
+///   0: 💧 iOS Liquid Glass
+///   1: 🎵 Apple Music
+///   2: 💿 Vinyl Studio
+///   3: 📸 Polaroid Matte
+///   4: 🌸 Pastel Aurora
+/// - Exports 3x HD PNG or 9:16 `.mp4` Story Video with 20s song audio
 class ShareCardModal extends StatefulWidget {
   final ZunifySong song;
   final SyncedLyrics? lyrics;
@@ -36,8 +42,9 @@ class ShareCardModal extends StatefulWidget {
 class _ShareCardModalState extends State<ShareCardModal> {
   final GlobalKey _cardRepaintKey = GlobalKey();
   late final Set<int> _selectedIndices;
-  int _selectedTemplate = 0; // 0: Blur Glass, 1: Vinyl Studio, 2: Polaroid, 3: Cyber Aurora
+  int _selectedTemplate = 0;
   bool _includeIndoTranslation = false;
+  bool _centerAlignLyrics = false;
   bool _isSharing = false;
   bool _isCreatingVideo = false;
   String _statusMessage = '';
@@ -46,17 +53,18 @@ class _ShareCardModalState extends State<ShareCardModal> {
       MethodChannel('com.fannz.zunify/equalizer');
 
   static const List<String> _templateNames = [
-    '✨ Blur Glass',
+    '💧 iOS Liquid Glass',
+    '🎵 Apple Music',
     '💿 Vinyl Studio',
-    '📸 Polaroid',
-    '🌌 Cyber Aurora',
+    '📸 Polaroid Matte',
+    '🌸 Pastel Aurora',
   ];
 
   @override
   void initState() {
     super.initState();
     final lines = (widget.lyrics?.lines ?? [])
-        .where((l) => !l.originalText.contains('•'))
+        .where((l) => !l.originalText.contains('•') && l.originalText.trim().isNotEmpty)
         .toList();
     _selectedIndices = {};
     if (lines.isNotEmpty) {
@@ -76,7 +84,6 @@ class _ShareCardModalState extends State<ShareCardModal> {
         }
       } else {
         if (_selectedIndices.length >= 5) {
-          // Remove earliest selected line if already at 5 max
           _selectedIndices.remove(_selectedIndices.first);
         }
         _selectedIndices.add(idx);
@@ -107,7 +114,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
   Future<void> _exportAndShareCard() async {
     setState(() {
       _isSharing = true;
-      _statusMessage = 'Menyiapkan gambar HD...';
+      _statusMessage = 'Menyiapkan kartu lirik HD...';
     });
     try {
       final file = await _renderCardPngToFile();
@@ -116,7 +123,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
       await Share.shareXFiles(
         [XFile(file.path, mimeType: 'image/png')],
         text:
-            '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music (Crafted by Fannz)',
+            '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music',
       );
     } catch (_) {
     } finally {
@@ -129,15 +136,13 @@ class _ShareCardModalState extends State<ShareCardModal> {
     }
   }
 
-  /// Exports a 9:16 `.mp4` Story Video combining the Lyric Card + 20s of the actual song audio
-  /// starting right at the selected lyric line's timestamp!
   Future<void> _exportAndShareVideoWithAudio(
     PlayerProvider player,
     List<LyricLine> chosenLines,
   ) async {
     setState(() {
       _isCreatingVideo = true;
-      _statusMessage = 'Menyiapkan potongan lagu & kartu lirik...';
+      _statusMessage = 'Menyiapkan audio lagu & kartu lirik...';
     });
     try {
       final pngFile = await _renderCardPngToFile();
@@ -145,7 +150,6 @@ class _ShareCardModalState extends State<ShareCardModal> {
 
       final audioPath = await player.prepareAudioFileForStory(widget.song);
       if (audioPath == null) {
-        // Fallback to image share if offline/network failed
         await _exportAndShareCard();
         return;
       }
@@ -154,7 +158,6 @@ class _ShareCardModalState extends State<ShareCardModal> {
         setState(() => _statusMessage = 'Merender Video Story + Musik (.mp4)...');
       }
 
-      // Compute startMs from the earliest selected lyric line (or current playback position)
       int startMs = 0;
       if (chosenLines.isNotEmpty &&
           chosenLines.first.timestamp.inMilliseconds > 0) {
@@ -164,7 +167,6 @@ class _ShareCardModalState extends State<ShareCardModal> {
         startMs = player.audioPlayer.position.inMilliseconds;
       }
 
-      // Compute durationMs (18..24 seconds covering selected lines)
       int durationMs = 20000;
       if (chosenLines.length >= 2) {
         final spanMs = chosenLines.last.timestamp.inMilliseconds -
@@ -192,7 +194,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
         await Share.shareXFiles(
           [XFile(createdPath, mimeType: 'video/mp4')],
           text:
-              '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music (Crafted by Fannz)',
+              '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music',
         );
       } else {
         await _exportAndShareCard();
@@ -216,7 +218,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
     final accent = theme.accentColor;
     final liveLyrics = player.currentLyrics ?? widget.lyrics;
     final lines = (liveLyrics?.lines ?? [])
-        .where((l) => !l.originalText.contains('•'))
+        .where((l) => !l.originalText.contains('•') && l.originalText.trim().isNotEmpty)
         .toList();
 
     final sortedSelected = _selectedIndices.toList()..sort();
@@ -234,24 +236,32 @@ class _ShareCardModalState extends State<ShareCardModal> {
       );
     }
 
+    final canTranslate = liveLyrics?.shouldShowTranslation == true;
+
     return Container(
       constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.90,
+        maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
-      padding: const EdgeInsets.fromLTRB(18, 14, 18, 22),
+      padding: EdgeInsets.fromLTRB(
+        18,
+        12,
+        18,
+        MediaQuery.of(context).padding.bottom + 18,
+      ),
       decoration: BoxDecoration(
-        color: const Color(0xFF0B0E17),
+        color: const Color(0xFF0A0D16),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withOpacity(0.14)),
       ),
       child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
               child: Container(
-                width: 42,
+                width: 40,
                 height: 4,
                 decoration: BoxDecoration(
                   color: Colors.white24,
@@ -260,72 +270,124 @@ class _ShareCardModalState extends State<ShareCardModal> {
               ),
             ),
             const SizedBox(height: 14),
+
+            // Top Header Row
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Bagikan ke SW / IG Story ✨',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Bagikan Lirik',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Pilih hingga 5 baris lirik & gaya kartu estetik',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.56),
+                          fontSize: 11.8,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: accent.withOpacity(0.16),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                LiquidGlassBox(
+                  height: 30,
+                  borderRadius: 15,
+                  padding: const EdgeInsets.symmetric(horizontal: 11),
+                  tintColor: accent,
+                  tintOpacity: 0.20,
+                  rimIntensity: 0.42,
                   child: Text(
-                    '${chosenLines.length}/5 Baris Dipilih',
+                    '${chosenLines.length}/5 Baris',
                     style: TextStyle(
                       color: accent,
-                      fontSize: 11,
+                      fontSize: 11.2,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
+                const SizedBox(width: 8),
+                IosGlassIconButton(
+                  icon: Icons.close_rounded,
+                  size: 32,
+                  iconSize: 17,
+                  onTap: () => Navigator.pop(context),
+                ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 14),
 
-            // Template Style Selector
+            // Template Style Selector Pills
             SizedBox(
-              height: 36,
+              height: 35,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
+                physics: const BouncingScrollPhysics(),
                 itemCount: _templateNames.length,
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, i) {
                   final selected = i == _selectedTemplate;
-                  return GestureDetector(
+                  return IosGlassPillButton(
+                    label: _templateNames[i],
+                    height: 35,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    activeColor: accent,
+                    isActive: selected,
+                    fontSize: 12,
                     onTap: () => setState(() => _selectedTemplate = i),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? accent
-                            : Colors.white.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(
-                        _templateNames[i],
-                        style: TextStyle(
-                          color: selected ? Colors.black : Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
                   );
                 },
               ),
+            ),
+            const SizedBox(height: 10),
+
+            // Quick Formatting Toolbar (Translation + Alignment)
+            Row(
+              children: [
+                IosGlassPillButton(
+                  icon: _centerAlignLyrics
+                      ? Icons.format_align_center_rounded
+                      : Icons.format_align_left_rounded,
+                  label: _centerAlignLyrics ? 'Rata Tengah' : 'Rata Kiri',
+                  height: 30,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  activeColor: accent,
+                  isActive: _centerAlignLyrics,
+                  fontSize: 11.2,
+                  onTap: () =>
+                      setState(() => _centerAlignLyrics = !_centerAlignLyrics),
+                ),
+                if (canTranslate) ...[
+                  const SizedBox(width: 8),
+                  IosGlassPillButton(
+                    icon: Icons.translate_rounded,
+                    label: player.isTranslatingLyrics
+                        ? 'Menerjemahkan...'
+                        : 'Terjemahan Indo',
+                    height: 30,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    activeColor: accent,
+                    isActive: _includeIndoTranslation,
+                    fontSize: 11.2,
+                    onTap: () async {
+                      final next = !_includeIndoTranslation;
+                      setState(() => _includeIndoTranslation = next);
+                      if (next && !player.showTranslation) {
+                        await player.toggleTranslationDisplay();
+                      }
+                    },
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 14),
 
@@ -337,31 +399,29 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 accent: accent,
                 secondaryAccent: theme.secondaryAccentColor,
                 ambient: theme.playerAmbientColor,
-                showIndo: _includeIndoTranslation &&
-                    (liveLyrics?.shouldShowTranslation ?? false),
+                showIndo: _includeIndoTranslation && canTranslate,
               ),
             ),
             const SizedBox(height: 14),
 
-            // Multi-Line Spotify-Style Lyric Checklist
+            // Multi-Line Lyric Selector List
             if (lines.length > 1) ...[
-              const Text(
-                'Pilih Baris Lirik (Ketuk untuk pilih 1–5 baris seperti Spotify):',
+              Text(
+                'Ketuk Baris Lirik untuk Memilih (Maks 5 Baris):',
                 style: TextStyle(
-                  color: Colors.white70,
+                  color: Colors.white.withOpacity(0.75),
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
               ),
               const SizedBox(height: 8),
-              Container(
-                height: 150,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.04),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
-                ),
+              LiquidGlassBox(
+                height: 148,
+                borderRadius: 18,
+                tintOpacity: 0.06,
+                rimIntensity: 0.28,
                 child: ListView.builder(
+                  physics: const BouncingScrollPhysics(),
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 6,
@@ -370,21 +430,26 @@ class _ShareCardModalState extends State<ShareCardModal> {
                   itemBuilder: (ctx, idx) {
                     final selected = _selectedIndices.contains(idx);
                     return GestureDetector(
+                      behavior: HitTestBehavior.opaque,
                       onTap: () => _toggleLineSelection(idx),
-                      child: Container(
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 160),
                         margin: const EdgeInsets.symmetric(vertical: 2.5),
                         padding: const EdgeInsets.symmetric(
                           horizontal: 10,
-                          vertical: 7,
+                          vertical: 7.5,
                         ),
                         decoration: BoxDecoration(
                           color: selected
                               ? accent.withOpacity(0.20)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          border: selected
-                              ? Border.all(color: accent.withOpacity(0.5))
-                              : null,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: selected
+                                ? accent.withOpacity(0.52)
+                                : Colors.transparent,
+                            width: 0.9,
+                          ),
                         ),
                         child: Row(
                           children: [
@@ -395,7 +460,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                               color: selected ? accent : Colors.white38,
                               size: 17,
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 9),
                             Expanded(
                               child: Text(
                                 lines[idx].originalText,
@@ -418,37 +483,12 @@ class _ShareCardModalState extends State<ShareCardModal> {
                   },
                 ),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 14),
             ],
 
-            if (liveLyrics?.shouldShowTranslation == true)
-              SwitchListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(
-                  player.isTranslatingLyrics
-                      ? 'Menerjemahkan lirik ke Indonesia...'
-                      : 'Sertakan Terjemahan Bahasa Indonesia',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                value: _includeIndoTranslation,
-                activeColor: accent,
-                onChanged: (v) async {
-                  setState(() => _includeIndoTranslation = v);
-                  if (v && !player.showTranslation) {
-                    await player.toggleTranslationDisplay();
-                  }
-                },
-              ),
-
-            const SizedBox(height: 10),
             if (_statusMessage.isNotEmpty) ...[
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 10),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -475,31 +515,36 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 ),
               ),
             ],
+
+            // Bottom Action Bar (Uniform 46px Height Buttons)
             Row(
               children: [
                 Expanded(
                   flex: 6,
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: accent,
-                      foregroundColor: Colors.black,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    height: 46,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: accent,
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(23),
+                        ),
                       ),
-                    ),
-                    onPressed: (_isSharing || _isCreatingVideo)
-                        ? null
-                        : () => _exportAndShareVideoWithAudio(
-                              player,
-                              chosenLines,
-                            ),
-                    icon: const Icon(Icons.movie_creation_rounded, size: 19),
-                    label: const Text(
-                      'Bagikan ke SW + Lagu',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 13.5,
+                      onPressed: (_isSharing || _isCreatingVideo)
+                          ? null
+                          : () => _exportAndShareVideoWithAudio(
+                                player,
+                                chosenLines,
+                              ),
+                      icon: const Icon(Icons.movie_creation_rounded, size: 18),
+                      label: const Text(
+                        'Story + Lagu (.mp4)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13,
+                        ),
                       ),
                     ),
                   ),
@@ -507,25 +552,32 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 const SizedBox(width: 10),
                 Expanded(
                   flex: 4,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: BorderSide(color: Colors.white.withOpacity(0.18)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                    onPressed: (_isSharing || _isCreatingVideo)
+                  child: LiquidGlassBox(
+                    height: 46,
+                    borderRadius: 23,
+                    tintOpacity: 0.12,
+                    rimIntensity: 0.42,
+                    onTap: (_isSharing || _isCreatingVideo)
                         ? null
                         : _exportAndShareCard,
-                    icon: const Icon(Icons.image_outlined, size: 18),
-                    label: const Text(
-                      'Gambar Saja',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 12.8,
-                      ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.image_rounded,
+                          color: Colors.white,
+                          size: 17,
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          'Gambar HD',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12.8,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -546,18 +598,131 @@ class _ShareCardModalState extends State<ShareCardModal> {
   }) {
     final song = widget.song;
 
-    if (_selectedTemplate == 2) {
-      // Template 2: Polaroid Dark Frame
+    // Template 1: Apple Music Minimal Editorial Card
+    if (_selectedTemplate == 1) {
+      final topColor = Color.lerp(ambient, const Color(0xFF181C2C), 0.25)!;
+      final bottomColor = Color.lerp(ambient, const Color(0xFF080A11), 0.72)!;
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(24, 26, 24, 20),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(28),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [topColor, bottomColor],
+          ),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.18),
+            width: 1.0,
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: _centerAlignLyrics
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
+          children: [
+            ...chosenLines.map(
+              (l) => _buildLyricBlock(
+                l,
+                accent,
+                showIndo,
+                fontSize: chosenLines.length <= 2 ? 21.5 : 18.5,
+              ),
+            ),
+            const SizedBox(height: 18),
+            Divider(color: Colors.white.withOpacity(0.16), height: 1),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(11),
+                  child: CachedNetworkImage(
+                    imageUrl: song.highResArtUrl,
+                    width: 44,
+                    height: 44,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      width: 44,
+                      height: 44,
+                      color: Colors.white12,
+                      child: Icon(Icons.music_note_rounded, color: accent),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.68),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text(
+                    'Zunify',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Template 3: Polaroid Matte Frame
+    if (_selectedTemplate == 3) {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
-          color: const Color(0xFF10131D),
-          borderRadius: BorderRadius.circular(26),
-          border: Border.all(color: Colors.white.withOpacity(0.14), width: 1.5),
+          color: const Color(0xFF11131C),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(
+            color: Colors.white.withOpacity(0.18),
+            width: 1.2,
+          ),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: _centerAlignLyrics
+              ? CrossAxisAlignment.center
+              : CrossAxisAlignment.start,
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(18),
@@ -566,12 +731,12 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 children: [
                   CachedNetworkImage(
                     imageUrl: song.highResArtUrl,
-                    height: 180,
+                    height: 176,
                     width: double.infinity,
                     fit: BoxFit.cover,
                   ),
                   Container(
-                    height: 90,
+                    height: 92,
                     decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
@@ -581,7 +746,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.all(14),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -589,10 +754,10 @@ class _ShareCardModalState extends State<ShareCardModal> {
                           song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: GoogleFonts.plusJakartaSans(
                             color: Colors.white,
                             fontSize: 17,
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         Text(
@@ -613,23 +778,23 @@ class _ShareCardModalState extends State<ShareCardModal> {
             ),
             const SizedBox(height: 16),
             ...chosenLines.map((l) => _buildLyricBlock(l, accent, showIndo)),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             _buildWatermarkFooter(accent),
           ],
         ),
       );
     }
 
-    // Templates 0 (Blur Glass), 1 (Vinyl Studio), 3 (Cyber Aurora)
+    // Templates 0 (iOS Liquid Glass), 2 (Vinyl Studio), 4 (Pastel Aurora)
     return ClipRRect(
-      borderRadius: BorderRadius.circular(26),
+      borderRadius: BorderRadius.circular(28),
       child: Stack(
         children: [
-          // Background Layer: Blurred Album Cover for Template 0, Gradient for others
-          if (_selectedTemplate == 0)
+          // Blurred Cover Art Backdrop for iOS Liquid Glass & Pastel Aurora
+          if (_selectedTemplate == 0 || _selectedTemplate == 4)
             Positioned.fill(
               child: ImageFiltered(
-                imageFilter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                imageFilter: ui.ImageFilter.blur(sigmaX: 32, sigmaY: 32),
                 child: CachedNetworkImage(
                   imageUrl: song.highResArtUrl,
                   fit: BoxFit.cover,
@@ -637,39 +802,40 @@ class _ShareCardModalState extends State<ShareCardModal> {
               ),
             ),
           Positioned.fill(
-            child: Container(
+            child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                   colors: _selectedTemplate == 0
                       ? [
-                          Colors.black.withOpacity(0.55),
-                          const Color(0xFF080A12).withOpacity(0.84),
+                          Colors.white.withOpacity(0.14),
+                          const Color(0xFF0A0D18).withOpacity(0.76),
+                          const Color(0xFF070911).withOpacity(0.88),
                         ]
-                      : _selectedTemplate == 1
+                      : _selectedTemplate == 2
                           ? [
-                              const Color(0xFF141826),
+                              const Color(0xFF161926),
                               const Color(0xFF090B12),
                             ]
                           : [
-                              accent.withOpacity(0.38),
-                              secondaryAccent.withOpacity(0.26),
-                              const Color(0xFF070910),
+                              const Color(0xFFF48FB1).withOpacity(0.42),
+                              const Color(0xFFB39DDB).withOpacity(0.38),
+                              const Color(0xFF0D101B).withOpacity(0.84),
                             ],
                 ),
               ),
             ),
           ),
 
-          // Decorative Vinyl Disc in Corner for Template 1 (Vinyl Studio)
-          if (_selectedTemplate == 1)
+          // Decorative Grooved Vinyl Disc in Corner for Template 2 (Vinyl Studio)
+          if (_selectedTemplate == 2)
             Positioned(
-              right: -36,
-              top: -26,
+              right: -34,
+              top: -24,
               child: Container(
-                width: 140,
-                height: 140,
+                width: 138,
+                height: 138,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   gradient: const SweepGradient(
@@ -682,14 +848,14 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     ],
                   ),
                   border: Border.all(
-                    color: accent.withOpacity(0.5),
-                    width: 2,
+                    color: accent.withOpacity(0.45),
+                    width: 1.5,
                   ),
                 ),
                 alignment: Alignment.center,
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: accent,
@@ -700,39 +866,41 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     style: TextStyle(
                       color: Colors.black,
                       fontWeight: FontWeight.w900,
-                      fontSize: 20,
+                      fontSize: 19,
                     ),
                   ),
                 ),
               ),
             ),
 
-          // Main Content
+          // Main iOS 26 Optical Glass Surface
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
+              borderRadius: BorderRadius.circular(28),
               border: Border.all(
-                color: accent.withOpacity(0.45),
-                width: 1.5,
+                color: Colors.white.withOpacity(0.28),
+                width: 1.1,
               ),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: _centerAlignLyrics
+                  ? CrossAxisAlignment.center
+                  : CrossAxisAlignment.start,
               children: [
-                // Song Header with Artwork + Audio Wave Badge
+                // Song Header with Artwork + Frosted Pill
                 Row(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
                       child: CachedNetworkImage(
                         imageUrl: song.highResArtUrl,
-                        width: 56,
-                        height: 56,
+                        width: 54,
+                        height: 54,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(
-                          width: 56,
-                          height: 56,
+                          width: 54,
+                          height: 54,
                           color: Colors.black54,
                           child: Icon(Icons.album, color: accent),
                         ),
@@ -747,20 +915,21 @@ class _ShareCardModalState extends State<ShareCardModal> {
                             song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
+                            style: GoogleFonts.plusJakartaSans(
                               color: Colors.white,
-                              fontSize: 16.5,
-                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           Text(
                             song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.75),
-                              fontSize: 13,
+                              color: Colors.white.withOpacity(0.74),
+                              fontSize: 12.5,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -768,49 +937,73 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
+                      width: 34,
+                      height: 34,
                       decoration: BoxDecoration(
-                        color: accent.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: accent.withOpacity(0.4)),
+                        color: Colors.white.withOpacity(0.14),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.26),
+                          width: 0.9,
+                        ),
                       ),
+                      alignment: Alignment.center,
                       child: Icon(
                         Icons.graphic_eq_rounded,
                         color: accent,
-                        size: 18,
+                        size: 17,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 18),
 
-                // Multi-line Lyric Quotes
-                ...chosenLines.map(
-                  (line) => _buildLyricBlock(line, accent, showIndo),
-                ),
+                // Inner Frosted Glass Lyric Lens for Template 0 (iOS Liquid Glass)
+                if (_selectedTemplate == 0)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.10),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.24),
+                        width: 0.9,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: _centerAlignLyrics
+                          ? CrossAxisAlignment.center
+                          : CrossAxisAlignment.start,
+                      children: chosenLines
+                          .map((line) => _buildLyricBlock(line, accent, showIndo))
+                          .toList(),
+                    ),
+                  )
+                else
+                  ...chosenLines.map(
+                    (line) => _buildLyricBlock(line, accent, showIndo),
+                  ),
 
                 const SizedBox(height: 16),
 
-                // Aesthetic Waveform Progress Bar Decoration
+                // Subtle iOS 26 Audio Progress Scrubber Bar
                 Row(
                   children: [
-                    Icon(Icons.play_circle_fill_rounded, color: accent, size: 18),
+                    Icon(Icons.play_arrow_rounded, color: accent, size: 18),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: List.generate(28, (i) {
                           final active = i < 16;
-                          final h = 4.0 + ((i * 7) % 13);
+                          final h = 4.0 + ((i * 7) % 12);
                           return Container(
                             width: 2.5,
                             height: h,
                             decoration: BoxDecoration(
                               color: active
-                                  ? accent
+                                  ? Colors.white
                                   : Colors.white.withOpacity(0.22),
                               borderRadius: BorderRadius.circular(2),
                             ),
@@ -833,29 +1026,41 @@ class _ShareCardModalState extends State<ShareCardModal> {
     );
   }
 
-  Widget _buildLyricBlock(LyricLine line, Color accent, bool showIndo) {
+  Widget _buildLyricBlock(
+    LyricLine line,
+    Color accent,
+    bool showIndo, {
+    double fontSize = 18.0,
+  }) {
+    final align = _centerAlignLyrics ? TextAlign.center : TextAlign.left;
+    final crossAlign =
+        _centerAlignLyrics ? CrossAxisAlignment.center : CrossAxisAlignment.start;
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: crossAlign,
         children: [
           Text(
             line.originalText,
+            textAlign: align,
             style: GoogleFonts.plusJakartaSans(
               color: Colors.white,
-              fontSize: 18.5,
+              fontSize: fontSize,
               fontWeight: FontWeight.w800,
-              height: 1.32,
-              letterSpacing: -0.2,
+              height: 1.30,
+              letterSpacing: -0.3,
             ),
           ),
-          if (showIndo && line.translatedIndoText != null) ...[
+          if (showIndo &&
+              line.translatedIndoText != null &&
+              line.translatedIndoText!.isNotEmpty) ...[
             const SizedBox(height: 3),
             Text(
               line.translatedIndoText!,
+              textAlign: align,
               style: GoogleFonts.dmSans(
                 color: accent,
-                fontSize: 13.5,
+                fontSize: 13.2,
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w600,
               ),
@@ -877,15 +1082,19 @@ class _ShareCardModalState extends State<ShareCardModal> {
               height: 22,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: accent,
+                color: Colors.white.withOpacity(0.18),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.32),
+                  width: 0.8,
+                ),
               ),
               alignment: Alignment.center,
-              child: const Text(
+              child: Text(
                 'Z',
                 style: TextStyle(
-                  color: Colors.black,
+                  color: accent,
                   fontWeight: FontWeight.w900,
-                  fontSize: 12,
+                  fontSize: 11.5,
                 ),
               ),
             ),
@@ -894,17 +1103,17 @@ class _ShareCardModalState extends State<ShareCardModal> {
               'ZUNIFY MUSIC',
               style: TextStyle(
                 color: Colors.white,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.1,
-                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+                fontSize: 10.5,
               ),
             ),
           ],
         ),
         Text(
-          'Crafted with ❤️ by Fannz',
+          'Zunify Lyric Studio',
           style: TextStyle(
-            color: Colors.white.withOpacity(0.68),
+            color: Colors.white.withOpacity(0.60),
             fontSize: 10.5,
             fontWeight: FontWeight.w600,
           ),

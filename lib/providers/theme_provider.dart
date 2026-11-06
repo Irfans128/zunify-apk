@@ -5,12 +5,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ZunifyAccentPreset {
   final String id;
   final String name;
+  final String subtitle;
   final Color primary;
   final Color secondary;
 
   const ZunifyAccentPreset({
     required this.id,
     required this.name,
+    required this.subtitle,
     required this.primary,
     required this.secondary,
   });
@@ -31,53 +33,73 @@ class _CachedPalettePair {
 class ThemeProvider extends ChangeNotifier {
   static const List<ZunifyAccentPreset> accentPresets = [
     ZunifyAccentPreset(
+      id: 'ios_liquid',
+      name: 'iOS Liquid Pearl',
+      subtitle: 'Biru kristal & kilau mutiara iOS 26',
+      primary: Color(0xFF60A5FA),
+      secondary: Color(0xFFC084FC),
+    ),
+    ZunifyAccentPreset(
       id: 'crimson_z',
-      name: 'Zunify Crimson Z',
-      primary: Color(0xFFFF2E4C),
-      secondary: Color(0xFFFF6B4A),
+      name: 'Crimson Velvet',
+      subtitle: 'Merah elegan khas Zunify',
+      primary: Color(0xFFFF3358),
+      secondary: Color(0xFFFF758F),
     ),
     ZunifyAccentPreset(
-      id: 'emerald',
-      name: 'Zunify Neon Emerald',
-      primary: Color(0xFF00F5A0),
-      secondary: Color(0xFF00D9F5),
+      id: 'rose_quartz',
+      name: 'Rose Quartz',
+      subtitle: 'Pink pastel lembut & estetik',
+      primary: Color(0xFFF472B6),
+      secondary: Color(0xFFFB7185),
     ),
     ZunifyAccentPreset(
-      id: 'cyan',
-      name: 'Cyberpunk Cyan',
-      primary: Color(0xFF00E5FF),
-      secondary: Color(0xFF3B82F6),
+      id: 'lavender',
+      name: 'Lavender Dream',
+      subtitle: 'Ungu pastel sinematik',
+      primary: Color(0xFFA78BFA),
+      secondary: Color(0xFFF472B6),
     ),
     ZunifyAccentPreset(
-      id: 'purple',
-      name: 'Electric Violet',
-      primary: Color(0xFFB366FF),
-      secondary: Color(0xFFEC4899),
+      id: 'matcha',
+      name: 'Matcha Sage',
+      subtitle: 'Hijau emerald tenang & segar',
+      primary: Color(0xFF34D399),
+      secondary: Color(0xFF6EE7B7),
     ),
     ZunifyAccentPreset(
-      id: 'orange',
-      name: 'Sunset Amber',
-      primary: Color(0xFFFF7A33),
-      secondary: Color(0xFFFACC15),
+      id: 'sunset_peach',
+      name: 'Sunset Peach',
+      subtitle: 'Oranye senja hangat (Golden Hour)',
+      primary: Color(0xFFFB923C),
+      secondary: Color(0xFFFBBF24),
     ),
     ZunifyAccentPreset(
-      id: 'crimson',
-      name: 'Crimson Rose',
-      primary: Color(0xFFFF3366),
-      secondary: Color(0xFFFF80AB),
+      id: 'ocean_teal',
+      name: 'Oceanic Teal',
+      subtitle: 'Biru laut dalam & cyan jernih',
+      primary: Color(0xFF2DD4BF),
+      secondary: Color(0xFF38BDF8),
+    ),
+    ZunifyAccentPreset(
+      id: 'champagne',
+      name: 'Champagne Gold',
+      subtitle: 'Emas hangat mewah & klasik',
+      primary: Color(0xFFFBBF24),
+      secondary: Color(0xFFFDE68A),
     ),
   ];
 
-  String _selectedPresetId = 'crimson_z';
+  String _selectedPresetId = 'ios_liquid';
   bool _oledPureBlack = false;
   bool _dynamicAlbumColorEnabled = true;
   bool _dynamicFullAccentEnabled = true;
 
-  // Appearance & UI Control Settings (Zunify 2.0 Studio Controls)
-  double _animationSpeedMultiplier = 1.0; // 0.72 = Cepat, 1.0 = Normal, 1.38 = Halus
+  // Appearance & UI Control Settings
+  double _animationSpeedMultiplier = 1.0; // 0.72 = Cepat, 1.0 = Normal, 1.38 = Sinematik
   String _playerSpacingMode = 'balanced'; // 'compact' | 'balanced' | 'spacious'
-  double _blurIntensity = 0.75; // 0.40 = Ringan, 0.75 = Seimbang, 1.0 = Ultra Glass
-  String _playerCoverStyle = 'artwork'; // 'artwork' (Modern 3D Cover) | 'vinyl' (Piringan Vinyl)
+  double _blurIntensity = 0.80; // 0.40 = Ringan, 0.80 = Seimbang, 1.0 = Ultra Glass
+  String _playerCoverStyle = 'artwork'; // 'artwork' | 'vinyl'
   bool _lyricsCenterAligned = false; // false = Rata Kiri, true = Rata Tengah
   double _lyricsFontScale = 1.0; // 0.90 = Kompak, 1.0 = Normal, 1.14 = Besar
 
@@ -100,20 +122,20 @@ class ThemeProvider extends ChangeNotifier {
 
   /// Scales any base animation duration (ms) by the user's chosen animation speed
   Duration animDuration(int baseMs) {
-    final scaled = (baseMs * _animationSpeedMultiplier).round().clamp(80, 1500);
+    final scaled = (baseMs * _animationSpeedMultiplier).round().clamp(80, 1200);
     return Duration(milliseconds: scaled);
   }
 
-  /// Dynamic blur sigma for Frosted Glass elements (respects power-saving vs ultra glass)
-  double get glassBlurSigma => (26.0 * _blurIntensity).clamp(9.0, 32.0);
+  /// Dynamic blur sigma for floating iOS 26 Liquid Glass bars
+  double get glassBlurSigma => (24.0 * _blurIntensity).clamp(10.0, 30.0);
 
   /// Vertical spacing multiplier for NowPlayingScreen based on playerSpacingMode
   double get playerSpacingFactor {
     switch (_playerSpacingMode) {
       case 'compact':
-        return 0.72;
+        return 0.75;
       case 'spacious':
-        return 1.32;
+        return 1.28;
       default:
         return 1.0;
     }
@@ -122,11 +144,11 @@ class ThemeProvider extends ChangeNotifier {
   EdgeInsets get playerHorizontalPadding {
     switch (_playerSpacingMode) {
       case 'compact':
-        return const EdgeInsets.fromLTRB(16, 4, 16, 8);
+        return const EdgeInsets.fromLTRB(18, 4, 18, 8);
       case 'spacious':
-        return const EdgeInsets.fromLTRB(26, 10, 26, 14);
+        return const EdgeInsets.fromLTRB(24, 8, 24, 12);
       default:
-        return const EdgeInsets.fromLTRB(22, 6, 22, 10);
+        return const EdgeInsets.fromLTRB(20, 6, 20, 10);
     }
   }
 
@@ -155,14 +177,14 @@ class ThemeProvider extends ChangeNotifier {
           : activePreset.primary;
 
   Color get scaffoldBgColor =>
-      _oledPureBlack ? const Color(0xFF000000) : const Color(0xFF080A10);
+      _oledPureBlack ? const Color(0xFF000000) : const Color(0xFF07090F);
 
   Color get cardBgColor =>
-      _oledPureBlack ? const Color(0xFF0C0E14) : const Color(0xFF131722);
+      _oledPureBlack ? const Color(0xFF0B0D13) : const Color(0xFF121622);
 
   Future<void> loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    _selectedPresetId = prefs.getString('theme_preset_id_v2') ?? 'crimson_z';
+    _selectedPresetId = prefs.getString('theme_preset_id_v2') ?? 'ios_liquid';
     _oledPureBlack = prefs.getBool('oled_pure_black') ?? false;
     _dynamicAlbumColorEnabled = prefs.getBool('dynamic_album_color') ?? true;
     _dynamicFullAccentEnabled =
@@ -171,7 +193,7 @@ class ThemeProvider extends ChangeNotifier {
         prefs.getDouble('anim_speed_mult_v2') ?? 1.0;
     _playerSpacingMode =
         prefs.getString('player_spacing_mode_v2') ?? 'balanced';
-    _blurIntensity = prefs.getDouble('blur_intensity_v2') ?? 0.75;
+    _blurIntensity = prefs.getDouble('blur_intensity_v2') ?? 0.80;
     _playerCoverStyle =
         prefs.getString('player_cover_style_v2') ?? 'artwork';
     _lyricsCenterAligned =
@@ -258,13 +280,13 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setDouble('lyrics_font_scale_v2', _lyricsFontScale);
   }
 
-  /// Ensures extracted cover art accent color is bright & saturated enough for dark UI
-  Color _boostForDarkUiAccent(Color raw) {
+  /// Softens & balances extracted album art colors so they look aesthetic (like iOS 26 / Apple Music)
+  Color _boostForAestheticDarkUi(Color raw) {
     final hsl = HSLColor.fromColor(raw);
-    final sat = hsl.saturation < 0.50
-        ? (hsl.saturation + 0.35).clamp(0.55, 0.95)
-        : hsl.saturation.clamp(0.55, 0.96);
-    final light = hsl.lightness.clamp(0.60, 0.74);
+    final sat = hsl.saturation < 0.45
+        ? (hsl.saturation + 0.32).clamp(0.52, 0.88)
+        : hsl.saturation.clamp(0.52, 0.90);
+    final light = hsl.lightness.clamp(0.64, 0.76);
     return hsl.withSaturation(sat).withLightness(light).toColor();
   }
 
@@ -295,9 +317,9 @@ class ThemeProvider extends ChangeNotifier {
           palette.mutedColor?.color ??
           rawPrimary;
       if (rawPrimary != null) {
-        final boostedPrimary = _boostForDarkUiAccent(rawPrimary);
+        final boostedPrimary = _boostForAestheticDarkUi(rawPrimary);
         final boostedSecondary =
-            _boostForDarkUiAccent(rawSecondary ?? rawPrimary);
+            _boostForAestheticDarkUi(rawSecondary ?? rawPrimary);
         final entry = _CachedPalettePair(
           ambient: rawPrimary,
           vibrantAccent: boostedPrimary,

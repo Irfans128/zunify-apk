@@ -122,7 +122,10 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  Future<void> _performSearch(String query) async {
+  Future<void> _performSearch(
+    String query, {
+    bool allowArtistCard = true,
+  }) async {
     final clean = query.trim();
     if (clean.isEmpty) return;
     _debounceTimer?.cancel();
@@ -139,14 +142,16 @@ class _SearchScreenState extends State<SearchScreen> {
       _showingSuggestions = false;
     });
 
-    final resultsFuture = widget.ytMusicService.searchSongs(clean, limit: 25);
-    final artistFuture = widget.ytMusicService.searchTopArtistMatch(clean);
-
-    final res = await resultsFuture;
+    final res = await widget.ytMusicService.searchSongs(clean, limit: 25);
     ZunifyArtistSummary? topArtist;
-    try {
-      topArtist = await artistFuture;
-    } catch (_) {}
+    if (allowArtistCard && res.isNotEmpty) {
+      try {
+        topArtist = await widget.ytMusicService.resolveArtistForSearchQuery(
+          clean,
+          res,
+        );
+      } catch (_) {}
+    }
 
     if (!mounted) return;
     setState(() {
@@ -364,96 +369,70 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // BitChord Frosted Header + Import Playlist Pill
+              // Clean iOS 26 Header + Import Playlist Pill (No subtitle below Cari)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Cari Musik',
-                        style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                      const Text(
-                        'Filter Khusus Lagu Studio Resmi • Tanpa Video',
-                        style: TextStyle(
-                          color: Colors.white54,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
+                  Text(
+                    'Cari',
+                    style: GoogleFonts.plusJakartaSans(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
+                    ),
                   ),
-                  LiquidGlassBox(
-                    borderRadius: 18,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    tintOpacity: 0.09,
-                    rimIntensity: 0.38,
+                  IosGlassPillButton(
+                    icon: Icons.add_link_rounded,
+                    label: 'Import Playlist',
+                    height: 36,
+                    activeColor: accent,
+                    isActive: true,
                     onTap: () => _showImportPlaylistModal(context),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.add_link_rounded, color: accent, size: 17),
-                        const SizedBox(width: 6),
-                        const Text(
-                          'Import Playlist',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
 
-              // BitChord Liquid Glass Search Bar
+              // iOS 26 Liquid Glass Search Capsule
               LiquidGlassBox(
-                borderRadius: 20,
-                height: 48,
+                borderRadius: 23,
+                height: 46,
                 tintOpacity: 0.10,
-                rimIntensity: 0.42,
+                rimIntensity: 0.38,
+                alignment: Alignment.center,
                 child: TextField(
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   textInputAction: TextInputAction.search,
+                  textAlignVertical: TextAlignVertical.center,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                   ),
                   onChanged: _onSearchTextChanged,
-                  onSubmitted: _performSearch,
+                  onSubmitted: (val) => _performSearch(val),
                   decoration: InputDecoration(
+                    isDense: true,
                     hintText: 'Cari lagu atau artis...',
                     hintStyle: const TextStyle(
                       color: Colors.white54,
                       fontSize: 13.5,
                     ),
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
+                    contentPadding: const EdgeInsets.symmetric(vertical: 11),
                     prefixIcon: Icon(
                       Icons.search_rounded,
                       color: accent,
-                      size: 21,
+                      size: 20,
                     ),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(
-                              Icons.clear_rounded,
-                              color: Colors.white60,
+                              Icons.cancel_rounded,
+                              color: Colors.white54,
                               size: 18,
                             ),
                             onPressed: () {
@@ -871,14 +850,14 @@ class _SearchScreenState extends State<SearchScreen> {
             final cardColor = Color(item['color'] as int);
             return LiquidGlassBox(
               borderRadius: 18,
-              padding: const EdgeInsets.all(13),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               tintColor: cardColor,
-              tintOpacity: 0.24,
-              rimIntensity: 0.42,
+              tintOpacity: 0.22,
+              rimIntensity: 0.38,
               onTap: () {
                 final q = item['query'] as String;
                 _searchController.text = item['title'] as String;
-                _performSearch(q);
+                _performSearch(q, allowArtistCard: false);
               },
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -888,8 +867,8 @@ class _SearchScreenState extends State<SearchScreen> {
                       item['title'] as String,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.8,
                       ),
                     ),
                   ),
@@ -908,7 +887,7 @@ class _SearchScreenState extends State<SearchScreen> {
           'Lagu Populer Dicari',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w900,
+            fontWeight: FontWeight.w800,
             fontSize: 16.5,
           ),
         ),
@@ -917,33 +896,15 @@ class _SearchScreenState extends State<SearchScreen> {
           spacing: 8,
           runSpacing: 8,
           children: quickQueries.map((s) {
-            return LiquidGlassBox(
-              borderRadius: 18,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 12,
-                vertical: 8,
-              ),
-              tintOpacity: 0.08,
-              rimIntensity: 0.34,
+            return IosGlassPillButton(
+              icon: Icons.trending_up_rounded,
+              label: s,
+              height: 34,
+              activeColor: accent,
               onTap: () {
                 _searchController.text = s;
                 _performSearch(s);
               },
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.trending_up_rounded, color: accent, size: 15),
-                  const SizedBox(width: 6),
-                  Text(
-                    s,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12.2,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
             );
           }).toList(),
         ),

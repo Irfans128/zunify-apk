@@ -123,57 +123,36 @@ class _LibraryScreenState extends State<LibraryScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // BitChord Frosted Top Header + New Playlist Action
+            // Clean iOS 26 Top Header + New Playlist Pill
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 10),
+              padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Text(
                     'Koleksi',
                     style: GoogleFonts.plusJakartaSans(
                       color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.6,
                     ),
                   ),
-                  LiquidGlassBox(
-                    borderRadius: 18,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 13,
-                      vertical: 8,
-                    ),
-                    tintColor: accent,
-                    tintOpacity: 0.22,
-                    rimIntensity: 0.45,
+                  IosGlassPillButton(
+                    icon: Icons.add_rounded,
+                    label: 'Playlist Baru',
+                    height: 36,
+                    activeColor: accent,
+                    isActive: true,
                     onTap: () =>
                         _showCreatePlaylistDialog(context, library, accent),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.add_rounded,
-                          color: accent,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Playlist Baru',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w800,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
               ),
             ),
 
-            // BitChord `LibraryReplayEntry` Card ("Replay Anda")
+            // iOS 26 Wrapped & Replay Anda Card
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
               child: LiquidGlassBox(
@@ -212,7 +191,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                       child: const Icon(
                         Icons.auto_awesome_rounded,
                         color: Colors.black,
-                        size: 21,
+                        size: 20,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -221,16 +200,17 @@ class _LibraryScreenState extends State<LibraryScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Replay Anda',
+                            'Zunify Wrapped & Replay',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 14.5,
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.2,
                             ),
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Lihat waktu dengar, lagu teratas, artis & poster HD',
+                            'Statistik waktu dengar, top lagu, artis & kartu IG Story',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -252,31 +232,40 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
 
-            // BitChord Liquid Glass Tab Bar
+            // iOS 26 Segmented Liquid Glass Tab Bar
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 18),
               child: LiquidGlassBox(
                 borderRadius: 20,
-                padding: const EdgeInsets.all(4),
+                padding: const EdgeInsets.all(3.5),
                 tintOpacity: 0.08,
                 rimIntensity: 0.34,
                 child: TabBar(
                   controller: _tabController,
                   indicator: BoxDecoration(
-                    color: accent,
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.18),
+                        accent.withOpacity(0.24),
+                      ],
+                    ),
                     borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.28),
+                      width: 0.9,
+                    ),
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
                   dividerColor: Colors.transparent,
-                  labelColor: Colors.black,
+                  labelColor: Colors.white,
                   labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w900,
-                    fontSize: 12.2,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.0,
                   ),
-                  unselectedLabelColor: Colors.white70,
+                  unselectedLabelColor: Colors.white60,
                   unselectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.2,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.0,
                   ),
                   tabs: [
                     Tab(

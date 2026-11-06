@@ -950,6 +950,168 @@ class YTMusicService {
     return const [];
   }
 
+  static const Set<String> _genericSearchWords = {
+    'lagu',
+    'musik',
+    'music',
+    'song',
+    'songs',
+    'audio',
+    'lirik',
+    'lyrics',
+    'sad',
+    'galau',
+    'sedih',
+    'baper',
+    'cinta',
+    'patah',
+    'hati',
+    'broken',
+    'pop',
+    'hits',
+    'viral',
+    'tiktok',
+    'trending',
+    'chill',
+    'santai',
+    'indie',
+    'senja',
+    'pagi',
+    'siang',
+    'malam',
+    'hujan',
+    'tidur',
+    'sleep',
+    'study',
+    'belajar',
+    'fokus',
+    'kerja',
+    'workout',
+    'gym',
+    'gaming',
+    'lofi',
+    'remix',
+    'dj',
+    'koplo',
+    'dangdut',
+    'acoustic',
+    'akustik',
+    'slowed',
+    'reverb',
+    'sped',
+    'nightcore',
+    'karaoke',
+    'instrumental',
+    'cover',
+    'indonesia',
+    'indo',
+    'barat',
+    'global',
+    'korea',
+    'kpop',
+    'jpop',
+    'anime',
+    'ost',
+    'soundtrack',
+    'terbaru',
+    'terpopuler',
+    'terbaik',
+    'top',
+    'best',
+    'playlist',
+    'full',
+    'album',
+    'enak',
+    'nyaman',
+    'happy',
+    'semangat',
+    'party',
+    'rock',
+    'jazz',
+    'rnb',
+    'hiphop',
+    'rap',
+    'klasik',
+    'nostalgia',
+    'various',
+    'artists',
+    'official',
+    'channel',
+    'topic',
+  };
+
+  List<String> _tokenizeNormalized(String input) {
+    return input
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), ' ')
+        .split(RegExp(r'\s+'))
+        .where((w) => w.isNotEmpty)
+        .toList();
+  }
+
+  /// Resolves an Artist Profile card ONLY when the user explicitly searched
+  /// for an artist name or `song + artist` (never on generic mood/genre queries
+  /// like "lagu sad", "lagu galau", "pop indo", etc.).
+  Future<ZunifyArtistSummary?> resolveArtistForSearchQuery(
+    String rawQuery,
+    List<ZunifySong> songResults,
+  ) async {
+    final queryTokens = _tokenizeNormalized(rawQuery);
+    if (queryTokens.isEmpty) return null;
+
+    // 1. Reject if the query consists only of generic mood/genre/category words
+    final meaningfulQueryTokens =
+        queryTokens.where((w) => !_genericSearchWords.contains(w)).toList();
+    if (meaningfulQueryTokens.isEmpty) return null;
+
+    // 2. Find an artist from the top song results whose name is explicitly
+    //    present in the user's search query.
+    String? matchedArtistName;
+    final queryTokenSet = queryTokens.toSet();
+
+    for (final song in songResults.take(8)) {
+      final rawArtists = song.artist.split(
+        RegExp(r',|&| x | feat\.?| ft\.?', caseSensitive: false),
+      );
+      for (final rawArt in rawArtists) {
+        final candidate = rawArt.trim();
+        if (candidate.length < 2) continue;
+        final artTokens = _tokenizeNormalized(candidate);
+        if (artTokens.isEmpty) continue;
+
+        // Ignore fake/generic channel names like "Lagu Sad", "Various Artists"
+        final nonGenericArtTokens =
+            artTokens.where((w) => !_genericSearchWords.contains(w)).toList();
+        if (nonGenericArtTokens.isEmpty) continue;
+
+        // Every token of the artist's name must appear in the user's query
+        final allTokensInQuery =
+            artTokens.every((t) => queryTokenSet.contains(t));
+        if (allTokensInQuery) {
+          matchedArtistName = candidate;
+          break;
+        }
+      }
+      if (matchedArtistName != null) break;
+    }
+
+    if (matchedArtistName == null) return null;
+
+    final summary = await searchTopArtistMatch(matchedArtistName);
+    if (summary == null) return null;
+
+    // 3. Final sanity check: returned artist name must overlap with matchedArtistName
+    final summaryTokens = _tokenizeNormalized(summary.name);
+    final targetTokens = _tokenizeNormalized(matchedArtistName);
+    if (summaryTokens.isEmpty || targetTokens.isEmpty) return null;
+    final hasOverlap =
+        targetTokens.every((t) => summaryTokens.contains(t)) ||
+        summaryTokens.every((t) => targetTokens.contains(t));
+    if (!hasOverlap) return null;
+
+    return summary;
+  }
+
   /// Resolves an artist's YouTube Music Channel `browseId` (`UC...`) by name
   Future<ZunifyArtistSummary?> searchTopArtistMatch(String query) async {
     final trimmed = query.trim();

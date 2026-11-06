@@ -134,10 +134,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     : (_trendingIndo.isNotEmpty ? _trendingIndo.first : null))))
         : (_moodSongs.isNotEmpty ? _moodSongs.first : null);
     final String heroBadgeLabel = isAllTab
-        ? (hasRecentOrPlaying
-            ? 'PILIHAN UTAMA • LANJUTKAN DENGAR'
-            : 'PILIHAN UTAMA • POP INDO')
-        : 'MIX PILIHAN • $_selectedMood'.toUpperCase();
+        ? (hasRecentOrPlaying ? 'LANJUTKAN DENGAR' : 'SOROTAN UTAMA')
+        : 'MIX $_selectedMood'.toUpperCase();
     final List<ZunifySong> heroQueue = isAllTab && hasRecentOrPlaying
         ? (library.recentlyPlayed.isNotEmpty
             ? library.recentlyPlayed
@@ -155,146 +153,92 @@ class _HomeScreenState extends State<HomeScreen> {
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
-            padding: const EdgeInsets.fromLTRB(18, 12, 18, 176),
+            padding: const EdgeInsets.fromLTRB(18, 10, 18, 176),
             children: [
-              // BitChord Frosted Top Header Bar
-              LiquidGlassBox(
-                borderRadius: 24,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 11,
-                ),
-                tintOpacity: 0.08,
-                rimIntensity: 0.36,
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: [accent, theme.secondaryAccentColor],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                        library.profile.username.isNotEmpty
-                            ? library.profile.username[0].toUpperCase()
-                            : 'Z',
-                        style: const TextStyle(
-                          color: Colors.black,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w900,
-                        ),
+              // 1. Clean Floating iOS 26 Top Header
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  LiquidGlassBox(
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    tintColor: accent,
+                    tintOpacity: 0.22,
+                    rimIntensity: 0.48,
+                    alignment: Alignment.center,
+                    child: Text(
+                      library.profile.username.isNotEmpty
+                          ? library.profile.username[0].toUpperCase()
+                          : 'Z',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _getTimeGreeting(),
-                            style: const TextStyle(
-                              color: Colors.white60,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            library.profile.username,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: -0.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    // Replay Anda Pill Button
-                    GestureDetector(
-                      onTap: () => _openWeeklyRapotModal(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accent.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(color: accent.withOpacity(0.45)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.auto_awesome_rounded,
-                              color: accent,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'Replay',
-                              style: TextStyle(
-                                color: accent,
-                                fontSize: 11.8,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // Offline Mode Toggle
-                    GestureDetector(
-                      onTap: () =>
-                          player.setOfflineMode(!player.offlineModeEnabled),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: player.offlineModeEnabled
-                              ? accent
-                              : Colors.white.withOpacity(0.08),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: player.offlineModeEnabled
-                                ? accent
-                                : Colors.white.withOpacity(0.14),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _getTimeGreeting(),
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.58),
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
                           ),
                         ),
-                        alignment: Alignment.center,
-                        child: Icon(
-                          player.offlineModeEnabled
-                              ? Icons.cloud_off_rounded
-                              : Icons.wifi_rounded,
-                          color: player.offlineModeEnabled
-                              ? Colors.black
-                              : Colors.white70,
-                          size: 16,
+                        const SizedBox(height: 1),
+                        Text(
+                          library.profile.username,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            color: Colors.white,
+                            fontSize: 21,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.5,
+                            height: 1.15,
+                          ),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                  IosGlassPillButton(
+                    icon: Icons.auto_awesome_rounded,
+                    label: 'Wrapped',
+                    height: 36,
+                    activeColor: accent,
+                    isActive: true,
+                    onTap: () => _openWeeklyRapotModal(context),
+                  ),
+                  const SizedBox(width: 8),
+                  IosGlassIconButton(
+                    icon: player.offlineModeEnabled
+                        ? Icons.cloud_off_rounded
+                        : Icons.wifi_rounded,
+                    size: 36,
+                    iconSize: 17,
+                    activeColor: accent,
+                    isActive: player.offlineModeEnabled,
+                    tooltip: 'Mode Offline',
+                    onTap: () =>
+                        player.setOfflineMode(!player.offlineModeEnabled),
+                  ),
+                ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               if (player.offlineModeEnabled) ...[
                 _buildOfflineList(library, player, accent),
               ] else ...[
-                // BitChord Liquid Glass Mood Filter Pills
+                // 2. iOS 26 Liquid Glass Mood Filter Capsules
                 SizedBox(
-                  height: 36,
+                  height: 35,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
@@ -304,40 +248,34 @@ class _HomeScreenState extends State<HomeScreen> {
                       final moodId = _moods[i]['id']!;
                       final moodLabel = _moods[i]['label']!;
                       final selected = moodId == _selectedMood;
-                      return GestureDetector(
+                      return IosGlassPillButton(
+                        label: moodLabel,
+                        height: 35,
+                        padding: const EdgeInsets.symmetric(horizontal: 15),
+                        activeColor: accent,
+                        isActive: selected,
+                        fontSize: 12.2,
                         onTap: () => _selectMood(moodId),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? accent
-                                : Colors.white.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: selected
-                                  ? accent
-                                  : Colors.white.withOpacity(0.14),
-                            ),
-                          ),
-                          child: Text(
-                            moodLabel,
-                            style: TextStyle(
-                              color: selected ? Colors.black : Colors.white,
-                              fontWeight:
-                                  selected ? FontWeight.w900 : FontWeight.w700,
-                              fontSize: 12.2,
-                            ),
-                          ),
-                        ),
                       );
                     },
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // BitChord `TopPicksShelf` 2-Column Liquid Glass Quick Picks
+                // 3. iOS 26 Hero Spotlight Showcase Card
+                if (heroSong != null) ...[
+                  _buildHeroFeaturedBanner(
+                    heroSong,
+                    heroQueue,
+                    heroBadgeLabel,
+                    player,
+                    accent,
+                    theme.secondaryAccentColor,
+                  ),
+                  const SizedBox(height: 18),
+                ],
+
+                // 4. 2-Column iOS 26 Liquid Glass Quick Picks Grid
                 if (quickPicks.isNotEmpty) ...[
                   GridView.builder(
                     shrinkWrap: true,
@@ -348,7 +286,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisCount: 2,
                       mainAxisSpacing: 9,
                       crossAxisSpacing: 9,
-                      mainAxisExtent: 58,
+                      mainAxisExtent: 60,
                     ),
                     itemBuilder: (context, i) {
                       final song = quickPicks[i];
@@ -360,23 +298,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 20),
-                ],
-
-                // BitChord Hero Spotlight Liquid Glass Card
-                if (heroSong != null) ...[
-                  _buildHeroFeaturedBanner(
-                    heroSong,
-                    heroQueue,
-                    heroBadgeLabel,
-                    player,
-                    accent,
-                    theme.secondaryAccentColor,
-                  ),
                   const SizedBox(height: 22),
                 ],
 
-                // Mood Mix Horizontal Shelf
+                // 5. Horizontal Shelf: Pilihan Cepat / Mood Mix
                 _sectionHeader(
                   isAllTab ? 'Pilihan Cepat Untukmu' : 'Mix $_selectedMood',
                   onPlayAll: _moodSongs.isEmpty
@@ -400,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 else
                   SizedBox(
-                    height: 198,
+                    height: 202,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       physics: const BouncingScrollPhysics(),
@@ -500,45 +425,71 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final queueToPlay = mixList.isNotEmpty ? mixList : [song];
     return LiquidGlassBox(
-      borderRadius: 24,
-      padding: const EdgeInsets.all(16),
+      borderRadius: 26,
+      padding: const EdgeInsets.all(15),
       tintColor: accent,
       tintOpacity: 0.14,
       rimIntensity: 0.44,
+      enableShadow: true,
+      onTap: () => player.playSong(song, customQueue: queueToPlay),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(16),
-            child: CachedNetworkImage(
-              imageUrl: song.highResArtUrl,
-              width: 88,
-              height: 88,
-              memCacheWidth: 260,
-              fadeInDuration: const Duration(milliseconds: 140),
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
-                width: 88,
-                height: 88,
-                color: Colors.white10,
-                child: Icon(Icons.music_note_rounded, color: accent, size: 30),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.32),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: CachedNetworkImage(
+                imageUrl: song.highResArtUrl,
+                width: 92,
+                height: 92,
+                memCacheWidth: 260,
+                fadeInDuration: const Duration(milliseconds: 140),
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => Container(
+                  width: 92,
+                  height: 92,
+                  color: Colors.white10,
+                  child:
+                      Icon(Icons.music_note_rounded, color: accent, size: 30),
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  badgeLabel,
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0.8,
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withOpacity(0.20),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    badgeLabel,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.7,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
                   song.title,
                   maxLines: 1,
@@ -556,86 +507,37 @@ class _HomeScreenState extends State<HomeScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.68),
+                    color: Colors.white.withOpacity(0.66),
                     fontSize: 12.2,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 11),
                 Row(
                   children: [
-                    GestureDetector(
+                    IosGlassPillButton(
+                      icon: Icons.play_arrow_rounded,
+                      label: 'Putar',
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      activeColor: accent,
+                      isActive: true,
+                      fontSize: 12,
                       onTap: () =>
                           player.playSong(song, customQueue: queueToPlay),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 6.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: accent,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.play_arrow_rounded,
-                              color: Colors.black,
-                              size: 17,
-                            ),
-                            SizedBox(width: 3),
-                            Text(
-                              'Putar',
-                              style: TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.w900,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                     const SizedBox(width: 8),
-                    GestureDetector(
+                    IosGlassPillButton(
+                      icon: Icons.shuffle_rounded,
+                      label: 'Acak',
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 13),
+                      fontSize: 12,
                       onTap: () {
                         final shuffled = List<ZunifySong>.from(queueToPlay)
                           ..shuffle();
                         player.playSong(shuffled.first, customQueue: shuffled);
                       },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6.5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.16),
-                          ),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.shuffle_rounded,
-                              color: Colors.white,
-                              size: 15,
-                            ),
-                            SizedBox(width: 4),
-                            Text(
-                              'Acak',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
                   ],
                 ),
@@ -655,10 +557,11 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final isCurrent = player.currentSong?.videoId == song.videoId;
     return LiquidGlassBox(
-      borderRadius: 14,
+      borderRadius: 16,
+      padding: const EdgeInsets.all(5),
       tintColor: isCurrent ? accent : Colors.white,
-      tintOpacity: isCurrent ? 0.18 : 0.07,
-      rimIntensity: isCurrent ? 0.48 : 0.30,
+      tintOpacity: isCurrent ? 0.18 : 0.08,
+      rimIntensity: isCurrent ? 0.46 : 0.30,
       onTap: () => player.playSong(
         song,
         customQueue: const [],
@@ -667,44 +570,59 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: const BorderRadius.horizontal(
-              left: Radius.circular(13),
-            ),
+            borderRadius: BorderRadius.circular(11),
             child: CachedNetworkImage(
               imageUrl: song.thumbnailUrl,
-              width: 58,
-              height: 58,
-              memCacheWidth: 168,
+              width: 48,
+              height: 48,
+              memCacheWidth: 150,
               fadeInDuration: const Duration(milliseconds: 120),
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
-                width: 58,
-                height: 58,
+                width: 48,
+                height: 48,
                 color: Colors.white10,
-                child: Icon(Icons.music_note_rounded, color: accent, size: 20),
+                child: Icon(Icons.music_note_rounded, color: accent, size: 18),
               ),
             ),
           ),
           const SizedBox(width: 9),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: Text(
-                song.title,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: isCurrent ? accent : Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 12,
-                  height: 1.2,
-                ),
+              padding: const EdgeInsets.only(right: 6),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: isCurrent ? accent : Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.2,
+                      letterSpacing: -0.15,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.55),
+                      fontWeight: FontWeight.w600,
+                      fontSize: 10.6,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
           if (isCurrent)
             Padding(
-              padding: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.only(right: 6),
               child: MiniAudioSpectrumBars(
                 isPlaying: player.isPlaying,
                 color: accent,
@@ -756,35 +674,31 @@ class _HomeScreenState extends State<HomeScreen> {
   }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          title,
-          style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.35,
+        Expanded(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.plusJakartaSans(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.4,
+            ),
           ),
         ),
         if (onPlayAll != null)
-          GestureDetector(
+          IosGlassPillButton(
+            icon: Icons.play_arrow_rounded,
+            label: 'Putar Semua',
+            height: 30,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            activeColor: accent,
+            isActive: true,
+            fontSize: 11.2,
             onTap: onPlayAll,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: accent.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: accent.withOpacity(0.32)),
-              ),
-              child: Text(
-                'Putar Semua',
-                style: TextStyle(
-                  color: accent,
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
           ),
       ],
     );
@@ -805,7 +719,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       onLongPress: () => showSongActionSheet(context, song: song),
       child: SizedBox(
-        width: 140,
+        width: 142,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -816,47 +730,59 @@ class _HomeScreenState extends State<HomeScreen> {
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: isCurrent
-                          ? accent.withOpacity(0.6)
+                          ? accent.withOpacity(0.65)
                           : Colors.white.withOpacity(0.14),
+                      width: 1.0,
                     ),
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(17),
                     child: CachedNetworkImage(
                       imageUrl: song.highResArtUrl,
-                      width: 140,
-                      height: 140,
+                      width: 142,
+                      height: 142,
                       memCacheWidth: 360,
                       fadeInDuration: const Duration(milliseconds: 140),
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
-                        width: 140,
-                        height: 140,
+                        width: 142,
+                        height: 142,
                         color: Colors.white10,
                         child: Icon(Icons.music_note_rounded, color: accent),
                       ),
                     ),
                   ),
                 ),
-                if (isCurrent)
-                  Positioned(
-                    right: 8,
-                    bottom: 8,
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: accent,
-                        shape: BoxShape.circle,
-                      ),
-                      alignment: Alignment.center,
-                      child: MiniAudioSpectrumBars(
-                        isPlaying: player.isPlaying,
-                        color: Colors.black,
-                        height: 11,
+                Positioned(
+                  right: 8,
+                  bottom: 8,
+                  child: Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: isCurrent
+                          ? accent
+                          : Colors.black.withOpacity(0.54),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.28),
+                        width: 0.8,
                       ),
                     ),
+                    alignment: Alignment.center,
+                    child: isCurrent
+                        ? MiniAudioSpectrumBars(
+                            isPlaying: player.isPlaying,
+                            color: Colors.black,
+                            height: 11,
+                          )
+                        : const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 18,
+                          ),
                   ),
+                ),
               ],
             ),
             const SizedBox(height: 8),
@@ -868,6 +794,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: isCurrent ? accent : Colors.white,
                 fontWeight: FontWeight.w800,
                 fontSize: 13.2,
+                letterSpacing: -0.15,
               ),
             ),
             const SizedBox(height: 2),

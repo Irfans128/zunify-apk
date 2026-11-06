@@ -151,66 +151,114 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const Divider(color: Colors.white12, height: 22),
                   const Text(
-                    'Preset Warna Manual / Default',
+                    'Koleksi Tema Estetik iOS 26',
                     style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: ThemeProvider.accentPresets.map((preset) {
-                      final selected = !theme.dynamicFullAccentEnabled &&
-                          theme.selectedPresetId == preset.id;
-                      return GestureDetector(
-                        onTap: () => theme.setAccentPreset(preset.id),
-                        child: AnimatedContainer(
-                          duration: theme.animDuration(220),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: preset.primary
-                                .withOpacity(selected ? 0.22 : 0.07),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: selected ? preset.primary : Colors.white12,
-                              width: selected ? 1.8 : 1,
+                  const SizedBox(height: 3),
+                  const Text(
+                    'Ketuk tema untuk memakai palet warna estetik pilihanmu',
+                    style: TextStyle(color: Colors.white54, fontSize: 11.5),
+                  ),
+                  const SizedBox(height: 12),
+                  GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: ThemeProvider.accentPresets.length,
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 9,
+                      crossAxisSpacing: 9,
+                      mainAxisExtent: 58,
+                    ),
+                    itemBuilder: (context, idx) {
+                      final preset = ThemeProvider.accentPresets[idx];
+                      final selected = theme.selectedPresetId == preset.id &&
+                          !theme.dynamicFullAccentEnabled;
+                      return LiquidGlassBox(
+                        borderRadius: 16,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 8,
+                        ),
+                        tintColor: preset.primary,
+                        tintOpacity: selected ? 0.24 : 0.08,
+                        rimIntensity: selected ? 0.54 : 0.28,
+                        onTap: () {
+                          if (theme.dynamicFullAccentEnabled) {
+                            theme.setDynamicFullAccentEnabled(false);
+                          }
+                          theme.setAccentPreset(preset.id);
+                        },
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [preset.primary, preset.secondary],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.35),
+                                  width: 1.0,
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: selected
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      color: Colors.black,
+                                      size: 15,
+                                    )
+                                  : null,
                             ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 14,
-                                height: 14,
-                                decoration: BoxDecoration(
-                                  color: preset.primary,
-                                  shape: BoxShape.circle,
-                                ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    preset.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: selected
+                                          ? Colors.white
+                                          : Colors.white.withOpacity(0.90),
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 12,
+                                      letterSpacing: -0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    preset.subtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: selected
+                                          ? preset.primary
+                                          : Colors.white54,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 9.8,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 8),
-                              Text(
-                                preset.name.replaceAll('Zunify ', ''),
-                                style: TextStyle(
-                                  color: selected
-                                      ? preset.primary
-                                      : Colors.white70,
-                                  fontWeight: selected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                  fontSize: 12.5,
-                                ),
-                              ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
                       );
-                    }).toList(),
+                    },
                   ),
                   const Divider(color: Colors.white12, height: 24),
                   SwitchListTile(

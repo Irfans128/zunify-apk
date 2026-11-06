@@ -50,21 +50,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _startSmoothKaraokeClock() {
     _smoothKaraokeTimer?.cancel();
     _smoothKaraokeTimer = Timer.periodic(
-      const Duration(milliseconds: 24),
+      const Duration(milliseconds: 40),
       (_) {
-        if (!mounted) return;
+        if (!mounted || !_showLyricsView) return;
         final player = context.read<PlayerProvider>();
         final song = player.currentSong;
         if (song == null) return;
 
         final ms =
             player.audioPlayer.position.inMilliseconds + player.lyricsOffsetMs;
-        if (_smoothPosMs.value != ms) {
+        if ((ms - _smoothPosMs.value).abs() >= 36) {
           _smoothPosMs.value = ms;
         }
 
         // Continuously verify active lyric scroll position so lyrics NEVER freeze
-        if (_showLyricsView && !_userScrollingLyrics) {
+        if (!_userScrollingLyrics) {
           final totalLines = player.currentLyrics?.lines.length ?? 0;
           if (totalLines > 0) {
             final curIdx = player.activeLyricIndex;
@@ -244,28 +244,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
 
-                // BitChord Frosted Top Navigation Bar
+                // iOS 26 Liquid Glass Top Navigation Bar
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    LiquidGlassBox(
-                      borderRadius: 20,
-                      width: 38,
-                      height: 38,
-                      tintOpacity: 0.08,
-                      rimIntensity: 0.36,
+                    IosGlassIconButton(
+                      icon: Icons.keyboard_arrow_down_rounded,
+                      size: 38,
+                      iconSize: 24,
                       onTap: () => Navigator.pop(context),
-                      child: const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
                     ),
                     LiquidGlassBox(
-                      borderRadius: 24,
-                      padding: const EdgeInsets.all(3.5),
-                      tintOpacity: 0.09,
-                      rimIntensity: 0.40,
+                      height: 38,
+                      borderRadius: 19,
+                      padding: const EdgeInsets.all(3),
+                      tintOpacity: 0.10,
+                      rimIntensity: 0.38,
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -299,20 +294,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ],
                       ),
                     ),
-                    LiquidGlassBox(
-                      borderRadius: 20,
-                      width: 38,
-                      height: 38,
-                      tintOpacity: 0.08,
-                      rimIntensity: 0.36,
+                    IosGlassIconButton(
+                      icon: Icons.more_horiz_rounded,
+                      size: 38,
+                      iconSize: 21,
                       onTap: () => showSongActionSheet(
                         context,
                         song: song,
-                      ),
-                      child: const Icon(
-                        Icons.more_horiz_rounded,
-                        color: Colors.white,
-                        size: 22,
                       ),
                     ),
                   ],
@@ -383,25 +371,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                 size: availableForArt,
                                               ),
                                         Positioned(
-                                          right: 6,
-                                          top: 6,
-                                          child: LiquidGlassBox(
-                                            borderRadius: 16,
-                                            padding: const EdgeInsets.all(6),
-                                            tintOpacity: 0.14,
-                                            rimIntensity: 0.42,
+                                          right: 8,
+                                          top: 8,
+                                          child: IosGlassIconButton(
+                                            icon: theme.playerCoverStyle ==
+                                                    'vinyl'
+                                                ? Icons.crop_square_rounded
+                                                : Icons.album_rounded,
+                                            size: 32,
+                                            iconSize: 15,
                                             onTap: () =>
                                                 theme.setPlayerCoverStyle(
                                               theme.playerCoverStyle == 'vinyl'
                                                   ? 'artwork'
                                                   : 'vinyl',
-                                            ),
-                                            child: Icon(
-                                              theme.playerCoverStyle == 'vinyl'
-                                                  ? Icons.crop_square_rounded
-                                                  : Icons.album_rounded,
-                                              color: Colors.white,
-                                              size: 14,
                                             ),
                                           ),
                                         ),
@@ -423,58 +406,30 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
                 SizedBox(height: 6 * theme.playerSpacingFactor),
 
-                // Audio Pipeline & Tempo Studio Badge (Liquid Glass Pill)
+                // Audio Pipeline & Tempo Studio Badge (iOS 26 Liquid Glass Pill)
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: LiquidGlassBox(
-                    borderRadius: 12,
-                    margin: const EdgeInsets.only(bottom: 6),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4.5,
-                    ),
-                    tintColor: player.hasCustomSpeedOrPitch ? accent : Colors.white,
-                    tintOpacity: player.hasCustomSpeedOrPitch ? 0.18 : 0.07,
-                    rimIntensity: 0.34,
-                    onTap: () =>
-                        _showSpeedPitchStudioSheet(context, player, accent),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.graphic_eq_rounded,
-                          color: accent,
-                          size: 13,
-                        ),
-                        const SizedBox(width: 5),
-                        Text(
-                          player.hasCustomSpeedOrPitch
-                              ? '${player.activeAudioFormatBadge} • ${player.speedPitchModeLabel}'
-                              : player.activeAudioFormatBadge,
-                          style: TextStyle(
-                            color: player.hasCustomSpeedOrPitch
-                                ? accent
-                                : Colors.white.withOpacity(0.86),
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.35,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.tune_rounded,
-                          color: player.hasCustomSpeedOrPitch
-                              ? accent
-                              : Colors.white54,
-                          size: 11.5,
-                        ),
-                      ],
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: IosGlassPillButton(
+                      icon: Icons.graphic_eq_rounded,
+                      label: player.hasCustomSpeedOrPitch
+                          ? '${player.activeAudioFormatBadge} • ${player.speedPitchModeLabel}'
+                          : player.activeAudioFormatBadge,
+                      height: 26,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      activeColor: accent,
+                      isActive: player.hasCustomSpeedOrPitch,
+                      fontSize: 10.2,
+                      onTap: () =>
+                          _showSpeedPitchStudioSheet(context, player, accent),
                     ),
                   ),
                 ),
 
                 // Song Title, Artist & Quick Actions (Share + Favorite)
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: Column(
@@ -540,36 +495,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 6),
-                    LiquidGlassBox(
-                      borderRadius: 18,
-                      width: 36,
-                      height: 36,
-                      tintOpacity: 0.08,
-                      rimIntensity: 0.32,
+                    const SizedBox(width: 8),
+                    IosGlassIconButton(
+                      icon: Icons.ios_share_rounded,
+                      size: 38,
+                      iconSize: 18,
                       onTap: () => _openShareModal(context, player),
-                      child: const Icon(
-                        Icons.ios_share_rounded,
-                        color: Colors.white70,
-                        size: 18,
-                      ),
                     ),
                     const SizedBox(width: 8),
-                    LiquidGlassBox(
-                      borderRadius: 18,
-                      width: 36,
-                      height: 36,
-                      tintColor: isFav ? accent : Colors.white,
-                      tintOpacity: isFav ? 0.20 : 0.08,
-                      rimIntensity: isFav ? 0.50 : 0.32,
+                    IosGlassIconButton(
+                      icon: isFav
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      size: 38,
+                      iconSize: 19,
+                      activeColor: accent,
+                      isActive: isFav,
                       onTap: () => library.toggleFavorite(song),
-                      child: Icon(
-                        isFav
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        color: isFav ? accent : Colors.white70,
-                        size: 19,
-                      ),
                     ),
                   ],
                 ),
@@ -706,38 +648,46 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // Symmetrical Main Transport Controls
+                // Symmetrical iOS 26 Main Transport Controls
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    IconButton(
+                    IosGlassIconButton(
+                      icon: Icons.shuffle_rounded,
+                      size: 40,
+                      iconSize: 19,
+                      activeColor: accent,
+                      isActive: player.shuffleEnabled,
                       tooltip: 'Acak Lagu',
-                      icon: Icon(
-                        Icons.shuffle_rounded,
-                        color: player.shuffleEnabled ? accent : Colors.white54,
-                        size: 22,
-                      ),
-                      onPressed: () => player.toggleShuffle(),
+                      onTap: () => player.toggleShuffle(),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.skip_previous_rounded,
-                        color: Colors.white,
-                        size: 38,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => player.playPrevious(),
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Center(
+                          child: Icon(
+                            Icons.skip_previous_rounded,
+                            color: Colors.white,
+                            size: 36,
+                          ),
+                        ),
                       ),
-                      onPressed: () => player.playPrevious(),
                     ),
                     GestureDetector(
                       onTap: () => player.togglePlayPause(),
                       child: Container(
-                        width: 64,
-                        height: 64,
+                        width: 66,
+                        height: 66,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: accent.withOpacity(0.38),
+                              color: accent.withOpacity(0.36),
                               blurRadius: 24,
                               spreadRadius: 2,
                             ),
@@ -762,96 +712,107 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ),
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.skip_next_rounded,
-                        color: Colors.white,
-                        size: 38,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => player.playNext(),
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Center(
+                          child: Icon(
+                            Icons.skip_next_rounded,
+                            color: Colors.white,
+                            size: 36,
+                          ),
+                        ),
                       ),
-                      onPressed: () => player.playNext(),
                     ),
-                    IconButton(
+                    IosGlassIconButton(
+                      icon: player.repeatMode == 2
+                          ? Icons.repeat_one_rounded
+                          : Icons.repeat_rounded,
+                      size: 40,
+                      iconSize: 19,
+                      activeColor: accent,
+                      isActive: player.repeatMode > 0,
                       tooltip: 'Mode Ulang',
-                      icon: Icon(
-                        player.repeatMode == 2
-                            ? Icons.repeat_one_rounded
-                            : Icons.repeat_rounded,
-                        color: player.repeatMode > 0 ? accent : Colors.white54,
-                        size: 22,
-                      ),
-                      onPressed: () => player.cycleRepeatMode(),
+                      onTap: () => player.cycleRepeatMode(),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
 
-                // BitChord `PlayerDock` Floating Liquid Glass Capsule
+                // iOS 26 Floating Liquid Glass PlayerDock (5 Equal-Width Columns)
                 LiquidGlassBox(
                   borderRadius: 24,
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
+                    horizontal: 6,
                     vertical: 8,
                   ),
-                  tintOpacity: 0.08,
+                  tintOpacity: 0.09,
                   rimIntensity: 0.38,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _dockIcon(
-                        icon: Icons.lyrics_outlined,
-                        label: 'Lirik',
-                        active: _showLyricsView,
-                        accent: accent,
-                        onTap: () {
-                          setState(() {
-                            _showLyricsView = !_showLyricsView;
-                            _userScrollingLyrics = false;
-                            _lastScrolledLyricIdx = -99;
-                          });
-                          if (_showLyricsView) {
-                            WidgetsBinding.instance.addPostFrameCallback((_) {
-                              if (!mounted) return;
-                              _scrollToActiveLyric(
-                                song.videoId,
-                                player.activeLyricIndex,
-                                totalLyricLines,
-                                force: true,
-                              );
+                      Expanded(
+                        child: _dockIcon(
+                          icon: Icons.lyrics_outlined,
+                          label: 'Lirik',
+                          active: _showLyricsView,
+                          accent: accent,
+                          onTap: () {
+                            setState(() {
+                              _showLyricsView = !_showLyricsView;
+                              _userScrollingLyrics = false;
+                              _lastScrolledLyricIdx = -99;
                             });
-                          }
-                        },
+                            if (_showLyricsView) {
+                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                if (!mounted) return;
+                                _scrollToActiveLyric(
+                                  song.videoId,
+                                  player.activeLyricIndex,
+                                  totalLyricLines,
+                                  force: true,
+                                );
+                              });
+                            }
+                          },
+                        ),
                       ),
-                      _dockIcon(
-                        icon: Icons.equalizer_rounded,
-                        label: 'Equalizer',
-                        active: player.eqEnabled,
-                        accent: accent,
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const EqualizerSheet(),
-                          );
-                        },
+                      Expanded(
+                        child: _dockIcon(
+                          icon: Icons.equalizer_rounded,
+                          label: 'Equalizer',
+                          active: player.eqEnabled,
+                          accent: accent,
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => const EqualizerSheet(),
+                            );
+                          },
+                        ),
                       ),
-                      _dockIcon(
-                        icon: Icons.bedtime_outlined,
-                        label: 'Timer',
-                        active: player.hasActiveSleepTimer,
-                        accent: accent,
-                        onTap: () {
-                          showModalBottomSheet(
-                            context: context,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const SleepTimerSheet(),
-                          );
-                        },
+                      Expanded(
+                        child: _dockIcon(
+                          icon: Icons.bedtime_outlined,
+                          label: 'Timer',
+                          active: player.hasActiveSleepTimer,
+                          accent: accent,
+                          onTap: () {
+                            showModalBottomSheet(
+                              context: context,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => const SleepTimerSheet(),
+                            );
+                          },
+                        ),
                       ),
-                      downloadProgress != null
-                          ? SizedBox(
-                              width: 48,
-                              child: Center(
+                      Expanded(
+                        child: downloadProgress != null
+                            ? Center(
                                 child: SizedBox(
                                   width: 20,
                                   height: 20,
@@ -861,32 +822,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     strokeWidth: 2.2,
                                   ),
                                 ),
+                              )
+                            : _dockIcon(
+                                icon: isDownloaded
+                                    ? Icons.download_done_rounded
+                                    : Icons.download_outlined,
+                                label: isDownloaded ? 'Tersimpan' : 'Unduh',
+                                active: isDownloaded,
+                                accent: accent,
+                                onTap: () {
+                                  if (!isDownloaded) {
+                                    library.downloadSong(
+                                      song,
+                                      highQuality: player.highQualityAudio,
+                                    );
+                                  }
+                                },
                               ),
-                            )
-                          : _dockIcon(
-                              icon: isDownloaded
-                                  ? Icons.download_done_rounded
-                                  : Icons.download_outlined,
-                              label: isDownloaded ? 'Tersimpan' : 'Unduh',
-                              active: isDownloaded,
-                              accent: accent,
-                              onTap: () {
-                                if (!isDownloaded) {
-                                  library.downloadSong(
-                                    song,
-                                    highQuality: player.highQualityAudio,
-                                  );
-                                }
-                              },
-                            ),
-                      _dockIcon(
-                        icon: Icons.queue_music_rounded,
-                        label: 'Antrean',
-                        badgeText: '${player.upcomingCount}',
-                        active: false,
-                        accent: accent,
-                        onTap: () =>
-                            _showQueueBottomSheet(context, player, accent),
+                      ),
+                      Expanded(
+                        child: _dockIcon(
+                          icon: Icons.queue_music_rounded,
+                          label: 'Antrean',
+                          badgeText: '${player.upcomingCount}',
+                          active: false,
+                          accent: accent,
+                          onTap: () =>
+                              _showQueueBottomSheet(context, player, accent),
+                        ),
                       ),
                     ],
                   ),
@@ -1142,204 +1105,172 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       key: const ValueKey('bitchord_lyrics_view'),
       children: [
-        // BitChord Liquid Glass Lyrics Toolbar:
-        // Translate • Alignment • Provider Switcher • Sync Offset (-0.25s / +0.25s)
+        // iOS 26 Uniform 32px Liquid Glass Lyrics Toolbar:
+        // Translate • Provider Switcher • Alignment • Sync Offset (-0.25s / +0.25s)
         Padding(
-          padding: const EdgeInsets.only(bottom: 6),
+          padding: const EdgeInsets.only(bottom: 8),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (lyrics.shouldShowTranslation) ...[
-                  GestureDetector(
+                  LiquidGlassBox(
+                    height: 32,
+                    borderRadius: 16,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    tintColor: player.showTranslation ? accent : Colors.white,
+                    tintOpacity: player.showTranslation ? 0.24 : 0.08,
+                    rimIntensity: player.showTranslation ? 0.52 : 0.30,
                     onTap: () => player.toggleTranslationDisplay(),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: player.showTranslation
-                            ? accent
-                            : Colors.white.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: player.showTranslation
-                              ? accent
-                              : Colors.white.withOpacity(0.16),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (player.isTranslatingLyrics) ...[
-                            SizedBox(
-                              width: 11,
-                              height: 11,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: player.showTranslation
-                                    ? Colors.black
-                                    : accent,
-                              ),
-                            ),
-                            const SizedBox(width: 5),
-                          ] else ...[
-                            Icon(
-                              Icons.translate_rounded,
-                              color: player.showTranslation
-                                  ? Colors.black
-                                  : Colors.white,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 4),
-                          ],
-                          Text(
-                            player.isTranslatingLyrics
-                                ? 'Proses...'
-                                : 'Terjemahkan',
-                            style: TextStyle(
-                              color: player.showTranslation
-                                  ? Colors.black
-                                  : Colors.white,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w800,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (player.isTranslatingLyrics) ...[
+                          SizedBox(
+                            width: 11,
+                            height: 11,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: accent,
                             ),
                           ),
+                          const SizedBox(width: 5),
+                        ] else ...[
+                          Icon(
+                            Icons.translate_rounded,
+                            color: player.showTranslation
+                                ? accent
+                                : Colors.white70,
+                            size: 13.5,
+                          ),
+                          const SizedBox(width: 5),
                         ],
-                      ),
+                        Text(
+                          player.isTranslatingLyrics
+                              ? 'Proses...'
+                              : 'Terjemahkan',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 11.2,
+                            fontWeight: player.showTranslation
+                                ? FontWeight.w800
+                                : FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 6),
                 ],
 
-                // BitChord "Pilih Penyedia Lirik" Switcher Pill
-                GestureDetector(
+                // "Pilih Penyedia Lirik" Switcher Pill (Height 32)
+                LiquidGlassBox(
+                  height: 32,
+                  borderRadius: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 11),
+                  tintOpacity: 0.08,
+                  rimIntensity: 0.30,
                   onTap: () => _showLyricsProviderSheet(context, player, accent),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.09),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.14),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.cloud_done_rounded,
+                        color: accent,
+                        size: 13.5,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.cloud_done_rounded,
-                          color: accent,
-                          size: 13,
+                      const SizedBox(width: 5),
+                      Text(
+                        lyrics.sourceName.replaceAll(' Synced', ''),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.2,
+                          fontWeight: FontWeight.w700,
                         ),
-                        const SizedBox(width: 5),
-                        Text(
-                          lyrics.sourceName.replaceAll(' Synced', ''),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          color: Colors.white70,
-                          size: 14,
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 2),
+                      const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white70,
+                        size: 14,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 6),
 
-                // 1-Tap Lyric Alignment Toggle (Left vs Center)
-                GestureDetector(
+                // 1-Tap Lyric Alignment Toggle (32x32 Circular Glass)
+                IosGlassIconButton(
+                  icon: theme.lyricsCenterAligned
+                      ? Icons.format_align_center_rounded
+                      : Icons.format_align_left_rounded,
+                  size: 32,
+                  iconSize: 15,
+                  activeColor: accent,
+                  isActive: theme.lyricsCenterAligned,
                   onTap: () =>
                       theme.setLyricsCenterAligned(!theme.lyricsCenterAligned),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.09),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(0.14),
-                      ),
-                    ),
-                    child: Icon(
-                      theme.lyricsCenterAligned
-                          ? Icons.format_align_center_rounded
-                          : Icons.format_align_left_rounded,
-                      color: Colors.white70,
-                      size: 14,
-                    ),
-                  ),
                 ),
                 const SizedBox(width: 6),
 
-                // Sync Offset Pill (-0.25s / +0.25s)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 4.5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.09),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.14),
-                    ),
-                  ),
+                // Sync Offset Pill (-0.25s / +0.25s, Height 32)
+                LiquidGlassBox(
+                  height: 32,
+                  borderRadius: 16,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tintOpacity: 0.08,
+                  rimIntensity: 0.30,
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => player.adjustLyricsOffset(-250),
                         child: const Padding(
                           padding:
-                              EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              EdgeInsets.symmetric(horizontal: 5, vertical: 4),
                           child: Text(
                             '-0.25s',
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 10.5,
+                              fontSize: 10.8,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),
                       ),
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => player.resetLyricsOffset(),
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 4,
+                          ),
                           child: Text(
                             '${(player.lyricsOffsetMs / 1000).toStringAsFixed(2)}s',
                             style: TextStyle(
                               color: player.lyricsOffsetMs == 0
                                   ? Colors.white54
                                   : accent,
-                              fontSize: 10.5,
+                              fontSize: 10.8,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
                       ),
                       GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => player.adjustLyricsOffset(250),
                         child: const Padding(
                           padding:
-                              EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              EdgeInsets.symmetric(horizontal: 5, vertical: 4),
                           child: Text(
                             '+0.25s',
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: 10.5,
+                              fontSize: 10.8,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -2191,16 +2122,21 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required VoidCallback onTap,
   }) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6.5),
+        curve: Curves.easeOutCubic,
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 18),
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.20) : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
+          color: selected ? Colors.white.withOpacity(0.18) : Colors.transparent,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color:
-                selected ? Colors.white.withOpacity(0.24) : Colors.transparent,
+                selected ? Colors.white.withOpacity(0.28) : Colors.transparent,
+            width: 0.9,
           ),
         ),
         child: Text(
@@ -2208,7 +2144,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           style: TextStyle(
             color: selected ? Colors.white : Colors.white60,
             fontSize: 12,
-            fontWeight: FontWeight.w800,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+            height: 1.1,
           ),
         ),
       ),

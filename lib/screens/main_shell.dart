@@ -324,7 +324,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  /// BitChord `FloatingTabBarKt` + `GlassSelectionPill`
+  /// iOS 26 Floating Liquid Glass Tab Bar
   Widget _buildBitChordFloatingTabBar(ThemeProvider theme, Color accent) {
     const items = [
       {'icon': Icons.home_rounded, 'label': 'Beranda'},
@@ -334,10 +334,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     return LiquidGlassBox(
-      borderRadius: 30,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
-      tintOpacity: 0.11,
-      rimIntensity: 0.44,
+      borderRadius: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+      tintOpacity: 0.14,
+      rimIntensity: 0.46,
+      enableBlur: true,
+      enableShadow: true,
       child: Row(
         children: List.generate(items.length, (idx) {
           final selected = _selectedIndex == idx;
@@ -349,35 +351,36 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               behavior: HitTestBehavior.opaque,
               onTap: () => setState(() => _selectedIndex = idx),
               child: AnimatedContainer(
-                duration: theme.animDuration(240),
+                duration: theme.animDuration(220),
                 curve: Curves.easeOutCubic,
                 padding: const EdgeInsets.symmetric(vertical: 7),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(26),
                   gradient: selected
                       ? LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [
-                            accent.withOpacity(0.26),
-                            Colors.white.withOpacity(0.10),
+                            Colors.white.withOpacity(0.18),
+                            accent.withOpacity(0.24),
                           ],
                         )
                       : null,
                   border: Border.all(
                     color: selected
-                        ? accent.withOpacity(0.48)
+                        ? Colors.white.withOpacity(0.32)
                         : Colors.transparent,
-                    width: 1.0,
+                    width: 0.9,
                   ),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Icon(
                       icon,
                       color: selected ? accent : Colors.white60,
-                      size: 21,
+                      size: 20,
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -389,6 +392,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         fontSize: 10.5,
                         fontWeight:
                             selected ? FontWeight.w800 : FontWeight.w600,
+                        letterSpacing: -0.1,
                       ),
                     ),
                   ],
@@ -423,8 +427,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       onTap: () {
         Navigator.of(context).push(
           PageRouteBuilder(
-            transitionDuration: theme.animDuration(320),
-            reverseTransitionDuration: theme.animDuration(260),
+            transitionDuration: theme.animDuration(300),
+            reverseTransitionDuration: theme.animDuration(250),
             pageBuilder: (_, __, ___) => const NowPlayingScreen(),
             transitionsBuilder: (_, anim, __, child) {
               return SlideTransition(
@@ -441,29 +445,32 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         );
       },
       child: LiquidGlassBox(
-        borderRadius: 22,
+        borderRadius: 24,
         tintColor: theme.playerAmbientColor,
-        tintOpacity: 0.14,
+        tintOpacity: 0.16,
         rimIntensity: 0.46,
+        enableBlur: true,
+        enableShadow: true,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 7, 6, 7),
+              padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(13),
                     child: CachedNetworkImage(
                       imageUrl: song.highResArtUrl,
-                      width: 43,
-                      height: 43,
+                      width: 44,
+                      height: 44,
                       memCacheWidth: 130,
                       fadeInDuration: const Duration(milliseconds: 120),
                       fit: BoxFit.cover,
                       errorWidget: (_, __, ___) => Container(
-                        width: 43,
-                        height: 43,
+                        width: 44,
+                        height: 44,
                         color: Colors.black38,
                         child: Icon(
                           Icons.music_note_rounded,
@@ -516,52 +523,80 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ],
                     ),
                   ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    splashRadius: 18,
-                    icon: Icon(
-                      isFav
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: isFav ? accent : Colors.white60,
-                      size: 21,
+                  const SizedBox(width: 6),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => library.toggleFavorite(song),
+                    child: SizedBox(
+                      width: 34,
+                      height: 36,
+                      child: Center(
+                        child: Icon(
+                          isFav
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: isFav ? accent : Colors.white60,
+                          size: 20,
+                        ),
+                      ),
                     ),
-                    onPressed: () => library.toggleFavorite(song),
                   ),
+                  const SizedBox(width: 4),
                   if (player.isLoadingTrack)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          color: accent,
-                          strokeWidth: 2.2,
+                    SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            color: accent,
+                            strokeWidth: 2.2,
+                          ),
                         ),
                       ),
                     )
                   else
-                    IconButton(
-                      visualDensity: VisualDensity.compact,
-                      splashRadius: 20,
-                      icon: Icon(
-                        player.isPlaying
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        color: Colors.white,
-                        size: 28,
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => player.togglePlayPause(),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.14),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.28),
+                            width: 0.9,
+                          ),
+                        ),
+                        child: Icon(
+                          player.isPlaying
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
-                      onPressed: () => player.togglePlayPause(),
                     ),
-                  IconButton(
-                    visualDensity: VisualDensity.compact,
-                    splashRadius: 18,
-                    icon: const Icon(
-                      Icons.skip_next_rounded,
-                      color: Colors.white70,
-                      size: 24,
+                  const SizedBox(width: 4),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => player.playNext(),
+                    child: const SizedBox(
+                      width: 34,
+                      height: 36,
+                      child: Center(
+                        child: Icon(
+                          Icons.skip_next_rounded,
+                          color: Colors.white70,
+                          size: 23,
+                        ),
+                      ),
                     ),
-                    onPressed: () => player.playNext(),
                   ),
                 ],
               ),
@@ -578,7 +613,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       : 0.0;
                   return LinearProgressIndicator(
                     value: progress,
-                    minHeight: 2.2,
+                    minHeight: 2.0,
                     backgroundColor: Colors.white.withOpacity(0.08),
                     valueColor: AlwaysStoppedAnimation<Color>(accent),
                   );
