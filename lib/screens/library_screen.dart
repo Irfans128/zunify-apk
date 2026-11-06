@@ -908,7 +908,7 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     itemBuilder: (context, i) {
                       final song = filteredSongs[i];
                       return Dismissible(
-                        key: ValueKey('${playlist.id}_${song.id}_$i'),
+                        key: ValueKey('${playlist.id}_${song.videoId}_$i'),
                         direction: DismissDirection.endToStart,
                         background: Container(
                           alignment: Alignment.centerRight,
@@ -923,7 +923,10 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                           ),
                         ),
                         onDismissed: (_) {
-                          library.removeSongFromPlaylist(playlist.id, song.id);
+                          library.removeSongFromPlaylist(
+                            playlist.id,
+                            song.videoId,
+                          );
                         },
                         child: ZunifySongTile(
                           song: song,
