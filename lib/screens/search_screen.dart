@@ -611,8 +611,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   builder: (_) => ArtistProfileScreen(
                     artistName: artist.name,
                     browseId: artist.browseId,
-                    initialAvatarUrl: artist.thumbnailUrl,
-                  ),
+                                      ),
                 ),
               );
             },
@@ -634,9 +633,9 @@ class _SearchScreenState extends State<SearchScreen> {
               child: Row(
                 children: [
                   ClipOval(
-                    child: artist.thumbnailUrl.isNotEmpty
+                    child: artist.avatarUrl.isNotEmpty
                         ? CachedNetworkImage(
-                            imageUrl: artist.thumbnailUrl,
+                            imageUrl: artist.avatarUrl,
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
@@ -688,11 +687,11 @@ class _SearchScreenState extends State<SearchScreen> {
                                 ),
                               ),
                             ),
-                            if (artist.subscribers.isNotEmpty) ...[
+                            if (artist.subtitle.isNotEmpty) ...[
                               const SizedBox(width: 8),
                               Flexible(
                                 child: Text(
-                                  artist.subscribers,
+                                  artist.subtitle,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
