@@ -583,25 +583,131 @@ class YTMusicService {
     } catch (_) {}
   }
 
+  static final RegExp _nonIndoGlobalArtistRegex = RegExp(
+    r'\b(one direction|taylor swift|bruno mars|the weeknd|ed sheeran|coldplay|justin bieber|ariana grande|billie eilish|sabrina carpenter|olivia rodrigo|harry styles|zayn|niall horan|liam payne|louis tomlinson|maroon 5|shawn mendes|charlie puth|dua lipa|adele|sam smith|katy perry|lady gaga|rihanna|beyonce|eminem|post malone|drake|sza|kendrick lamar|travis scott|radiohead|oasis|arctic monkeys|linkin park|green day|queen|the beatles|alan walker|the chainsmokers|avicii|calvin harris|david guetta|martin garrix|imagine dragons|onedirection|laufey|cigarettes after sex|cas|the 1975|keshi|joji|niki|rich brian|wave to earth|lany|lauv|conan gray|hozier|benson boone|gracie abrams|chappell roan|d4vd|jvke|stephen sanchez|ruth b|lewis capaldi|james arthur|calum scott|passenger|kodaline|the script|westlife|backstreet boys|blue|mltr|michael learns to rock|mcr|my chemical romance|paramore|blink-182|nirvana|guns n|metallica|bon jovi|aerosmith|scorpions|avenged sevenfold|bring me the horizon|bmth|bts|blackpink|newjeans|aespa|twice|exo|nct|seventeen|stray kids|itzy|ive|le sserafim|babymonster|illit|treasure|enhypen|txt|day6|jung kook|jimin|lisa|rose|jennie|jisoo|iu|bigbang|2ne1|red velvet|yoasobi|kenshi yonezu|fujii kaze|ado|lisa|aimer|radwimps|official hige dandism|king gnu|mrs\. green apple|creepy nuts|eve|vaundy|imase|yuuri)\b',
+    caseSensitive: false,
+  );
+
+  bool _isAllowedForIndoCategory(ZunifySong song) {
+    if (_nonIndoGlobalArtistRegex.hasMatch(song.artist)) return false;
+    if (_nonIndoGlobalArtistRegex.hasMatch(song.title)) return false;
+    return true;
+  }
+
+  Future<List<ZunifySong>> _mergeMultiQueryResults(
+    List<String> queries, {
+    int perQueryLimit = 8,
+    int totalLimit = 16,
+    bool filterIndoOnly = false,
+  }) async {
+    final batches = await Future.wait(
+      queries.map((q) => searchSongs(q, limit: perQueryLimit)),
+    );
+    final seen = <String>{};
+    final merged = <ZunifySong>[];
+    for (final list in batches) {
+      for (final s in list) {
+        if (filterIndoOnly && !_isAllowedForIndoCategory(s)) continue;
+        if (seen.add(s.videoId)) {
+          merged.add(s);
+          if (merged.length >= totalLimit) return merged;
+        }
+      }
+    }
+    return merged;
+  }
+
   Future<List<ZunifySong>> getTrendingIndonesia() async {
-    return searchSongs('Top Hits Indonesia Populer Terbaru', limit: 14);
+    return _mergeMultiQueryResults(
+      const [
+        'Lagu Pop Indonesia Hits Terbaru',
+        'Bernadya Sal Priadi Mahalini Lagu',
+        'Tulus Juicy Luicy Hindia Lagu',
+      ],
+      perQueryLimit: 8,
+      totalLimit: 15,
+      filterIndoOnly: true,
+    );
   }
 
   Future<List<ZunifySong>> getTrendingGlobal() async {
-    return searchSongs('Top Global Hits Pop Songs', limit: 14);
+    return _mergeMultiQueryResults(
+      const [
+        'Bruno Mars The Weeknd Billie Eilish Hits',
+        'One Direction Taylor Swift Sabrina Carpenter Hits',
+      ],
+      perQueryLimit: 9,
+      totalLimit: 15,
+    );
   }
 
   Future<List<ZunifySong>> getSongsByMood(String mood) async {
-    final moodQueries = <String, String>{
-      'Pop Indo': 'Hindia Tulus Bernadya Mahalini Juicy Luicy',
-      'Chill': 'Chill R&B Lofi Santai Hits',
-      'Galau': 'Lagu Galau Indonesia Paling Sedih',
-      'Workout': 'Workout Gym Energetic Upbeat Hits',
-      'Fokus': 'Focus Study Chill Instrumental',
-      'K-Pop': 'NewJeans aespa Jung Kook DAY6 Hits',
-      'Anime': 'YOASOBI Kenshi Yonezu Anime Opening Hits',
-    };
-    return searchSongs(moodQueries[mood] ?? mood, limit: 14);
+    switch (mood) {
+      case 'Pop Indo':
+      case 'Semua':
+        return _mergeMultiQueryResults(
+          const [
+            'Tulus Mahalini Bernadya Lagu Pop Indonesia',
+            'Juicy Luicy Tiara Andini Lyodra Rizky Febian',
+            'Sheila On 7 Dewa 19 Noah Hindia Perunggu',
+          ],
+          perQueryLimit: 8,
+          totalLimit: 16,
+          filterIndoOnly: true,
+        );
+      case 'Pop Barat':
+        return _mergeMultiQueryResults(
+          const [
+            'One Direction Bruno Mars The Weeknd Pop Hits',
+            'Taylor Swift Sabrina Carpenter Billie Eilish Coldplay',
+          ],
+          perQueryLimit: 9,
+          totalLimit: 16,
+        );
+      case 'Galau':
+        return _mergeMultiQueryResults(
+          const [
+            'Bernadya Mahalini Juicy Luicy Lagu Galau Indonesia',
+            'Fabio Asher Lyodra Nadhif Basalamah Sal Priadi',
+          ],
+          perQueryLimit: 9,
+          totalLimit: 16,
+          filterIndoOnly: true,
+        );
+      case 'Chill':
+        return _mergeMultiQueryResults(
+          const [
+            'Hindia Pamungkas Nadin Amizah Payung Teduh',
+            'Kunto Aji Barasuara Dere Reality Club',
+          ],
+          perQueryLimit: 9,
+          totalLimit: 16,
+        );
+      case 'K-Pop':
+        return _mergeMultiQueryResults(
+          const [
+            'NewJeans aespa DAY6 IVE LE SSERAFIM',
+            'BLACKPINK Jung Kook SEVENTEEN BABYMONSTER',
+          ],
+          perQueryLimit: 9,
+          totalLimit: 16,
+        );
+      case 'Anime':
+        return _mergeMultiQueryResults(
+          const [
+            'YOASOBI Kenshi Yonezu Fujii Kaze Official HIGE DANdism',
+            'Mrs GREEN APPLE Creepy Nuts RADWIMPS LiSA Anime',
+          ],
+          perQueryLimit: 9,
+          totalLimit: 16,
+        );
+      case 'Workout':
+        return searchSongs('Workout Gym Energetic Upbeat Pop EDM Hits', limit: 15);
+      case 'Fokus':
+        return searchSongs('Focus Study Chill Acoustic Lofi Instrumental', limit: 15);
+      default:
+        return searchSongs(mood, limit: 15);
+    }
   }
 
   /// Fetches tracks from a public YouTube / YouTube Music playlist ID (Unlimited pagination)

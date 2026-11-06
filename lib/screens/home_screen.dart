@@ -21,16 +21,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const List<Map<String, String>> _moods = [
+    {'id': 'Semua', 'label': 'Semua'},
     {'id': 'Pop Indo', 'label': 'Pop Indo'},
-    {'id': 'Chill', 'label': 'Chill'},
+    {'id': 'Pop Barat', 'label': 'Pop Barat'},
     {'id': 'Galau', 'label': 'Galau'},
+    {'id': 'Chill', 'label': 'Indie & Chill'},
+    {'id': 'K-Pop', 'label': 'K-Pop'},
+    {'id': 'Anime', 'label': 'Anime & J-Pop'},
     {'id': 'Workout', 'label': 'Workout'},
     {'id': 'Fokus', 'label': 'Fokus'},
-    {'id': 'K-Pop', 'label': 'K-Pop'},
-    {'id': 'Anime', 'label': 'Anime'},
   ];
 
-  String _selectedMood = 'Pop Indo';
+  String _selectedMood = 'Semua';
   List<ZunifySong> _moodSongs = [];
   List<ZunifySong> _trendingIndo = [];
   List<ZunifySong> _trendingGlobal = [];
@@ -98,13 +100,20 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = context.watch<ThemeProvider>();
     final accent = theme.accentColor;
 
-    // Combine recently played + favorites + mood songs for 6-item Quick Picks Grid
-    final quickPickPool = <ZunifySong>[
-      ...library.recentlyPlayed,
-      ...library.favorites,
-      ..._moodSongs,
-      ..._trendingIndo,
-    ];
+    final isAllTab = _selectedMood == 'Semua';
+
+    // When on 'Semua', show user's recent & favorite songs + Indo hits;
+    // when on a specific genre chip (e.g. 'Pop Indo'), strictly show ONLY songs from that genre!
+    final quickPickPool = isAllTab
+        ? <ZunifySong>[
+            ...library.recentlyPlayed,
+            ...library.favorites,
+            ..._moodSongs,
+            ..._trendingIndo,
+          ]
+        : <ZunifySong>[
+            ..._moodSongs,
+          ];
     final seenIds = <String>{};
     final quickPicks = <ZunifySong>[];
     for (final s in quickPickPool) {
@@ -114,10 +123,26 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
-    final heroSong = player.currentSong ??
-        (quickPicks.isNotEmpty
-            ? quickPicks.first
-            : (_trendingIndo.isNotEmpty ? _trendingIndo.first : null));
+    final hasRecentOrPlaying =
+        player.currentSong != null || library.recentlyPlayed.isNotEmpty;
+    final ZunifySong? heroSong = isAllTab
+        ? (player.currentSong ??
+            (library.recentlyPlayed.isNotEmpty
+                ? library.recentlyPlayed.first
+                : (_moodSongs.isNotEmpty
+                    ? _moodSongs.first
+                    : (_trendingIndo.isNotEmpty ? _trendingIndo.first : null))))
+        : (_moodSongs.isNotEmpty ? _moodSongs.first : null);
+    final String heroBadgeLabel = isAllTab
+        ? (hasRecentOrPlaying
+            ? 'TERAKHIR DIPUTAR • LANJUTKAN'
+            : 'MIX PILIHAN • POP INDO')
+        : 'MIX PILIHAN • $_selectedMood'.toUpperCase();
+    final List<ZunifySong> heroQueue = isAllTab && hasRecentOrPlaying
+        ? (library.recentlyPlayed.isNotEmpty
+            ? library.recentlyPlayed
+            : _moodSongs)
+        : (_moodSongs.isNotEmpty ? _moodSongs : _trendingIndo);
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -335,7 +360,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 if (heroSong != null) ...[
                   _buildHeroFeaturedBanner(
                     heroSong,
-                    _moodSongs.isNotEmpty ? _moodSongs : _trendingIndo,
+                    heroQueue,
+                    heroBadgeLabel,
                     player,
                     accent,
                     theme.secondaryAccentColor,
@@ -345,13 +371,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 // Mood Mix Carousel (Generous 196px height so text never clips)
                 _sectionHeader(
-                  'Mix $_selectedMood',
+                  isAllTab ? 'Mix Pop Indonesia' : 'Mix $_selectedMood',
                   onPlayAll: _moodSongs.isEmpty
                       ? null
                       : () => player.playSong(
                             _moodSongs.first,
                             customQueue: _moodSongs,
-                            contextName: 'Mix $_selectedMood',
+                            contextName: isAllTab
+                                ? 'Mix Pop Indonesia'
+                                : 'Mix $_selectedMood',
                           ),
                   accent: accent,
                 ),
@@ -383,50 +411,71 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 const SizedBox(height: 24),
 
-                // Trending Indonesia
-                _sectionHeader(
-                  'Populer di Indonesia',
-                  onPlayAll: _trendingIndo.isEmpty
-                      ? null
-                      : () => player.playSong(
-                            _trendingIndo.first,
-                            customQueue: _trendingIndo,
-                            contextName: 'Populer di Indonesia',
-                          ),
-                  accent: accent,
-                ),
-                const SizedBox(height: 8),
-                ..._trendingIndo.take(5).toList().asMap().entries.map(
-                      (entry) => ZunifySongTile(
-                        song: entry.value,
-                        queueContext: _trendingIndo,
-                        contextName: 'Populer di Indonesia',
-                        rank: entry.key + 1,
-                      ),
+                if (!isAllTab && _moodSongs.isNotEmpty) ...[
+                  _sectionHeader(
+                    'Daftar Lagu $_selectedMood',
+                    onPlayAll: () => player.playSong(
+                      _moodSongs.first,
+                      customQueue: _moodSongs,
+                      contextName: 'Mix $_selectedMood',
                     ),
-                const SizedBox(height: 22),
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 8),
+                  ..._moodSongs.asMap().entries.map(
+                        (entry) => ZunifySongTile(
+                          song: entry.value,
+                          queueContext: _moodSongs,
+                          contextName: 'Mix $_selectedMood',
+                          rank: entry.key + 1,
+                        ),
+                      ),
+                ] else ...[
+                  // Trending Indonesia
+                  _sectionHeader(
+                    'Populer di Indonesia',
+                    onPlayAll: _trendingIndo.isEmpty
+                        ? null
+                        : () => player.playSong(
+                              _trendingIndo.first,
+                              customQueue: _trendingIndo,
+                              contextName: 'Populer di Indonesia',
+                            ),
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 8),
+                  ..._trendingIndo.take(5).toList().asMap().entries.map(
+                        (entry) => ZunifySongTile(
+                          song: entry.value,
+                          queueContext: _trendingIndo,
+                          contextName: 'Populer di Indonesia',
+                          rank: entry.key + 1,
+                        ),
+                      ),
+                  const SizedBox(height: 22),
 
-                // Trending Global
-                _sectionHeader(
-                  'Top Global',
-                  onPlayAll: _trendingGlobal.isEmpty
-                      ? null
-                      : () => player.playSong(
-                            _trendingGlobal.first,
-                            customQueue: _trendingGlobal,
-                            contextName: 'Top Global',
-                          ),
-                  accent: accent,
-                ),
-                const SizedBox(height: 8),
-                ..._trendingGlobal.take(5).toList().asMap().entries.map(
-                      (entry) => ZunifySongTile(
-                        song: entry.value,
-                        queueContext: _trendingGlobal,
-                        contextName: 'Top Global',
-                        rank: entry.key + 1,
+                  // Trending Global
+                  _sectionHeader(
+                    'Top Global',
+                    onPlayAll: _trendingGlobal.isEmpty
+                        ? null
+                        : () => player.playSong(
+                              _trendingGlobal.first,
+                              customQueue: _trendingGlobal,
+                              contextName: 'Top Global',
+                            ),
+                    accent: accent,
+                  ),
+                  const SizedBox(height: 8),
+                  ..._trendingGlobal.take(5).toList().asMap().entries.map(
+                        (entry) => ZunifySongTile(
+                          song: entry.value,
+                          queueContext: _trendingGlobal,
+                          contextName: 'Top Global',
+                          rank: entry.key + 1,
+                        ),
                       ),
-                    ),
+                ],
               ],
             ],
           ),
@@ -438,6 +487,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildHeroFeaturedBanner(
     ZunifySong song,
     List<ZunifySong> mixList,
+    String badgeLabel,
     PlayerProvider player,
     Color accent,
     Color secondaryAccent,
@@ -483,7 +533,7 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'MIX PILIHAN • $_selectedMood'.toUpperCase(),
+                  badgeLabel,
                   style: TextStyle(
                     color: accent,
                     fontSize: 10,

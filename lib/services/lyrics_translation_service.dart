@@ -152,7 +152,7 @@ class LyricsTranslationService {
     final cleanTitle = _cleanSongTitle(song.title);
     final cleanArtist = _cleanArtistName(song.artist);
 
-    // Query all 4 synced providers in parallel so we can compare completeness & duration fit
+    // Query all 5 synced providers in parallel so we can compare completeness & duration fit
     final results = await Future.wait([
       _fetchCandidatesFromSimpMusic(song.videoId, song.durationSeconds),
       _fetchCandidatesFromLrclib(
@@ -161,6 +161,12 @@ class LyricsTranslationService {
         cleanArtist: cleanArtist,
       ),
       _fetchCandidateFromLyricsPlus(
+        song.videoId,
+        cleanTitle.isNotEmpty ? cleanTitle : song.title,
+        cleanArtist.isNotEmpty ? cleanArtist : song.artist,
+        song.durationSeconds,
+      ),
+      _fetchCandidateFromLrcRed(
         song.videoId,
         cleanTitle.isNotEmpty ? cleanTitle : song.title,
         cleanArtist.isNotEmpty ? cleanArtist : song.artist,
@@ -179,6 +185,7 @@ class LyricsTranslationService {
       ...results[1],
       ...results[2],
       ...results[3],
+      ...results[4],
     ];
 
     if (allCandidates.isNotEmpty) {
@@ -310,6 +317,89 @@ class LyricsTranslationService {
       return raw;
     }
     return translateLyricsToIndonesian(raw);
+  }
+
+  // ---------------------------------------------------------------------------
+  // PROVIDER 0: LrcRed Enhanced Word-Synced LRC (`https://lrc.red` from BitChord)
+  // ---------------------------------------------------------------------------
+  Future<List<_ScoredLyricsCandidate>> _fetchCandidateFromLrcRed(
+    String videoId,
+    String title,
+    String artist,
+    int totalDurationSec,
+  ) async {
+    try {
+      final q = Uri.encodeComponent('$artist $title'.trim());
+      final searchRes = await _http
+          .get(
+            Uri.parse('https://lrc.red/search.json?q=$q'),
+            headers: const {'User-Agent': 'Zunify/1.7'},
+          )
+          .timeout(const Duration(seconds: 5));
+      if (searchRes.statusCode != 200) return const [];
+      final decoded = jsonDecode(utf8.decode(searchRes.bodyBytes));
+      final hits = decoded['hits'] as List<dynamic>? ?? const [];
+      if (hits.isEmpty) return const [];
+
+      Map<String, dynamic>? bestHit;
+      int bestDiff = 999999;
+      final tLower = title.toLowerCase();
+      for (final h in hits.take(5)) {
+        if (h is! Map<String, dynamic>) continue;
+        final isrc = h['isrc']?.toString() ?? '';
+        if (isrc.isEmpty) continue;
+        final hTitle = h['title']?.toString().toLowerCase() ?? '';
+        if (!hTitle.contains(tLower) && !tLower.contains(hTitle)) continue;
+        final dur = ((h['duration'] as num?)?.toDouble() ?? 0).round();
+        final diff =
+            totalDurationSec > 0 && dur > 0 ? (dur - totalDurationSec).abs() : 0;
+        if (diff < bestDiff) {
+          bestDiff = diff;
+          bestHit = h;
+        }
+      }
+      bestHit ??= hits.first as Map<String, dynamic>?;
+      final isrc = bestHit?['isrc']?.toString() ?? '';
+      if (isrc.isEmpty) return const [];
+      final hitDur = ((bestHit?['duration'] as num?)?.toDouble() ?? 0).round();
+
+      final lrcRes = await _http
+          .get(
+            Uri.parse('https://lrc.red/s/$isrc.lrc'),
+            headers: const {'User-Agent': 'Zunify/1.7'},
+          )
+          .timeout(const Duration(seconds: 5));
+      if (lrcRes.statusCode != 200) return const [];
+      final lrcText = utf8.decode(lrcRes.bodyBytes);
+      if (lrcText.trim().isEmpty) return const [];
+
+      final lines = _parseLrcFormat(lrcText);
+      if (lines.length < 3) return const [];
+      final hasWordSync = lines.any((l) => l.words.isNotEmpty);
+      final sample = lines.map((e) => e.originalText).join(' ');
+
+      return [
+        _ScoredLyricsCandidate(
+          lyrics: SyncedLyrics(
+            videoId: videoId,
+            isSynced: true,
+            isOriginalIndonesian: detectIsIndonesian(sample),
+            lines: lines,
+            sourceName: hasWordSync ? 'LrcRed Word-Sync' : 'LrcRed Synced',
+          ),
+          score: _scoreLyricsCandidate(
+            lines: lines,
+            isSynced: true,
+            declaredDurationSec: hitDur > 0 ? hitDur : null,
+            targetDurationSec: totalDurationSec,
+            providerBonus: hasWordSync ? 20.0 : 8.5,
+          ),
+          declaredDurationSec: hitDur > 0 ? hitDur : null,
+        ),
+      ];
+    } catch (_) {
+      return const [];
+    }
   }
 
   // ---------------------------------------------------------------------------
