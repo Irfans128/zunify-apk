@@ -390,11 +390,11 @@ class LyricsTranslationService {
           score: _scoreLyricsCandidate(
             lines: lines,
             isSynced: true,
-            declaredDurationSec: hitDur > 0 ? hitDur : null,
+            declaredDurationSec: hitDur,
             targetDurationSec: totalDurationSec,
             providerBonus: hasWordSync ? 20.0 : 8.5,
           ),
-          declaredDurationSec: hitDur > 0 ? hitDur : null,
+          declaredDurationSec: hitDur,
         ),
       ];
     } catch (_) {
