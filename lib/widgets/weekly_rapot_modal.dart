@@ -659,9 +659,9 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
               GestureDetector(
                 onTap: () {
                   final songs = rapot.topSongs.map((e) => e.song).toList();
-                  player.playQueue(
-                    songs,
-                    startIndex: 0,
+                  player.playSong(
+                    songs.first,
+                    customQueue: songs,
                     contextName: 'Replay Mingguan',
                   );
                   Navigator.pop(context);
@@ -725,9 +725,9 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                 rimIntensity: i == 0 ? 0.44 : 0.28,
                 onTap: () {
                   final songs = rapot.topSongs.map((e) => e.song).toList();
-                  player.playQueue(
-                    songs,
-                    startIndex: i,
+                  player.playSong(
+                    songs[i],
+                    customQueue: songs,
                     contextName: 'Replay Mingguan',
                   );
                 },

@@ -257,15 +257,14 @@ class YTMusicService {
           // Column 0: Song Title + MusicVideoType
           final col0Runs = flexCols[0]['musicResponsiveListItemFlexColumnRenderer']
               ?['text']?['runs'] as List<dynamic>?;
-          final title = col0Runs != null && col0Runs.isNotEmpty
-              ? col0Runs[0]['text']?.toString() ?? 'Unknown'
-              : 'Unknown';
-          final String? mvType = (col0Runs != null && col0Runs.isNotEmpty
-                  ? col0Runs[0]['navigationEndpoint']?['watchEndpoint']
-                          ?['watchEndpointMusicSupportedConfigs']
-                          ?['watchEndpointMusicConfig']?['musicVideoType']
-                      ?.toString()
-                  : null) ??
+          final firstRun = (col0Runs != null && col0Runs.isNotEmpty)
+              ? col0Runs[0] as Map<String, dynamic>?
+              : null;
+          final title = firstRun?['text']?.toString() ?? 'Unknown';
+          final String? mvType = firstRun?['navigationEndpoint']
+                  ?['watchEndpoint']?['watchEndpointMusicSupportedConfigs']
+                  ?['watchEndpointMusicConfig']?['musicVideoType']
+                  ?.toString() ??
               item['overlay']?['musicItemThumbnailOverlayRenderer']?['content']
                       ?['musicPlayButtonRenderer']?['playNavigationEndpoint']
                       ?['watchEndpoint']?['watchEndpointMusicSupportedConfigs']
