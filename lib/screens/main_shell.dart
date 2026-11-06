@@ -291,9 +291,25 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         intensity: (0.44 * theme.blurIntensity).clamp(0.18, 0.56),
         child: Stack(
           children: [
-            IndexedStack(
-              index: _selectedIndex,
-              children: screens,
+            TweenAnimationBuilder<double>(
+              key: ValueKey<int>(_selectedIndex),
+              tween: Tween<double>(begin: 0.982, end: 1.0),
+              duration: theme.animDuration(240),
+              curve: Curves.easeOutCubic,
+              builder: (context, value, child) {
+                final opacity = ((value - 0.982) / 0.018).clamp(0.0, 1.0);
+                return Opacity(
+                  opacity: 0.72 + (0.28 * opacity),
+                  child: Transform.scale(
+                    scale: value,
+                    child: child,
+                  ),
+                );
+              },
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: screens,
+              ),
             ),
 
             // BitChord Floating Bottom Stack: Liquid Glass MiniPlayer + FloatingTabBar Capsule
@@ -324,7 +340,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  /// iOS 26 Floating Liquid Glass Tab Bar
+  /// iOS 27.2 Floating Liquid Glass Tab Bar with Fluid Sliding Capsule & Spring Physics
   Widget _buildBitChordFloatingTabBar(ThemeProvider theme, Color accent) {
     const items = [
       {'icon': Icons.home_rounded, 'label': 'Beranda'},
@@ -334,73 +350,102 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     return LiquidGlassBox(
-      borderRadius: 32,
+      borderRadius: 34,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
-      tintOpacity: 0.14,
-      rimIntensity: 0.46,
+      tintOpacity: 0.16,
+      rimIntensity: 0.50,
       enableBlur: true,
       enableShadow: true,
-      child: Row(
-        children: List.generate(items.length, (idx) {
-          final selected = _selectedIndex == idx;
-          final icon = items[idx]['icon'] as IconData;
-          final label = items[idx]['label'] as String;
-
-          return Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => setState(() => _selectedIndex = idx),
-              child: AnimatedContainer(
-                duration: theme.animDuration(220),
-                curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
-                  gradient: selected
-                      ? LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [
-                            Colors.white.withOpacity(0.18),
-                            accent.withOpacity(0.24),
-                          ],
-                        )
-                      : null,
-                  border: Border.all(
-                    color: selected
-                        ? Colors.white.withOpacity(0.32)
-                        : Colors.transparent,
-                    width: 0.9,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final tabWidth = constraints.maxWidth / items.length;
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              // Fluid Sliding iOS 27.2 Liquid Glass Pill Indicator
+              AnimatedPositioned(
+                duration: theme.animDuration(320),
+                curve: Curves.easeOutBack,
+                left: _selectedIndex * tabWidth,
+                top: 0,
+                bottom: 0,
+                width: tabWidth,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(28),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.22),
+                        accent.withOpacity(0.28),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.38),
+                      width: 1.0,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: accent.withOpacity(0.22),
+                        blurRadius: 12,
+                        spreadRadius: -2,
+                      ),
+                    ],
                   ),
                 ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      icon,
-                      color: selected ? accent : Colors.white60,
-                      size: 20,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: selected ? Colors.white : Colors.white54,
-                        fontSize: 10.5,
-                        fontWeight:
-                            selected ? FontWeight.w800 : FontWeight.w600,
-                        letterSpacing: -0.1,
+              ),
+              Row(
+                children: List.generate(items.length, (idx) {
+                  final selected = _selectedIndex == idx;
+                  final icon = items[idx]['icon'] as IconData;
+                  final label = items[idx]['label'] as String;
+
+                  return Expanded(
+                    child: IosSpringButton(
+                      scaleDown: 0.86,
+                      borderRadius: 28,
+                      onTap: () => setState(() => _selectedIndex = idx),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 7),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            AnimatedScale(
+                              scale: selected ? 1.10 : 1.0,
+                              duration: theme.animDuration(240),
+                              curve: Curves.easeOutBack,
+                              child: Icon(
+                                icon,
+                                color: selected ? accent : Colors.white60,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(height: 2.5),
+                            Text(
+                              label,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: selected ? Colors.white : Colors.white54,
+                                fontSize: 10.5,
+                                fontWeight: selected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                letterSpacing: -0.1,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ],
-                ),
+                  );
+                }),
               ),
-            ),
+            ],
           );
-        }),
+        },
       ),
     );
   }
@@ -424,33 +469,34 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           player.playPrevious();
         }
       },
-      onTap: () {
-        Navigator.of(context).push(
-          PageRouteBuilder(
-            transitionDuration: theme.animDuration(300),
-            reverseTransitionDuration: theme.animDuration(250),
-            pageBuilder: (_, __, ___) => const NowPlayingScreen(),
-            transitionsBuilder: (_, anim, __, child) {
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 1),
-                  end: Offset.zero,
-                ).animate(
-                  CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
-                ),
-                child: child,
-              );
-            },
-          ),
-        );
-      },
       child: LiquidGlassBox(
-        borderRadius: 24,
+        borderRadius: 26,
         tintColor: theme.playerAmbientColor,
-        tintOpacity: 0.16,
-        rimIntensity: 0.46,
+        tintOpacity: 0.18,
+        rimIntensity: 0.50,
         enableBlur: true,
         enableShadow: true,
+        scaleDown: 0.96,
+        onTap: () {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              transitionDuration: theme.animDuration(320),
+              reverseTransitionDuration: theme.animDuration(260),
+              pageBuilder: (_, __, ___) => const NowPlayingScreen(),
+              transitionsBuilder: (_, anim, __, child) {
+                return SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 1),
+                    end: Offset.zero,
+                  ).animate(
+                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+          );
+        },
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -524,8 +570,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                  IosSpringButton(
+                    scaleDown: 0.80,
+                    borderRadius: 18,
                     onTap: () => library.toggleFavorite(song),
                     child: SizedBox(
                       width: 34,
@@ -558,8 +605,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                     )
                   else
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                    IosSpringButton(
+                      scaleDown: 0.82,
+                      borderRadius: 18,
                       onTap: () => player.togglePlayPause(),
                       child: Container(
                         width: 36,
@@ -567,10 +615,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: Colors.white.withOpacity(0.14),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.24),
+                              Colors.white.withOpacity(0.10),
+                            ],
+                          ),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.28),
-                            width: 0.9,
+                            color: Colors.white.withOpacity(0.36),
+                            width: 1.0,
                           ),
                         ),
                         child: Icon(
@@ -583,8 +638,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       ),
                     ),
                   const SizedBox(width: 4),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
+                  IosSpringButton(
+                    scaleDown: 0.82,
+                    borderRadius: 18,
                     onTap: () => player.playNext(),
                     child: const SizedBox(
                       width: 34,

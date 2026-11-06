@@ -648,7 +648,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // Symmetrical iOS 26 Main Transport Controls
+                // Symmetrical iOS 27.2 Main Transport Controls with Fluid Spring Physics
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -662,8 +662,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       tooltip: 'Acak Lagu',
                       onTap: () => player.toggleShuffle(),
                     ),
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                    IosSpringButton(
+                      scaleDown: 0.80,
+                      borderRadius: 24,
                       onTap: () => player.playPrevious(),
                       child: const SizedBox(
                         width: 48,
@@ -677,7 +678,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         ),
                       ),
                     ),
-                    GestureDetector(
+                    IosSpringButton(
+                      scaleDown: 0.85,
+                      borderRadius: 34,
                       onTap: () => player.togglePlayPause(),
                       child: Container(
                         width: 66,
@@ -687,8 +690,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           color: Colors.white,
                           boxShadow: [
                             BoxShadow(
-                              color: accent.withOpacity(0.36),
-                              blurRadius: 24,
+                              color: accent.withOpacity(0.40),
+                              blurRadius: 26,
                               spreadRadius: 2,
                             ),
                           ],
@@ -703,17 +706,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   strokeWidth: 2.5,
                                 ),
                               )
-                            : Icon(
-                                player.isPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                color: Colors.black,
-                                size: 38,
+                            : AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 200),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(scale: anim, child: child),
+                                child: Icon(
+                                  player.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  key: ValueKey<bool>(player.isPlaying),
+                                  color: Colors.black,
+                                  size: 38,
+                                ),
                               ),
                       ),
                     ),
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
+                    IosSpringButton(
+                      scaleDown: 0.80,
+                      borderRadius: 24,
                       onTap: () => player.playNext(),
                       child: const SizedBox(
                         width: 48,
@@ -1224,8 +1234,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
+                      IosSpringButton(
+                        scaleDown: 0.84,
+                        borderRadius: 10,
                         onTap: () => player.adjustLyricsOffset(-250),
                         child: const Padding(
                           padding:
@@ -1240,8 +1251,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ),
                         ),
                       ),
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
+                      IosSpringButton(
+                        scaleDown: 0.84,
+                        borderRadius: 10,
                         onTap: () => player.resetLyricsOffset(),
                         child: Padding(
                           padding: const EdgeInsets.symmetric(
@@ -1260,8 +1272,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ),
                         ),
                       ),
-                      GestureDetector(
-                        behavior: HitTestBehavior.opaque,
+                      IosSpringButton(
+                        scaleDown: 0.84,
+                        borderRadius: 10,
                         onTap: () => player.adjustLyricsOffset(250),
                         child: const Padding(
                           padding:
@@ -1376,8 +1389,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   _lineHeights[idx] = h;
                                 }
                               },
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
+                              child: IosSpringButton(
+                                scaleDown: 0.96,
+                                borderRadius: 18,
                                 onTap: () {
                                   setState(() => _userScrollingLyrics = false);
                                   player.seekTo(line.timestamp);
@@ -2121,22 +2135,32 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required Color accent,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return IosSpringButton(
+      scaleDown: 0.88,
+      borderRadius: 16,
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 18),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.18) : Colors.transparent,
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.24),
+                    accent.withOpacity(0.26),
+                  ],
+                )
+              : null,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color:
-                selected ? Colors.white.withOpacity(0.28) : Colors.transparent,
-            width: 0.9,
+                selected ? Colors.white.withOpacity(0.36) : Colors.transparent,
+            width: 0.95,
           ),
         ),
         child: Text(
@@ -2160,21 +2184,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required VoidCallback onTap,
     String? badgeText,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
+    return IosSpringButton(
+      scaleDown: 0.84,
+      borderRadius: 16,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Stack(
               clipBehavior: Clip.none,
               children: [
-                Icon(
-                  icon,
-                  color: active ? accent : Colors.white70,
-                  size: 20,
+                AnimatedScale(
+                  scale: active ? 1.10 : 1.0,
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  child: Icon(
+                    icon,
+                    color: active ? accent : Colors.white70,
+                    size: 20,
+                  ),
                 ),
                 if (badgeText != null)
                   Positioned(

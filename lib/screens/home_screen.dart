@@ -711,7 +711,9 @@ class _HomeScreenState extends State<HomeScreen> {
     Color accent,
   ) {
     final isCurrent = player.currentSong?.videoId == song.videoId;
-    return GestureDetector(
+    return IosSpringButton(
+      scaleDown: 0.92,
+      borderRadius: 18,
       onTap: () => player.playSong(
         song,
         customQueue: const [],

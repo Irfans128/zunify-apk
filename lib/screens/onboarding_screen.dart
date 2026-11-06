@@ -88,99 +88,99 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       letterSpacing: -0.5,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
-                    'Crafted with ❤️ by Fannz',
+                    'Liquid Glass Music Experience',
                     style: TextStyle(
-                      color: accent.withOpacity(0.9),
+                      color: Colors.white.withOpacity(0.62),
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
+                      letterSpacing: 0.2,
                     ),
                   ),
-                  const SizedBox(height: 38),
+                  const SizedBox(height: 36),
 
-                  // Frosted Glass Login Box
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(26),
-                    child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-                      child: Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.06),
-                          borderRadius: BorderRadius.circular(26),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.14),
+                  // iOS 27.2 Liquid Glass Login Box
+                  LiquidGlassBox(
+                    borderRadius: 28,
+                    padding: const EdgeInsets.all(24),
+                    tintOpacity: 0.14,
+                    rimIntensity: 0.44,
+                    enableBlur: true,
+                    enableShadow: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Siapa nama panggilanmu?',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Siapa nama panggilanmu?',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                              ),
+                        const SizedBox(height: 14),
+                        TextField(
+                          controller: _nameController,
+                          autofocus: true,
+                          textCapitalization: TextCapitalization.words,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          onSubmitted: (_) => _submitName(),
+                          decoration: InputDecoration(
+                            hintText: 'Ketik nama kamu...',
+                            hintStyle: const TextStyle(color: Colors.white38),
+                            filled: true,
+                            fillColor: Colors.black.withOpacity(0.35),
+                            prefixIcon: Icon(Icons.person_rounded, color: accent),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 18,
+                              vertical: 16,
                             ),
-                            const SizedBox(height: 14),
-                            TextField(
-                              controller: _nameController,
-                              autofocus: true,
-                              textCapitalization: TextCapitalization.words,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                              onSubmitted: (_) => _submitName(),
-                              decoration: InputDecoration(
-                                hintText: 'Ketik nama kamu...',
-                                hintStyle: const TextStyle(color: Colors.white38),
-                                filled: true,
-                                fillColor: Colors.black.withOpacity(0.35),
-                                prefixIcon: Icon(Icons.person_rounded, color: accent),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 18,
-                                  vertical: 16,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(18),
-                                  borderSide: BorderSide.none,
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(18),
-                                  borderSide: BorderSide(color: accent, width: 1.5),
-                                ),
-                              ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide.none,
                             ),
-                            const SizedBox(height: 20),
-                            SizedBox(
-                              width: double.infinity,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: accent,
-                                  foregroundColor: Colors.black,
-                                  padding: const EdgeInsets.symmetric(vertical: 16),
-                                  elevation: 0,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                ),
-                                onPressed: _submitName,
-                                child: const Text(
-                                  'Masuk',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              borderSide: BorderSide(color: accent, width: 1.5),
                             ),
-                          ],
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 20),
+                        IosSpringButton(
+                          scaleDown: 0.93,
+                          borderRadius: 18,
+                          onTap: _submitName,
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: accent.withOpacity(0.36),
+                                  blurRadius: 18,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: const Text(
+                              'Masuk',
+                              style: TextStyle(
+                                color: Colors.black,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

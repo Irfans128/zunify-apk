@@ -521,30 +521,47 @@ class _ShareCardModalState extends State<ShareCardModal> {
               children: [
                 Expanded(
                   flex: 6,
-                  child: SizedBox(
-                    height: 46,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: accent,
-                        foregroundColor: Colors.black,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(23),
-                        ),
+                  child: IosSpringButton(
+                    scaleDown: 0.92,
+                    borderRadius: 23,
+                    onTap: (_isSharing || _isCreatingVideo)
+                        ? null
+                        : () => _exportAndShareVideoWithAudio(
+                              player,
+                              chosenLines,
+                            ),
+                    child: Container(
+                      height: 46,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(23),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withOpacity(0.36),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                      onPressed: (_isSharing || _isCreatingVideo)
-                          ? null
-                          : () => _exportAndShareVideoWithAudio(
-                                player,
-                                chosenLines,
-                              ),
-                      icon: const Icon(Icons.movie_creation_rounded, size: 18),
-                      label: const Text(
-                        'Story + Lagu (.mp4)',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                        ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.movie_creation_rounded,
+                            color: Colors.black,
+                            size: 18,
+                          ),
+                          SizedBox(width: 7),
+                          Text(
+                            'Story + Lagu (.mp4)',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

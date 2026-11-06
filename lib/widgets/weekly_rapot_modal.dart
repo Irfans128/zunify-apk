@@ -295,20 +295,30 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required Color accent,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return IosSpringButton(
+      scaleDown: 0.88,
+      borderRadius: 15,
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
+        duration: const Duration(milliseconds: 200),
         height: 30,
         padding: const EdgeInsets.symmetric(horizontal: 13),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: selected ? Colors.white.withOpacity(0.18) : Colors.transparent,
+          gradient: selected
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.white.withOpacity(0.24),
+                    accent.withOpacity(0.26),
+                  ],
+                )
+              : null,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
             color:
-                selected ? Colors.white.withOpacity(0.28) : Colors.transparent,
+                selected ? Colors.white.withOpacity(0.36) : Colors.transparent,
             width: 0.9,
           ),
         ),
@@ -1754,7 +1764,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           ],
         ),
         Text(
-          'Crafted by Fannz',
+          'Zunify Wrapped',
           style: TextStyle(
             color: accent,
             fontSize: 10.5,

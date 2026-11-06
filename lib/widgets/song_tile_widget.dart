@@ -6,6 +6,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../screens/artist_profile_screen.dart';
+import 'liquid_background_widget.dart';
 import 'share_card_modal.dart';
 import 'vinyl_disc_widget.dart';
 
@@ -41,8 +42,9 @@ class ZunifySongTile extends StatelessWidget {
     final isDownloaded = library.isDownloaded(song.videoId);
     final downloadProgress = library.activeDownloadProgress[song.videoId];
 
-    return InkWell(
-      borderRadius: BorderRadius.circular(14),
+    return IosSpringButton(
+      scaleDown: 0.96,
+      borderRadius: 16,
       onTap: onTapOverride ??
           () => player.playSong(
                 song,
@@ -54,14 +56,22 @@ class ZunifySongTile extends StatelessWidget {
         song: song,
         playlistIdForRemoval: playlistIdForRemoval,
       ),
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         margin: const EdgeInsets.only(bottom: 4),
         decoration: BoxDecoration(
           color: isCurrent
-              ? accent.withOpacity(0.11)
+              ? accent.withOpacity(0.13)
               : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
+          border: isCurrent
+              ? Border.all(
+                  color: accent.withOpacity(0.28),
+                  width: 0.9,
+                )
+              : null,
         ),
         child: Row(
           children: [

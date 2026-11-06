@@ -891,7 +891,7 @@ class LyricsTranslationService {
         final res = await _http
             .get(
               uri,
-              headers: {'User-Agent': 'Zunify/1.7.0 (Crafted by Fannz)'},
+              headers: {'User-Agent': 'Zunify/2.0.0'},
             )
             .timeout(const Duration(seconds: 5));
         if (res.statusCode == 200) {

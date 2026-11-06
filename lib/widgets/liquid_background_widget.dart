@@ -1,18 +1,198 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 
-/// Authentic iOS 26 Optical Liquid Glass Container.
+/// iOS 27.2 Fluid Spring Interactive Wrapper.
+///
+/// Solves Flutter's scroll gesture-arena `0ms` quick-tap swallow by reacting
+/// immediately on `Listener.onPointerDown`, enforcing a minimum `90ms` visual
+/// press phase so quick taps always animate down, and releasing with an
+/// authentic iOS 27.2 `Curves.easeOutBack` spring overshoot + specular bloom.
+class IosSpringButton extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+  final double scaleDown;
+  final double borderRadius;
+  final bool enableHaptic;
+  final bool enableBloom;
+  final HitTestBehavior behavior;
+
+  const IosSpringButton({
+    super.key,
+    required this.child,
+    this.onTap,
+    this.onLongPress,
+    this.scaleDown = 0.92,
+    this.borderRadius = 999.0,
+    this.enableHaptic = true,
+    this.enableBloom = true,
+    this.behavior = HitTestBehavior.opaque,
+  });
+
+  @override
+  State<IosSpringButton> createState() => _IosSpringButtonState();
+}
+
+class _IosSpringButtonState extends State<IosSpringButton> {
+  bool _pressed = false;
+  DateTime? _pressDownTime;
+  Offset? _downPosition;
+  Timer? _releaseTimer;
+
+  bool get _isInteractive => widget.onTap != null || widget.onLongPress != null;
+
+  void _handlePointerDown(PointerDownEvent event) {
+    if (!_isInteractive) return;
+    _releaseTimer?.cancel();
+    _pressDownTime = DateTime.now();
+    _downPosition = event.position;
+    if (!_pressed && mounted) {
+      setState(() => _pressed = true);
+    }
+  }
+
+  void _handlePointerMove(PointerMoveEvent event) {
+    if (!_pressed || _downPosition == null) return;
+    if ((event.position - _downPosition!).distance > 12.0) {
+      _releaseTimer?.cancel();
+      if (mounted) {
+        setState(() => _pressed = false);
+      }
+    }
+  }
+
+  void _scheduleRelease() {
+    if (!_pressed) return;
+    final elapsed = _pressDownTime != null
+        ? DateTime.now().difference(_pressDownTime!).inMilliseconds
+        : 100;
+    const minPressMs = 90;
+    if (elapsed < minPressMs) {
+      _releaseTimer?.cancel();
+      _releaseTimer = Timer(Duration(milliseconds: minPressMs - elapsed), () {
+        if (mounted && _pressed) {
+          setState(() => _pressed = false);
+        }
+      });
+    } else {
+      if (mounted) {
+        setState(() => _pressed = false);
+      }
+    }
+  }
+
+  void _handlePointerUp(PointerUpEvent event) {
+    _scheduleRelease();
+  }
+
+  void _handlePointerCancel(PointerCancelEvent event) {
+    _releaseTimer?.cancel();
+    if (_pressed && mounted) {
+      setState(() => _pressed = false);
+    }
+  }
+
+  void _handleTap() {
+    if (widget.onTap == null) return;
+    if (widget.enableHaptic) {
+      HapticFeedback.lightImpact();
+    }
+    if (!_pressed && mounted) {
+      setState(() => _pressed = true);
+      _pressDownTime = DateTime.now();
+    }
+    _scheduleRelease();
+    widget.onTap!();
+  }
+
+  @override
+  void dispose() {
+    _releaseTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_isInteractive) return widget.child;
+
+    return Listener(
+      behavior: widget.behavior,
+      onPointerDown: _handlePointerDown,
+      onPointerMove: _handlePointerMove,
+      onPointerUp: _handlePointerUp,
+      onPointerCancel: _handlePointerCancel,
+      child: GestureDetector(
+        behavior: widget.behavior,
+        onTap: widget.onTap != null ? _handleTap : null,
+        onLongPress: widget.onLongPress,
+        child: AnimatedScale(
+          scale: _pressed ? widget.scaleDown : 1.0,
+          duration: Duration(milliseconds: _pressed ? 95 : 360),
+          curve: _pressed ? Curves.easeOutCubic : const _Ios27SpringCurve(),
+          child: widget.enableBloom
+              ? Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    widget.child,
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: AnimatedOpacity(
+                          opacity: _pressed ? 1.0 : 0.0,
+                          duration: Duration(milliseconds: _pressed ? 75 : 260),
+                          curve: Curves.easeOut,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius:
+                                  BorderRadius.circular(widget.borderRadius),
+                              gradient: RadialGradient(
+                                center: const Alignment(-0.25, -0.35),
+                                radius: 1.15,
+                                colors: [
+                                  Colors.white.withOpacity(0.18),
+                                  Colors.white.withOpacity(0.05),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.55, 1.0],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              : widget.child,
+        ),
+      ),
+    );
+  }
+}
+
+/// Custom iOS 27.2 Fluid Spring Curve with subtle elastic overshoot
+class _Ios27SpringCurve extends Curve {
+  const _Ios27SpringCurve();
+
+  @override
+  double transformInternal(double t) {
+    // Under-damped spring response similar to iOS 27.2 CASpringAnimation(damping: 0.62)
+    final inv = 1.0 - t;
+    return 1.0 -
+        (inv * inv * (math.cos(t * math.pi * 2.15) * 0.28 + 0.72));
+  }
+}
+
+/// Authentic iOS 27.2 Optical Liquid Glass Container.
 ///
 /// Performance-engineered for 60/120fps:
-/// - By default (`enableBlur: false`), renders pure optical iOS 26 Liquid Glass
-///   (convex top-left lens sheen, translucent frosted gradient, and `-135°`
-///   specular rim highlight) with zero GPU `saveLayer` offscreen blur cost.
-/// - Set `enableBlur: true` ONLY on floating bars/sheets that pass over
-///   scrolling content (e.g. Floating Tab Bar, Floating Mini-Player, Modals).
+/// - Multi-layered 3D optical lens refraction: top convex specular arc,
+///   dual-layer `-135°` chromatic rim, and bottom internal caustic reflection.
+/// - Automatically animates with iOS 27.2 fluid spring physics when `onTap != null`.
 class LiquidGlassBox extends StatelessWidget {
   final Widget child;
   final double borderRadius;
@@ -28,6 +208,8 @@ class LiquidGlassBox extends StatelessWidget {
   final double? width;
   final double? height;
   final VoidCallback? onTap;
+  final double scaleDown;
+  final bool enableSpring;
   final List<BoxShadow>? boxShadow;
 
   const LiquidGlassBox({
@@ -38,7 +220,7 @@ class LiquidGlassBox extends StatelessWidget {
     this.margin,
     this.tintColor,
     this.tintOpacity = 0.09,
-    this.rimIntensity = 0.34,
+    this.rimIntensity = 0.36,
     this.blurSigma,
     this.enableBlur = false,
     this.enableShadow = false,
@@ -46,14 +228,16 @@ class LiquidGlassBox extends StatelessWidget {
     this.width,
     this.height,
     this.onTap,
+    this.scaleDown = 0.94,
+    this.enableSpring = true,
     this.boxShadow,
   });
 
   @override
   Widget build(BuildContext context) {
     final baseTint = tintColor ?? Colors.white;
-    final effectiveAlignment =
-        alignment ?? ((width != null || height != null) ? Alignment.center : null);
+    final effectiveAlignment = alignment ??
+        ((width != null || height != null) ? Alignment.center : null);
 
     Widget innerSurface = CustomPaint(
       foregroundPainter: _LiquidGlassRimPainter(
@@ -65,15 +249,17 @@ class LiquidGlassBox extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(borderRadius),
           gradient: LinearGradient(
-            begin: const Alignment(-0.9, -0.95),
-            end: const Alignment(0.9, 0.95),
+            begin: const Alignment(-0.92, -0.96),
+            end: const Alignment(0.92, 0.96),
             colors: [
-              Colors.white.withOpacity((tintOpacity + 0.075).clamp(0.0, 0.42)),
-              Color.lerp(const Color(0xFF1A1B24), baseTint, 0.38)!
-                  .withOpacity((tintOpacity + 0.16).clamp(0.0, 0.58)),
-              baseTint.withOpacity((tintOpacity * 0.72).clamp(0.0, 0.32)),
+              Colors.white.withOpacity((tintOpacity + 0.095).clamp(0.0, 0.46)),
+              Color.lerp(const Color(0xFF171923), baseTint, 0.40)!
+                  .withOpacity((tintOpacity + 0.17).clamp(0.0, 0.62)),
+              Color.lerp(const Color(0xFF0E1017), baseTint, 0.25)!
+                  .withOpacity((tintOpacity + 0.13).clamp(0.0, 0.54)),
+              baseTint.withOpacity((tintOpacity * 0.85).clamp(0.0, 0.36)),
             ],
-            stops: const [0.0, 0.52, 1.0],
+            stops: const [0.0, 0.42, 0.78, 1.0],
           ),
         ),
         child: Container(
@@ -85,14 +271,14 @@ class LiquidGlassBox extends StatelessWidget {
     );
 
     if (enableBlur) {
-      final sigma =
-          blurSigma ?? context.select<ThemeProvider, double>((t) => t.glassBlurSigma);
+      final sigma = blurSigma ??
+          context.select<ThemeProvider, double>((t) => t.glassBlurSigma);
       innerSurface = ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
           filter: ImageFilter.blur(
-            sigmaX: sigma.clamp(10.0, 28.0),
-            sigmaY: sigma.clamp(10.0, 28.0),
+            sigmaX: sigma.clamp(12.0, 30.0),
+            sigmaY: sigma.clamp(12.0, 30.0),
           ),
           child: innerSurface,
         ),
@@ -108,9 +294,15 @@ class LiquidGlassBox extends StatelessWidget {
         (enableShadow
             ? [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.28),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withOpacity(0.32),
+                  blurRadius: 22,
+                  spreadRadius: -2,
+                  offset: const Offset(0, 9),
+                ),
+                BoxShadow(
+                  color: baseTint.withOpacity(0.06),
+                  blurRadius: 14,
+                  offset: const Offset(0, -1),
                 ),
               ]
             : null);
@@ -128,7 +320,14 @@ class LiquidGlassBox extends StatelessWidget {
       child: innerSurface,
     );
 
-    if (onTap != null) {
+    if (onTap != null && enableSpring) {
+      return IosSpringButton(
+        onTap: onTap,
+        scaleDown: scaleDown,
+        borderRadius: borderRadius,
+        child: glass,
+      );
+    } else if (onTap != null) {
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -139,9 +338,9 @@ class LiquidGlassBox extends StatelessWidget {
   }
 }
 
-/// Reusable iOS 26 Circular Liquid Glass Icon Button.
-/// Ensures 100% consistent size, centering, optical sheen, and tap feedback.
-class IosGlassIconButton extends StatefulWidget {
+/// Reusable iOS 27.2 Circular Liquid Glass Icon Button.
+/// Ensures 100% consistent size, centering, optical lens sheen, and spring bounce.
+class IosGlassIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
   final double size;
@@ -164,58 +363,43 @@ class IosGlassIconButton extends StatefulWidget {
   });
 
   @override
-  State<IosGlassIconButton> createState() => _IosGlassIconButtonState();
-}
-
-class _IosGlassIconButtonState extends State<IosGlassIconButton> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final tint = widget.isActive
-        ? (widget.activeColor ?? Colors.white)
-        : Colors.white;
-    final fgColor = widget.isActive
-        ? (widget.activeColor ?? Colors.white)
-        : (widget.iconColor ?? Colors.white.withOpacity(0.92));
+    final tint = isActive ? (activeColor ?? Colors.white) : Colors.white;
+    final fgColor = isActive
+        ? (activeColor ?? Colors.white)
+        : (iconColor ?? Colors.white.withOpacity(0.94));
 
-    Widget button = GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap != null ? (_) => setState(() => _pressed = true) : null,
-      onTapUp: widget.onTap != null ? (_) => setState(() => _pressed = false) : null,
-      onTapCancel: widget.onTap != null ? () => setState(() => _pressed = false) : null,
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.91 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: LiquidGlassBox(
-          width: widget.size,
-          height: widget.size,
-          borderRadius: widget.size / 2,
-          tintColor: tint,
-          tintOpacity: widget.isActive ? 0.20 : 0.08,
-          rimIntensity: widget.isActive ? 0.48 : 0.32,
-          alignment: Alignment.center,
-          child: Icon(
-            widget.icon,
-            size: widget.iconSize,
-            color: fgColor,
-          ),
+    Widget button = IosSpringButton(
+      onTap: onTap,
+      scaleDown: 0.85,
+      borderRadius: size / 2,
+      child: LiquidGlassBox(
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        tintColor: tint,
+        tintOpacity: isActive ? 0.22 : 0.09,
+        rimIntensity: isActive ? 0.54 : 0.36,
+        alignment: Alignment.center,
+        enableSpring: false,
+        child: Icon(
+          icon,
+          size: iconSize,
+          color: fgColor,
         ),
       ),
     );
 
-    if (widget.tooltip != null) {
-      return Tooltip(message: widget.tooltip!, child: button);
+    if (tooltip != null) {
+      return Tooltip(message: tooltip!, child: button);
     }
     return button;
   }
 }
 
-/// Reusable iOS 26 Capsule Liquid Glass Pill Button.
-/// Keeps icon + label uniformly aligned with crisp iOS 26 specular border.
-class IosGlassPillButton extends StatefulWidget {
+/// Reusable iOS 27.2 Capsule Liquid Glass Pill Button.
+/// Keeps icon + label uniformly aligned with crisp iOS 27.2 specular border & fluid spring.
+class IosGlassPillButton extends StatelessWidget {
   final IconData? icon;
   final String label;
   final VoidCallback? onTap;
@@ -238,69 +422,53 @@ class IosGlassPillButton extends StatefulWidget {
   });
 
   @override
-  State<IosGlassPillButton> createState() => _IosGlassPillButtonState();
-}
-
-class _IosGlassPillButtonState extends State<IosGlassPillButton> {
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final accent = widget.activeColor ?? Colors.white;
-    final fgColor = widget.isActive
-        ? Colors.white
-        : Colors.white.withOpacity(0.86);
+    final accent = activeColor ?? Colors.white;
+    final fgColor = isActive ? Colors.white : Colors.white.withOpacity(0.88);
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: widget.onTap != null ? (_) => setState(() => _pressed = true) : null,
-      onTapUp: widget.onTap != null ? (_) => setState(() => _pressed = false) : null,
-      onTapCancel: widget.onTap != null ? () => setState(() => _pressed = false) : null,
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: _pressed ? 0.94 : 1.0,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: LiquidGlassBox(
-          height: widget.height,
-          borderRadius: widget.height / 2,
-          padding: widget.padding,
-          tintColor: widget.isActive ? accent : Colors.white,
-          tintOpacity: widget.isActive ? 0.24 : 0.08,
-          rimIntensity: widget.isActive ? 0.52 : 0.30,
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              if (widget.icon != null) ...[
-                Icon(
-                  widget.icon,
-                  size: widget.fontSize + 2.5,
-                  color: widget.isActive ? accent : fgColor,
-                ),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: fgColor,
-                  fontSize: widget.fontSize,
-                  fontWeight:
-                      widget.isActive ? FontWeight.w700 : FontWeight.w600,
-                  letterSpacing: -0.1,
-                  height: 1.1,
-                ),
+    return IosSpringButton(
+      onTap: onTap,
+      scaleDown: 0.90,
+      borderRadius: height / 2,
+      child: LiquidGlassBox(
+        height: height,
+        borderRadius: height / 2,
+        padding: padding,
+        tintColor: isActive ? accent : Colors.white,
+        tintOpacity: isActive ? 0.25 : 0.09,
+        rimIntensity: isActive ? 0.56 : 0.34,
+        alignment: Alignment.center,
+        enableSpring: false,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: fontSize + 2.5,
+                color: isActive ? accent : fgColor,
               ),
+              const SizedBox(width: 6),
             ],
-          ),
+            Text(
+              label,
+              style: TextStyle(
+                color: fgColor,
+                fontSize: fontSize,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                letterSpacing: -0.1,
+                height: 1.1,
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Optical `-135°` iOS 26 Specular Rim + Convex Lens Sheen Painter
+/// Optical `-135°` iOS 27.2 Dual-Layer Specular Rim + 3D Convex Lens Refraction Painter
 class _LiquidGlassRimPainter extends CustomPainter {
   final double borderRadius;
   final double rimIntensity;
@@ -316,42 +484,92 @@ class _LiquidGlassRimPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (size.isEmpty) return;
     final rect = Offset.zero & size;
-    final radius = borderRadius.clamp(0.0, math.min(size.width, size.height) / 2);
+    final radius =
+        borderRadius.clamp(0.0, math.min(size.width, size.height) / 2);
     final rrect = RRect.fromRectAndRadius(
       rect.deflate(0.5),
       Radius.circular(radius),
     );
 
-    // 1. iOS 26 Convex Top-Half Lens Sheen
-    final cushionRect = Rect.fromLTWH(0, 0, size.width, size.height * 0.48);
+    canvas.save();
+    canvas.clipRRect(rrect);
+
+    // 1. iOS 27.2 Top Convex Lens Specular Cushion (overhead light refraction)
+    final cushionRect = Rect.fromLTWH(0, 0, size.width, size.height * 0.44);
     final cushionPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
         colors: [
-          Colors.white.withOpacity((rimIntensity * 0.26).clamp(0.0, 0.20)),
+          Colors.white.withOpacity((rimIntensity * 0.34).clamp(0.0, 0.25)),
+          Colors.white.withOpacity((rimIntensity * 0.08).clamp(0.0, 0.07)),
           Colors.white.withOpacity(0.0),
         ],
+        stops: const [0.0, 0.45, 1.0],
       ).createShader(cushionRect);
-    canvas.save();
-    canvas.clipRRect(rrect);
     canvas.drawRect(cushionRect, cushionPaint);
+
+    // 2. Bottom Internal Caustic Reflection (thick glass base bounce)
+    final causticHeight = (size.height * 0.24).clamp(6.0, 28.0);
+    final causticRect = Rect.fromLTWH(
+      0,
+      size.height - causticHeight,
+      size.width,
+      causticHeight,
+    );
+    final causticPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.bottomCenter,
+        end: Alignment.topCenter,
+        colors: [
+          Color.lerp(Colors.white, accentTint, 0.45)!
+              .withOpacity((rimIntensity * 0.16).clamp(0.0, 0.12)),
+          Colors.transparent,
+        ],
+      ).createShader(causticRect);
+    canvas.drawRect(causticRect, causticPaint);
+
     canvas.restore();
 
-    // 2. Crisp -135° Specular Rim (Top-Left bright -> Side soft -> Bottom-Right caustic glint)
+    // 3. Inner 3D Thickness Sub-Rim (1.5px inset top-left highlight)
+    if (size.width > 16 && size.height > 16) {
+      final innerRadius = math.max(0.0, radius - 1.2);
+      final innerRRect = RRect.fromRectAndRadius(
+        rect.deflate(1.5),
+        Radius.circular(innerRadius),
+      );
+      final innerRimPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.75
+        ..shader = LinearGradient(
+          begin: const Alignment(-0.9, -1.0),
+          end: const Alignment(0.7, 0.8),
+          colors: [
+            Colors.white.withOpacity((rimIntensity * 0.42).clamp(0.0, 0.26)),
+            Colors.transparent,
+            Colors.white.withOpacity((rimIntensity * 0.14).clamp(0.0, 0.09)),
+          ],
+          stops: const [0.0, 0.50, 1.0],
+        ).createShader(rect);
+      canvas.drawRRect(innerRRect, innerRimPaint);
+    }
+
+    // 4. Primary Crisp -135° iOS 27.2 Specular Rim
     final rimPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.0
+      ..strokeWidth = 1.1
       ..shader = LinearGradient(
         begin: const Alignment(-1.0, -1.0),
         end: const Alignment(1.0, 1.0),
         colors: [
-          Colors.white.withOpacity((rimIntensity * 1.38).clamp(0.0, 0.66)),
-          accentTint.withOpacity((rimIntensity * 0.48).clamp(0.0, 0.30)),
+          Colors.white.withOpacity((rimIntensity * 1.52).clamp(0.0, 0.76)),
+          Color.lerp(Colors.white, accentTint, 0.55)!
+              .withOpacity((rimIntensity * 0.62).clamp(0.0, 0.38)),
           Colors.white.withOpacity((rimIntensity * 0.14).clamp(0.0, 0.10)),
-          Colors.white.withOpacity((rimIntensity * 0.72).clamp(0.0, 0.38)),
+          Color.lerp(Colors.white, accentTint, 0.35)!
+              .withOpacity((rimIntensity * 0.82).clamp(0.0, 0.44)),
         ],
-        stops: const [0.0, 0.30, 0.70, 1.0],
+        stops: const [0.0, 0.28, 0.68, 1.0],
       ).createShader(rect);
 
     canvas.drawRRect(rrect, rimPaint);
@@ -364,7 +582,7 @@ class _LiquidGlassRimPainter extends CustomPainter {
       oldDelegate.accentTint != accentTint;
 }
 
-/// Full-Bleed iOS 26 Ambient Artwork Mesh Backdrop Engine
+/// Full-Bleed iOS 27.2 Ambient Artwork Mesh Backdrop Engine
 /// Optimized with isolated RepaintBoundaries for zero scroll jank.
 class LiquidBackgroundWidget extends StatefulWidget {
   final Color primaryColor;
@@ -473,9 +691,9 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        widget.baseColor.withOpacity(0.20),
-                        widget.baseColor.withOpacity(0.56),
-                        widget.baseColor.withOpacity(0.88),
+                        widget.baseColor.withOpacity(0.18),
+                        widget.baseColor.withOpacity(0.54),
+                        widget.baseColor.withOpacity(0.86),
                       ],
                       stops: const [0.0, 0.54, 1.0],
                     ),
