@@ -1,11 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/song_model.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
+import '../widgets/liquid_background_widget.dart';
 import '../widgets/song_tile_widget.dart';
 import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
@@ -102,8 +104,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final isAllTab = _selectedMood == 'Semua';
 
-    // When on 'Semua', show user's recent & favorite songs + Indo hits;
-    // when on a specific genre chip (e.g. 'Pop Indo'), strictly show ONLY songs from that genre!
     final quickPickPool = isAllTab
         ? <ZunifySong>[
             ...library.recentlyPlayed,
@@ -135,8 +135,8 @@ class _HomeScreenState extends State<HomeScreen> {
         : (_moodSongs.isNotEmpty ? _moodSongs.first : null);
     final String heroBadgeLabel = isAllTab
         ? (hasRecentOrPlaying
-            ? 'TERAKHIR DIPUTAR • LANJUTKAN'
-            : 'MIX PILIHAN • POP INDO')
+            ? 'PILIHAN UTAMA • LANJUTKAN DENGAR'
+            : 'PILIHAN UTAMA • POP INDO')
         : 'MIX PILIHAN • $_selectedMood'.toUpperCase();
     final List<ZunifySong> heroQueue = isAllTab && hasRecentOrPlaying
         ? (library.recentlyPlayed.isNotEmpty
@@ -147,108 +147,114 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
+        bottom: false,
         child: RefreshIndicator(
           color: accent,
           onRefresh: _loadInitialHomeData,
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 112),
+            physics: const BouncingScrollPhysics(
+              parent: AlwaysScrollableScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(18, 12, 18, 176),
             children: [
-              // Clean Top Header: Avatar + Greeting/Username + Rekap Pill + Offline Icon
-              Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: [accent, theme.secondaryAccentColor],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      library.profile.username.isNotEmpty
-                          ? library.profile.username[0].toUpperCase()
-                          : 'Z',
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getTimeGreeting(),
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          library.profile.username,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Rekap Mingguan Pill Button
-                  InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () => _openWeeklyRapotModal(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
+              // BitChord Frosted Top Header Bar
+              LiquidGlassBox(
+                borderRadius: 24,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 11,
+                ),
+                tintOpacity: 0.08,
+                rimIntensity: 0.36,
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
                       decoration: BoxDecoration(
-                        color: accent.withOpacity(0.14),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: accent.withOpacity(0.35)),
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [accent, theme.secondaryAccentColor],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      alignment: Alignment.center,
+                      child: Text(
+                        library.profile.username.isNotEmpty
+                            ? library.profile.username[0].toUpperCase()
+                            : 'Z',
+                        style: const TextStyle(
+                          color: Colors.black,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(
-                            Icons.auto_awesome_rounded,
-                            color: accent,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 5),
                           Text(
-                            'Rekap',
-                            style: TextStyle(
-                              color: accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
+                            _getTimeGreeting(),
+                            style: const TextStyle(
+                              color: Colors.white60,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            library.profile.username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.4,
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Compact Offline Mode Toggle Button
-                  Tooltip(
-                    message: player.offlineModeEnabled
-                        ? 'Mode Offline Aktif'
-                        : 'Mode Online',
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(18),
+                    // Replay Anda Pill Button
+                    GestureDetector(
+                      onTap: () => _openWeeklyRapotModal(context),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 7,
+                        ),
+                        decoration: BoxDecoration(
+                          color: accent.withOpacity(0.18),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: accent.withOpacity(0.45)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.auto_awesome_rounded,
+                              color: accent,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              'Replay',
+                              style: TextStyle(
+                                color: accent,
+                                fontSize: 11.8,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Offline Mode Toggle
+                    GestureDetector(
                       onTap: () =>
                           player.setOfflineMode(!player.offlineModeEnabled),
                       child: AnimatedContainer(
@@ -263,7 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           border: Border.all(
                             color: player.offlineModeEnabled
                                 ? accent
-                                : Colors.white.withOpacity(0.10),
+                                : Colors.white.withOpacity(0.14),
                           ),
                         ),
                         alignment: Alignment.center,
@@ -278,19 +284,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 14),
 
               if (player.offlineModeEnabled) ...[
                 _buildOfflineList(library, player, accent),
               ] else ...[
-                // Clean Spotify-Style Filter Chips
+                // BitChord Liquid Glass Mood Filter Pills
                 SizedBox(
-                  height: 34,
+                  height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
                     itemCount: _moods.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, i) {
@@ -301,17 +308,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         onTap: () => _selectMood(moodId),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 180),
-                          padding: const EdgeInsets.symmetric(horizontal: 15),
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: selected
                                 ? accent
-                                : Colors.white.withOpacity(0.07),
+                                : Colors.white.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(18),
                             border: Border.all(
                               color: selected
                                   ? accent
-                                  : Colors.white.withOpacity(0.08),
+                                  : Colors.white.withOpacity(0.14),
                             ),
                           ),
                           child: Text(
@@ -319,8 +326,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             style: TextStyle(
                               color: selected ? Colors.black : Colors.white,
                               fontWeight:
-                                  selected ? FontWeight.w800 : FontWeight.w600,
-                              fontSize: 12.5,
+                                  selected ? FontWeight.w900 : FontWeight.w700,
+                              fontSize: 12.2,
                             ),
                           ),
                         ),
@@ -330,7 +337,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Spotify 2-Column Quick Picks Grid (Fixed 56px height per card — never squished!)
+                // BitChord `TopPicksShelf` 2-Column Liquid Glass Quick Picks
                 if (quickPicks.isNotEmpty) ...[
                   GridView.builder(
                     shrinkWrap: true,
@@ -339,9 +346,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     gridDelegate:
                         const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
-                      mainAxisSpacing: 8,
-                      crossAxisSpacing: 8,
-                      mainAxisExtent: 56,
+                      mainAxisSpacing: 9,
+                      crossAxisSpacing: 9,
+                      mainAxisExtent: 58,
                     ),
                     itemBuilder: (context, i) {
                       final song = quickPicks[i];
@@ -353,10 +360,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       );
                     },
                   ),
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 20),
                 ],
 
-                // Clean Editorial Featured Mix Banner
+                // BitChord Hero Spotlight Liquid Glass Card
                 if (heroSong != null) ...[
                   _buildHeroFeaturedBanner(
                     heroSong,
@@ -366,19 +373,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     accent,
                     theme.secondaryAccentColor,
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 22),
                 ],
 
-                // Mood Mix Carousel (Generous 196px height so text never clips)
+                // Mood Mix Horizontal Shelf
                 _sectionHeader(
-                  isAllTab ? 'Mix Pop Indonesia' : 'Mix $_selectedMood',
+                  isAllTab ? 'Pilihan Cepat Untukmu' : 'Mix $_selectedMood',
                   onPlayAll: _moodSongs.isEmpty
                       ? null
                       : () => player.playSong(
                             _moodSongs.first,
                             customQueue: _moodSongs,
                             contextName: isAllTab
-                                ? 'Mix Pop Indonesia'
+                                ? 'Pilihan Cepat Untukmu'
                                 : 'Mix $_selectedMood',
                           ),
                   accent: accent,
@@ -393,9 +400,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   )
                 else
                   SizedBox(
-                    height: 196,
+                    height: 198,
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
                       itemCount: _moodSongs.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 14),
                       itemBuilder: (context, idx) {
@@ -431,7 +439,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                 ] else ...[
-                  // Trending Indonesia
                   _sectionHeader(
                     'Populer di Indonesia',
                     onPlayAll: _trendingIndo.isEmpty
@@ -454,7 +461,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                   const SizedBox(height: 22),
 
-                  // Trending Global
                   _sectionHeader(
                     'Top Global',
                     onPlayAll: _trendingGlobal.isEmpty
@@ -493,25 +499,16 @@ class _HomeScreenState extends State<HomeScreen> {
     Color secondaryAccent,
   ) {
     final queueToPlay = mixList.isNotEmpty ? mixList : [song];
-    return Container(
+    return LiquidGlassBox(
+      borderRadius: 24,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            accent.withOpacity(0.22),
-            secondaryAccent.withOpacity(0.10),
-            Colors.white.withOpacity(0.04),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.10)),
-      ),
+      tintColor: accent,
+      tintOpacity: 0.14,
+      rimIntensity: 0.44,
       child: Row(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             child: CachedNetworkImage(
               imageUrl: song.highResArtUrl,
               width: 88,
@@ -537,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(
                     color: accent,
                     fontSize: 10,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w900,
                     letterSpacing: 0.8,
                   ),
                 ),
@@ -546,7 +543,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   song.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: GoogleFonts.plusJakartaSans(
                     color: Colors.white,
                     fontSize: 16.5,
                     fontWeight: FontWeight.w800,
@@ -559,21 +556,21 @@ class _HomeScreenState extends State<HomeScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.65),
+                    color: Colors.white.withOpacity(0.68),
                     fontSize: 12.2,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                    GestureDetector(
                       onTap: () =>
                           player.playSong(song, customQueue: queueToPlay),
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 13,
-                          vertical: 6,
+                          horizontal: 14,
+                          vertical: 6.5,
                         ),
                         decoration: BoxDecoration(
                           color: accent,
@@ -592,7 +589,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               'Putar',
                               style: TextStyle(
                                 color: Colors.black,
-                                fontWeight: FontWeight.w800,
+                                fontWeight: FontWeight.w900,
                                 fontSize: 12,
                               ),
                             ),
@@ -601,8 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    InkWell(
-                      borderRadius: BorderRadius.circular(14),
+                    GestureDetector(
                       onTap: () {
                         final shuffled = List<ZunifySong>.from(queueToPlay)
                           ..shuffle();
@@ -610,12 +606,15 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 11,
-                          vertical: 6,
+                          horizontal: 12,
+                          vertical: 6.5,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.10),
+                          color: Colors.white.withOpacity(0.12),
                           borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.16),
+                          ),
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
@@ -655,73 +654,64 @@ class _HomeScreenState extends State<HomeScreen> {
     Color accent,
   ) {
     final isCurrent = player.currentSong?.videoId == song.videoId;
-    return GestureDetector(
+    return LiquidGlassBox(
+      borderRadius: 14,
+      tintColor: isCurrent ? accent : Colors.white,
+      tintOpacity: isCurrent ? 0.18 : 0.07,
+      rimIntensity: isCurrent ? 0.48 : 0.30,
       onTap: () => player.playSong(
         song,
         customQueue: const [],
         contextName: 'Radio ${song.title}',
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isCurrent
-              ? accent.withOpacity(0.16)
-              : Colors.white.withOpacity(0.07),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: isCurrent
-                ? accent.withOpacity(0.40)
-                : Colors.white.withOpacity(0.06),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(
+              left: Radius.circular(13),
+            ),
+            child: CachedNetworkImage(
+              imageUrl: song.thumbnailUrl,
+              width: 58,
+              height: 58,
+              memCacheWidth: 168,
+              fadeInDuration: const Duration(milliseconds: 120),
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Container(
+                width: 58,
+                height: 58,
+                color: Colors.white10,
+                child: Icon(Icons.music_note_rounded, color: accent, size: 20),
+              ),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: const BorderRadius.horizontal(
-                left: Radius.circular(9),
-              ),
-              child: CachedNetworkImage(
-                imageUrl: song.thumbnailUrl,
-                width: 56,
-                height: 56,
-                memCacheWidth: 168,
-                fadeInDuration: const Duration(milliseconds: 120),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: 56,
-                  height: 56,
-                  color: Colors.white10,
-                  child: Icon(Icons.music_note_rounded, color: accent, size: 20),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: Text(
+                song.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isCurrent ? accent : Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                  height: 1.2,
                 ),
               ),
             ),
-            const SizedBox(width: 9),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: Text(
-                  song.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: isCurrent ? accent : Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 12.2,
-                    height: 1.2,
-                  ),
-                ),
+          ),
+          if (isCurrent)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: MiniAudioSpectrumBars(
+                isPlaying: player.isPlaying,
+                color: accent,
+                height: 12,
               ),
             ),
-            if (isCurrent)
-              Padding(
-                padding: const EdgeInsets.only(right: 8),
-                child: MiniAudioSpectrumBars(
-                  isPlaying: player.isPlaying,
-                  color: accent,
-                  height: 12,
-                ),
-              ),
-          ],
-        ),
+        ],
       ),
     );
   }
@@ -769,22 +759,30 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         Text(
           title,
-          style: const TextStyle(
+          style: GoogleFonts.plusJakartaSans(
             color: Colors.white,
             fontSize: 18,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -0.3,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.35,
           ),
         ),
         if (onPlayAll != null)
           GestureDetector(
             onTap: onPlayAll,
-            child: Text(
-              'Putar Semua',
-              style: TextStyle(
-                color: accent,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: accent.withOpacity(0.14),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: accent.withOpacity(0.32)),
+              ),
+              child: Text(
+                'Putar Semua',
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ),
@@ -807,26 +805,36 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       onLongPress: () => showSongActionSheet(context, song: song),
       child: SizedBox(
-        width: 138,
+        width: 140,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Stack(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: CachedNetworkImage(
-                    imageUrl: song.highResArtUrl,
-                    width: 138,
-                    height: 138,
-                    memCacheWidth: 360,
-                    fadeInDuration: const Duration(milliseconds: 140),
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 138,
-                      height: 138,
-                      color: Colors.white10,
-                      child: Icon(Icons.music_note_rounded, color: accent),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: isCurrent
+                          ? accent.withOpacity(0.6)
+                          : Colors.white.withOpacity(0.14),
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(17),
+                    child: CachedNetworkImage(
+                      imageUrl: song.highResArtUrl,
+                      width: 140,
+                      height: 140,
+                      memCacheWidth: 360,
+                      fadeInDuration: const Duration(milliseconds: 140),
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        width: 140,
+                        height: 140,
+                        color: Colors.white10,
+                        child: Icon(Icons.music_note_rounded, color: accent),
+                      ),
                     ),
                   ),
                 ),
@@ -858,7 +866,7 @@ class _HomeScreenState extends State<HomeScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: isCurrent ? accent : Colors.white,
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w800,
                 fontSize: 13.2,
               ),
             ),
@@ -868,8 +876,9 @@ class _HomeScreenState extends State<HomeScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.55),
+                color: Colors.white.withOpacity(0.60),
                 fontSize: 11.5,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],

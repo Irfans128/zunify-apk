@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song_model.dart';
 import '../providers/library_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
+import '../widgets/liquid_background_widget.dart';
 import '../widgets/song_tile_widget.dart';
 import 'artist_profile_screen.dart';
 import 'library_screen.dart';
@@ -356,89 +358,102 @@ class _SearchScreenState extends State<SearchScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
+        bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Clean Header + Import Button
+              // BitChord Frosted Header + Import Playlist Pill
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Cari',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.4,
-                    ),
-                  ),
-                  InkWell(
-                    borderRadius: BorderRadius.circular(18),
-                    onTap: () => _showImportPlaylistModal(context),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 7,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.07),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: Colors.white.withOpacity(0.10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Cari Musik',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: Colors.white,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add_link_rounded, color: accent, size: 17),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Import Playlist',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
+                      const Text(
+                        'Filter Khusus Lagu Studio Resmi • Tanpa Video',
+                        style: TextStyle(
+                          color: Colors.white54,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
+                    ],
+                  ),
+                  LiquidGlassBox(
+                    borderRadius: 18,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    tintOpacity: 0.09,
+                    rimIntensity: 0.38,
+                    onTap: () => _showImportPlaylistModal(context),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add_link_rounded, color: accent, size: 17),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'Import Playlist',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
 
-              // Clean Search Input Field
-              SizedBox(
-                height: 46,
+              // BitChord Liquid Glass Search Bar
+              LiquidGlassBox(
+                borderRadius: 20,
+                height: 48,
+                tintOpacity: 0.10,
+                rimIntensity: 0.42,
                 child: TextField(
                   controller: _searchController,
                   focusNode: _searchFocusNode,
                   textInputAction: TextInputAction.search,
-                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
                   onChanged: _onSearchTextChanged,
                   onSubmitted: _performSearch,
                   decoration: InputDecoration(
-                    hintText: 'Lagu, artis, atau album...',
+                    hintText: 'Cari lagu atau artis...',
                     hintStyle: const TextStyle(
-                      color: Colors.white38,
+                      color: Colors.white54,
                       fontSize: 13.5,
                     ),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.08),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 13),
                     prefixIcon: Icon(
                       Icons.search_rounded,
                       color: accent,
-                      size: 20,
+                      size: 21,
                     ),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(
                               Icons.clear_rounded,
-                              color: Colors.white54,
+                              color: Colors.white60,
                               size: 18,
                             ),
                             onPressed: () {
@@ -453,10 +468,6 @@ class _SearchScreenState extends State<SearchScreen> {
                             },
                           )
                         : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
-                    ),
                   ),
                 ),
               ),
@@ -482,7 +493,8 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildLiveSuggestionsList(Color accent) {
     final currentText = _searchController.text.trim();
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 112),
+      padding: const EdgeInsets.only(bottom: 176),
+      physics: const BouncingScrollPhysics(),
       itemCount: _suggestions.length,
       itemBuilder: (context, idx) {
         final suggestion = _suggestions[idx];
@@ -597,39 +609,32 @@ class _SearchScreenState extends State<SearchScreen> {
     final totalCount = _results.length + (hasArtistCard ? 1 : 0);
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 112),
+      padding: const EdgeInsets.only(bottom: 176),
+      physics: const BouncingScrollPhysics(),
       cacheExtent: 500,
       itemCount: totalCount,
       itemBuilder: (context, idx) {
         if (hasArtistCard && idx == 0) {
           final artist = _matchedArtist!;
-          return GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ArtistProfileScreen(
-                    artistName: artist.name,
-                    browseId: artist.browseId,
-                                      ),
-                ),
-              );
-            },
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 12),
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: LiquidGlassBox(
+              borderRadius: 20,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    accent.withOpacity(0.20),
-                    Colors.white.withOpacity(0.05),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(color: accent.withOpacity(0.32)),
-              ),
+              tintColor: accent,
+              tintOpacity: 0.14,
+              rimIntensity: 0.44,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ArtistProfileScreen(
+                      artistName: artist.name,
+                      browseId: artist.browseId,
+                    ),
+                  ),
+                );
+              },
               child: Row(
                 children: [
                   ClipOval(
@@ -768,7 +773,8 @@ class _SearchScreenState extends State<SearchScreen> {
     ];
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 112),
+      padding: const EdgeInsets.only(bottom: 176),
+      physics: const BouncingScrollPhysics(),
       children: [
         if (_searchHistory.isNotEmpty) ...[
           Row(
@@ -842,11 +848,11 @@ class _SearchScreenState extends State<SearchScreen> {
         ],
 
         const Text(
-          'Jelajahi Genre',
+          'Jelajahi Mood & Genre',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            fontSize: 16.5,
           ),
         ),
         const SizedBox(height: 10),
@@ -863,58 +869,47 @@ class _SearchScreenState extends State<SearchScreen> {
           itemBuilder: (context, idx) {
             final item = categories[idx];
             final cardColor = Color(item['color'] as int);
-            return GestureDetector(
+            return LiquidGlassBox(
+              borderRadius: 18,
+              padding: const EdgeInsets.all(13),
+              tintColor: cardColor,
+              tintOpacity: 0.24,
+              rimIntensity: 0.42,
               onTap: () {
                 final q = item['query'] as String;
                 _searchController.text = item['title'] as String;
                 _performSearch(q);
               },
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      cardColor.withOpacity(0.65),
-                      cardColor.withOpacity(0.25),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.10)),
-                ),
-                alignment: Alignment.centerLeft,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item['title'] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item['title'] as String,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 14,
                       ),
                     ),
-                    Icon(
-                      Icons.play_circle_fill_rounded,
-                      color: Colors.white.withOpacity(0.85),
-                      size: 24,
-                    ),
-                  ],
-                ),
+                  ),
+                  Icon(
+                    Icons.play_circle_fill_rounded,
+                    color: Colors.white.withOpacity(0.90),
+                    size: 24,
+                  ),
+                ],
               ),
             );
           },
         ),
         const SizedBox(height: 22),
         const Text(
-          'Pencarian Populer',
+          'Lagu Populer Dicari',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w800,
-            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            fontSize: 16.5,
           ),
         ),
         const SizedBox(height: 10),
@@ -922,37 +917,32 @@ class _SearchScreenState extends State<SearchScreen> {
           spacing: 8,
           runSpacing: 8,
           children: quickQueries.map((s) {
-            return InkWell(
-              borderRadius: BorderRadius.circular(18),
+            return LiquidGlassBox(
+              borderRadius: 18,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              tintOpacity: 0.08,
+              rimIntensity: 0.34,
               onTap: () {
                 _searchController.text = s;
                 _performSearch(s);
               },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.06),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.trending_up_rounded, color: accent, size: 15),
-                    const SizedBox(width: 6),
-                    Text(
-                      s,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 12.2,
-                        fontWeight: FontWeight.w600,
-                      ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.trending_up_rounded, color: accent, size: 15),
+                  const SizedBox(width: 6),
+                  Text(
+                    s,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12.2,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           }).toList(),

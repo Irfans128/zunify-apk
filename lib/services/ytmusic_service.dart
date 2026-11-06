@@ -113,8 +113,8 @@ class YTMusicService {
     try {
       final payload = {
         'query': trimmed,
-        // Official YouTube Music "Songs" filter param
-        'params': 'EgWKAQIIAWoKEAkQBRAKEAMQBA==',
+        // BitChord Official YouTube Music Strict "Songs Only" filter param
+        'params': 'EgWKAQIIAWoKEAkQChAFEAMQBA==',
         'context': {
           'client': {
             'clientName': 'WEB_REMIX',
@@ -142,7 +142,11 @@ class YTMusicService {
 
       final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       _captureVisitorDataFromResponse(data);
-      final songs = _parseWebRemixSearchItems(data, limit: limit);
+      final songs = _parseWebRemixSearchItems(
+        data,
+        limit: limit,
+        rawQuery: trimmed,
+      );
       if (songs.isNotEmpty) {
         if (_searchCache.length > 60) {
           _searchCache.remove(_searchCache.keys.first);
@@ -155,11 +159,75 @@ class YTMusicService {
     }
   }
 
+  bool _isNonSongYouTubeJunk({
+    required String title,
+    required String subtitle,
+    required String? musicVideoType,
+    required int durationSec,
+    String rawQuery = '',
+  }) {
+    // 1. Strict InnerTube MusicVideoType check:
+    // Only allow official Album Track Videos (ATV) or Official Source Music.
+    // Reject User-Generated Content (UGC), Official Music Videos (OMV), and Podcasts.
+    if (musicVideoType != null &&
+        musicVideoType.isNotEmpty &&
+        musicVideoType != 'MUSIC_VIDEO_TYPE_ATV' &&
+        musicVideoType != 'MUSIC_VIDEO_TYPE_OFFICIAL_SOURCE_MUSIC') {
+      return true;
+    }
+
+    // 2. Reject YouTube video view-count subtitles ("12 jt x ditonton", "views", etc.)
+    final subLower = subtitle.toLowerCase();
+    if (subLower.contains('ditonton') ||
+        subLower.contains('tayangan') ||
+        subLower.contains('views') ||
+        subLower.contains('jt x') ||
+        subLower.contains('rb x') ||
+        subLower.contains('subscribers') ||
+        subLower.contains('podcast') ||
+        subLower.contains('episode')) {
+      return true;
+    }
+
+    // 3. Reject non-song durations (< 45s skits/shorts or > 9.5 min compilations/full albums)
+    if (durationSec < 45 || durationSec > 570) {
+      return true;
+    }
+
+    // 4. Reject YouTube compilation / reaction / karaoke / full-album titles unless explicitly queried
+    final tLower = title.toLowerCase();
+    final qLower = rawQuery.toLowerCase();
+    const junkMarkers = [
+      'full album',
+      'kompilasi',
+      'compilation',
+      '1 jam',
+      '1 hour',
+      '2 jam',
+      'nonstop',
+      'reaction',
+      'podcast',
+      'karaoke version',
+      'lirik video',
+      'lyric video',
+      'official music video',
+      'official video',
+    ];
+    for (final m in junkMarkers) {
+      if (tLower.contains(m) && !qLower.contains(m)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   List<ZunifySong> _parseWebRemixSearchItems(
     Map<String, dynamic> data, {
     required int limit,
+    String rawQuery = '',
   }) {
     final songs = <ZunifySong>[];
+    final fallbackSongs = <ZunifySong>[];
     try {
       final tabs = data['contents']?['tabbedSearchResultsRenderer']?['tabs']
           as List<dynamic>?;
@@ -186,25 +254,45 @@ class YTMusicService {
           final flexCols = item['flexColumns'] as List<dynamic>? ?? [];
           if (flexCols.isEmpty) continue;
 
-          // Column 0: Song Title
+          // Column 0: Song Title + MusicVideoType
           final col0Runs = flexCols[0]['musicResponsiveListItemFlexColumnRenderer']
               ?['text']?['runs'] as List<dynamic>?;
           final title = col0Runs != null && col0Runs.isNotEmpty
               ? col0Runs[0]['text']?.toString() ?? 'Unknown'
               : 'Unknown';
+          final String? mvType = (col0Runs != null && col0Runs.isNotEmpty
+                  ? col0Runs[0]['navigationEndpoint']?['watchEndpoint']
+                          ?['watchEndpointMusicSupportedConfigs']
+                          ?['watchEndpointMusicConfig']?['musicVideoType']
+                      ?.toString()
+                  : null) ??
+              item['overlay']?['musicItemThumbnailOverlayRenderer']?['content']
+                      ?['musicPlayButtonRenderer']?['playNavigationEndpoint']
+                      ?['watchEndpoint']?['watchEndpointMusicSupportedConfigs']
+                      ?['watchEndpointMusicConfig']?['musicVideoType']
+                  ?.toString();
 
           // Column 1: Artist • Album • Duration
           String artist = 'Unknown Artist';
           String album = 'YouTube Music';
           int durationSec = 210;
+          String rawSubtitleJoined = '';
 
           if (flexCols.length > 1) {
             final col1Runs = flexCols[1]['musicResponsiveListItemFlexColumnRenderer']
                 ?['text']?['runs'] as List<dynamic>?;
             if (col1Runs != null && col1Runs.isNotEmpty) {
+              rawSubtitleJoined = col1Runs
+                  .map((r) => (r as Map<String, dynamic>)['text']?.toString() ?? '')
+                  .join(' ');
               final parts = col1Runs
                   .map((r) => (r as Map<String, dynamic>)['text']?.toString() ?? '')
-                  .where((t) => t.trim().isNotEmpty && t != '•' && t.trim() != '•')
+                  .where((t) =>
+                      t.trim().isNotEmpty &&
+                      t != '•' &&
+                      t.trim() != '•' &&
+                      t.trim().toLowerCase() != 'lagu' &&
+                      t.trim().toLowerCase() != 'song')
                   .toList();
               if (parts.isNotEmpty) artist = parts[0];
               if (parts.length >= 3) album = parts[1];
@@ -224,23 +312,38 @@ class YTMusicService {
             highResUrl = _upgradeThumbnailToSquareHD(thumbUrl);
           }
 
-          songs.add(
-            ZunifySong(
-              videoId: videoId,
-              title: title,
-              artist: artist,
-              album: album,
-              durationSeconds: durationSec,
-              thumbnailUrl: thumbUrl,
-              highResArtUrl: highResUrl,
-              addedAt: DateTime.now(),
-            ),
+          final candidate = ZunifySong(
+            videoId: videoId,
+            title: title,
+            artist: artist,
+            album: album,
+            durationSeconds: durationSec,
+            thumbnailUrl: thumbUrl,
+            highResArtUrl: highResUrl,
+            addedAt: DateTime.now(),
           );
 
+          if (_isNonSongYouTubeJunk(
+            title: title,
+            subtitle: rawSubtitleJoined,
+            musicVideoType: mvType,
+            durationSec: durationSec,
+            rawQuery: rawQuery,
+          )) {
+            if (durationSec >= 45 && durationSec <= 570) {
+              fallbackSongs.add(candidate);
+            }
+            continue;
+          }
+
+          songs.add(candidate);
           if (songs.length >= limit) return songs;
         }
       }
     } catch (_) {}
+    if (songs.isEmpty && fallbackSongs.isNotEmpty) {
+      return fallbackSongs.take(limit).toList();
+    }
     return songs;
   }
 
@@ -301,7 +404,16 @@ class YTMusicService {
 
             final title =
                 r['title']?['runs']?[0]?['text']?.toString() ?? 'Unknown';
+            final mvType = r['navigationEndpoint']?['watchEndpoint']
+                    ?['watchEndpointMusicSupportedConfigs']
+                    ?['watchEndpointMusicConfig']?['musicVideoType']
+                ?.toString();
             final bylineRuns = r['longBylineText']?['runs'] as List<dynamic>?;
+            final bylineJoined = bylineRuns != null
+                ? bylineRuns
+                    .map((e) => (e as Map<String, dynamic>)['text']?.toString() ?? '')
+                    .join(' ')
+                : '';
             final artist =
                 bylineRuns != null && bylineRuns.isNotEmpty
                     ? (bylineRuns[0]['text']?.toString() ?? seedSong.artist)
@@ -312,6 +424,17 @@ class YTMusicService {
                     : 'Zunify Radio';
             final durText =
                 r['lengthText']?['runs']?[0]?['text']?.toString() ?? '3:30';
+            final parsedDurSec = _parseDurationText(durText);
+
+            if (_isNonSongYouTubeJunk(
+              title: title,
+              subtitle: bylineJoined,
+              musicVideoType: mvType,
+              durationSec: parsedDurSec,
+            )) {
+              continue;
+            }
+
             final thumbs =
                 r['thumbnail']?['thumbnails'] as List<dynamic>? ?? [];
             String thumb = 'https://i.ytimg.com/vi/$vid/hqdefault.jpg';
@@ -327,7 +450,7 @@ class YTMusicService {
                 title: title,
                 artist: artist,
                 album: album,
-                durationSeconds: _parseDurationText(durText),
+                durationSeconds: parsedDurSec,
                 thumbnailUrl: thumb,
                 highResArtUrl: _upgradeThumbnailToSquareHD(thumb),
                 addedAt: DateTime.now(),

@@ -5,6 +5,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/equalizer_sheet.dart';
+import '../widgets/liquid_background_widget.dart';
 import '../widgets/update_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -69,8 +70,10 @@ class SettingsScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
+        bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 118),
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 176),
           children: [
             const Text(
               'Pengaturan',
@@ -825,13 +828,11 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _glassCard({required Widget child}) {
-    return Container(
+    return LiquidGlassBox(
+      borderRadius: 24,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
-      ),
+      tintOpacity: 0.08,
+      rimIntensity: 0.36,
       child: child,
     );
   }

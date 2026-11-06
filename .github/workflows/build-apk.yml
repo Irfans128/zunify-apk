@@ -82,10 +82,13 @@ jobs:
         with:
           name: Zunify-v1.0-Standalone-APK
           path: |
+            Zunify-v2.0.0-Lite-arm64-by-Fannz.apk
+            Zunify-v2.0.0-Universal-by-Fannz.apk
             Zunify-v1.0-Lite-arm64-by-Fannz.apk
             Zunify-v1.0-Universal-by-Fannz.apk
 
       - name: Publish GitHub Release for In-App Auto Updater
+        if: false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

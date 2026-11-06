@@ -320,12 +320,26 @@ class PlayerProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   void _startLyricsTicker() {
     if (_lyricsTicker != null) return;
-    if (_currentLyrics == null || !_currentLyrics!.isSynced) return;
-    _lyricsTicker = Timer.periodic(const Duration(milliseconds: 60), (_) {
+    _lyricsTicker = Timer.periodic(const Duration(milliseconds: 45), (_) {
       final lyr = _currentLyrics;
-      if (lyr == null || !lyr.isSynced || !_audioPlayer.playing) return;
+      if (lyr == null || lyr.lines.isEmpty || !lyr.isSynced) return;
       _updateActiveLyricLine(_audioPlayer.position);
     });
+  }
+
+  List<SyncedLyrics> get availableLyricsProviders {
+    final vid = _currentSong?.videoId;
+    if (vid == null) return const [];
+    return _lyricsService.getProviderOptionsForVideo(vid);
+  }
+
+  void selectLyricsProvider(SyncedLyrics chosen) {
+    _currentLyrics = _sanitizeLyrics(chosen);
+    _showTranslation = false;
+    _isTranslatingLyrics = false;
+    _updateActiveLyricLine(_audioPlayer.position);
+    _startLyricsTicker();
+    notifyListeners();
   }
 
   void _stopLyricsTicker() {
@@ -942,7 +956,7 @@ class PlayerProvider extends ChangeNotifier {
       _currentLyrics = _sanitizeLyrics(cached);
       _isLoadingLyrics = false;
       _updateActiveLyricLine(_audioPlayer.position);
-      if (_audioPlayer.playing) _startLyricsTicker();
+      _startLyricsTicker();
       notifyListeners();
       return;
     }
@@ -959,7 +973,7 @@ class PlayerProvider extends ChangeNotifier {
     _currentLyrics = _sanitizeLyrics(rawLyrics);
     _isLoadingLyrics = false;
     _updateActiveLyricLine(_audioPlayer.position);
-    if (_audioPlayer.playing) _startLyricsTicker();
+    _startLyricsTicker();
     notifyListeners();
   }
 

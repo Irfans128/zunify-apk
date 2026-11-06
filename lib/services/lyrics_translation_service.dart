@@ -31,7 +31,11 @@ class LyricsTranslationService {
       'https://music.youtube.com/youtubei/v1/browse?prettyPrint=false';
 
   final Map<String, SyncedLyrics> _memoryLyricsCache = {};
+  final Map<String, List<SyncedLyrics>> _providerOptionsCache = {};
   final http.Client _http = http.Client();
+
+  List<SyncedLyrics> getProviderOptionsForVideo(String videoId) =>
+      _providerOptionsCache[videoId] ?? const [];
 
   void _cacheLyrics(String videoId, SyncedLyrics lyrics) {
     if (_memoryLyricsCache.length > 50) {
@@ -54,9 +58,13 @@ class LyricsTranslationService {
     return raw
         .replaceAll(
           RegExp(
-            r'\s*[\(\[][^)\]]*(official|video|lyric|lirik|audio|mv|visualizer|remaster|live|hd|4k|karaoke)[^)\]]*[\)\]]',
+            r'\s*[\(\[][^)\]]*(official|video|lyric|lirik|audio|mv|visualizer|remaster|live|hd|4k|karaoke|feat\.?|ft\.?|with\s)[^)\]]*[\)\]]',
             caseSensitive: false,
           ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'\s+(?:feat\.?|ft\.?)\s+.*$', caseSensitive: false),
           '',
         )
         .replaceAll(RegExp(r'\s+-\s+.*$'), '')
@@ -80,9 +88,10 @@ class LyricsTranslationService {
     required double providerBonus,
   }) {
     if (lines.isEmpty) return -9999;
-    if (!isSynced) return 10.0 + lines.length.clamp(0, 40) * 0.4;
+    // Unsynced plain lyrics must NEVER outscore real synced LRC/TTML candidates!
+    if (!isSynced) return -500.0 + lines.length.clamp(0, 40) * 0.4;
 
-    double score = 100.0 + providerBonus;
+    double score = 300.0 + providerBonus;
     final vocalLines = lines
         .where((l) =>
             l.originalText.trim().isNotEmpty &&
@@ -92,6 +101,7 @@ class LyricsTranslationService {
 
     final firstSec = vocalLines.first.timestamp.inMilliseconds / 1000.0;
     final lastSec = vocalLines.last.timestamp.inMilliseconds / 1000.0;
+    if (lastSec - firstSec < 20.0) return -600.0;
 
     // 1. Declared duration accuracy
     if (targetDurationSec > 30 && declaredDurationSec > 30) {
@@ -190,12 +200,34 @@ class LyricsTranslationService {
 
     if (allCandidates.isNotEmpty) {
       allCandidates.sort((a, b) => b.score.compareTo(a.score));
-      final best = allCandidates.first;
-      final aligned = _alignExtendedIntroIfNeeded(
-        best.lyrics,
-        declaredDurationSec: best.declaredDurationSec,
-        targetDurationSec: song.durationSeconds,
-      );
+
+      // Store top candidate per unique provider for BitChord's "Pilih Penyedia Lirik" switcher
+      final seenProviders = <String>{};
+      final providerList = <SyncedLyrics>[];
+      for (final c in allCandidates) {
+        final alignedCandidate = _alignExtendedIntroIfNeeded(
+          c.lyrics.isSynced
+              ? c.lyrics
+              : SyncedLyrics(
+                  videoId: c.lyrics.videoId,
+                  isSynced: true,
+                  isOriginalIndonesian: c.lyrics.isOriginalIndonesian,
+                  lines: c.lyrics.lines,
+                  sourceName: '${c.lyrics.sourceName} (Auto)',
+                ),
+          declaredDurationSec: c.declaredDurationSec,
+          targetDurationSec: song.durationSeconds,
+        );
+        if (seenProviders.add(alignedCandidate.sourceName)) {
+          providerList.add(alignedCandidate);
+        }
+      }
+      if (_providerOptionsCache.length > 30) {
+        _providerOptionsCache.remove(_providerOptionsCache.keys.first);
+      }
+      _providerOptionsCache[song.videoId] = providerList;
+
+      final aligned = providerList.first;
       _cacheLyrics(song.videoId, aligned);
       return aligned;
     }
@@ -203,8 +235,16 @@ class LyricsTranslationService {
     // 4. Fallback to YouTube Music Official Built-in Lyrics (`MPLYt_...` tab)
     final ytmResult = await _fetchFromYouTubeMusicMplyt(song);
     if (ytmResult != null) {
-      _cacheLyrics(song.videoId, ytmResult);
-      return ytmResult;
+      final syncedYtm = SyncedLyrics(
+        videoId: ytmResult.videoId,
+        isSynced: true,
+        isOriginalIndonesian: ytmResult.isOriginalIndonesian,
+        lines: ytmResult.lines,
+        sourceName: ytmResult.sourceName,
+      );
+      _providerOptionsCache[song.videoId] = [syncedYtm];
+      _cacheLyrics(song.videoId, syncedYtm);
+      return syncedYtm;
     }
 
     return _emptyFallback(song.videoId);
