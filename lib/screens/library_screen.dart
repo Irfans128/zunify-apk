@@ -21,6 +21,303 @@ void showPlaylistDetailSheet(BuildContext context, String playlistId) {
   );
 }
 
+/// Opens a True Frosted Liquid Glass / Neo-Brutalism "Buat Playlist" Sheet
+void showCreatePlaylistSheet(
+  BuildContext context, {
+  ZunifySong? initialSong,
+}) {
+  final nameCtrl = TextEditingController();
+  final descCtrl = TextEditingController();
+  final library = context.read<LibraryProvider>();
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      final theme = ctx.watch<ThemeProvider>();
+      final accent = theme.accentColor;
+      final isBrutal = theme.isNeoBrutalism;
+
+      Future<void> submitCreate() async {
+        final cleanName = nameCtrl.text.trim();
+        if (cleanName.isEmpty) return;
+        await library.createLocalPlaylist(cleanName, descCtrl.text.trim());
+        if (initialSong != null && library.playlists.isNotEmpty) {
+          await library.addSongToPlaylist(
+            library.playlists.first.id,
+            initialSong,
+          );
+        }
+        if (ctx.mounted) Navigator.pop(ctx);
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: accent,
+              duration: const Duration(seconds: 1),
+              content: Text(
+                initialSong != null
+                    ? 'Playlist "$cleanName" dibuat & lagu disimpan'
+                    : 'Playlist "$cleanName" berhasil dibuat',
+                style: const TextStyle(
+                  color: Color(0xFF111111),
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          );
+        }
+      }
+
+      return ZunifySheetContainer(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 14,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: theme.dividerColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    alignment: Alignment.center,
+                    decoration: isBrutal
+                        ? BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 2.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.brutalShadowColor,
+                                blurRadius: 0,
+                                offset: const Offset(2.2, 2.2),
+                              ),
+                            ],
+                          )
+                        : BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withOpacity(0.24),
+                                accent.withOpacity(0.32),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.34),
+                              width: 1.0,
+                            ),
+                          ),
+                    child: Icon(
+                      Icons.playlist_add_rounded,
+                      color: isBrutal ? const Color(0xFF111111) : Colors.white,
+                      size: 21,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Buat Playlist Baru',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: theme.textPrimary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
+                    ),
+                  ),
+                  IosGlassIconButton(
+                    icon: Icons.close_rounded,
+                    size: 34,
+                    iconSize: 17,
+                    onTap: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              LiquidGlassBox(
+                borderRadius: 16,
+                tintOpacity: 0.10,
+                rimIntensity: 0.42,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                child: TextField(
+                  controller: nameCtrl,
+                  autofocus: true,
+                  textInputAction: TextInputAction.next,
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Nama Playlist',
+                    hintStyle: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: InputBorder.none,
+                    icon: Icon(
+                      Icons.queue_music_rounded,
+                      color: theme.accentText,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              LiquidGlassBox(
+                borderRadius: 16,
+                tintOpacity: 0.08,
+                rimIntensity: 0.36,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
+                child: TextField(
+                  controller: descCtrl,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => submitCreate(),
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Catatan singkat (opsional)',
+                    hintStyle: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    border: InputBorder.none,
+                    icon: Icon(
+                      Icons.notes_rounded,
+                      color: theme.textMuted,
+                      size: 19,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: LiquidGlassBox(
+                      height: 46,
+                      borderRadius: isBrutal ? 12 : 23,
+                      tintOpacity: 0.08,
+                      rimIntensity: 0.34,
+                      onTap: () => Navigator.pop(ctx),
+                      child: Text(
+                        'Batal',
+                        style: TextStyle(
+                          color: theme.textSecondary,
+                          fontWeight: FontWeight.w800,
+                          fontSize: 13.5,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 6,
+                    child: IosSpringButton(
+                      borderRadius: isBrutal ? 12 : 23,
+                      onTap: submitCreate,
+                      child: Container(
+                        height: 46,
+                        alignment: Alignment.center,
+                        decoration: isBrutal
+                            ? BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: theme.brutalBorderColor,
+                                  width: 2.2,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: theme.brutalShadowColor,
+                                    blurRadius: 0,
+                                    offset: const Offset(3.5, 3.5),
+                                  ),
+                                ],
+                              )
+                            : BoxDecoration(
+                                borderRadius: BorderRadius.circular(23),
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Color.lerp(Colors.white, accent, 0.72)!,
+                                    accent,
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.42),
+                                  width: 1.0,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: accent.withOpacity(0.38),
+                                    blurRadius: 18,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.check_rounded,
+                              color: Color(0xFF111111),
+                              size: 19,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Buat Playlist',
+                              style: TextStyle(
+                                color: Color(0xFF111111),
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13.8,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
 
@@ -42,125 +339,6 @@ class _LibraryScreenState extends State<LibraryScreen>
   void dispose() {
     _tabController.dispose();
     super.dispose();
-  }
-
-  void _showCreatePlaylistDialog(
-    BuildContext context,
-    LibraryProvider library,
-    ThemeProvider theme,
-    Color accent,
-  ) {
-    final nameCtrl = TextEditingController();
-    final descCtrl = TextEditingController();
-    final isBrutal = theme.isNeoBrutalism;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.sheetBgColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(isBrutal ? 15 : 22),
-          side: isBrutal
-              ? BorderSide(color: theme.brutalBorderColor, width: 2.4)
-              : BorderSide(color: Colors.white.withOpacity(0.10)),
-        ),
-        title: Text(
-          'Playlist Baru',
-          style: TextStyle(
-            color: theme.textPrimary,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              autofocus: true,
-              style: TextStyle(color: theme.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Nama Playlist',
-                hintStyle: TextStyle(color: theme.textMuted),
-                filled: true,
-                fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
-                  borderSide: isBrutal
-                      ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
-                      : BorderSide(color: theme.dividerColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
-                  borderSide: BorderSide(
-                    color: isBrutal ? theme.brutalBorderColor : accent,
-                    width: isBrutal ? 2.2 : 1.4,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descCtrl,
-              style: TextStyle(color: theme.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Catatan (opsional)',
-                hintStyle: TextStyle(color: theme.textMuted),
-                filled: true,
-                fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
-                  borderSide: isBrutal
-                      ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
-                      : BorderSide(color: theme.dividerColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
-                  borderSide: BorderSide(
-                    color: isBrutal ? theme.brutalBorderColor : accent,
-                    width: isBrutal ? 2.2 : 1.4,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Batal',
-              style: TextStyle(
-                color: theme.textMuted,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: accent,
-              foregroundColor: const Color(0xFF111111),
-              elevation: 0,
-              side: isBrutal
-                  ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
-                  : BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
-              ),
-            ),
-            onPressed: () {
-              if (nameCtrl.text.trim().isNotEmpty) {
-                library.createLocalPlaylist(nameCtrl.text, descCtrl.text);
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text(
-              'Buat',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -214,12 +392,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         activeColor: accent,
                         isActive: true,
-                        onTap: () => _showCreatePlaylistDialog(
-                          context,
-                          library,
-                          theme,
-                          accent,
-                        ),
+                        onTap: () => showCreatePlaylistSheet(context),
                       ),
                     ],
                   ),

@@ -21,8 +21,14 @@
     <!-- In-App Self-Update APK Installer -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Voice Search Package Visibility (Android 11+) -->
+    <!-- Custom In-App Multilingual Voice Search Engine -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Headless Speech Recognition Service Visibility (Android 11+) -->
     <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
         </intent>

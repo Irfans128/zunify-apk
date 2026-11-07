@@ -319,28 +319,35 @@ class LiquidGlassBox extends StatelessWidget {
       return brutalCard;
     }
 
-    // Liquid Glass Mode
+    // Liquid Glass Mode — Crystal-clear chromatic refraction (zero muddy gray)
+    final hasCustomTint = tintColor != null && tintColor != Colors.white;
+    final prismPrimary = hasCustomTint
+        ? baseTint
+        : Color.lerp(Colors.white, theme.accentColor, 0.46)!;
+    final prismSecondary =
+        Color.lerp(prismPrimary, theme.secondaryAccentColor, 0.40)!;
+
     Widget innerSurface = CustomPaint(
       foregroundPainter: _LiquidGlassRimPainter(
         borderRadius: borderRadius,
-        rimIntensity: rimIntensity,
-        accentTint: baseTint,
+        rimIntensity: (rimIntensity * 1.12).clamp(0.0, 0.92),
+        accentTint: prismPrimary,
       ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(borderRadius),
           gradient: LinearGradient(
-            begin: const Alignment(-0.92, -0.96),
-            end: const Alignment(0.92, 0.96),
+            begin: const Alignment(-0.94, -0.96),
+            end: const Alignment(0.94, 0.96),
             colors: [
-              Colors.white.withOpacity((tintOpacity + 0.095).clamp(0.0, 0.46)),
-              Color.lerp(const Color(0xFF171923), baseTint, 0.40)!
-                  .withOpacity((tintOpacity + 0.17).clamp(0.0, 0.62)),
-              Color.lerp(const Color(0xFF0E1017), baseTint, 0.25)!
-                  .withOpacity((tintOpacity + 0.13).clamp(0.0, 0.54)),
-              baseTint.withOpacity((tintOpacity * 0.85).clamp(0.0, 0.36)),
+              Colors.white.withOpacity((tintOpacity + 0.125).clamp(0.0, 0.48)),
+              Color.lerp(Colors.white, prismPrimary, 0.55)!
+                  .withOpacity((tintOpacity + 0.055).clamp(0.0, 0.38)),
+              prismSecondary
+                  .withOpacity((tintOpacity + 0.035).clamp(0.0, 0.32)),
+              prismPrimary.withOpacity((tintOpacity + 0.085).clamp(0.0, 0.42)),
             ],
-            stops: const [0.0, 0.42, 0.78, 1.0],
+            stops: const [0.0, 0.36, 0.74, 1.0],
           ),
         ),
         child: Container(
@@ -628,7 +635,7 @@ class IosGlassPillButton extends StatelessWidget {
   }
 }
 
-/// Theme-Aware Modal Bottom Sheet Container (Liquid Glass & Neo-Brutalism)
+/// Theme-Aware Modal Bottom Sheet Container (True Frosted Liquid Glass & Authentic Neo-Brutalism)
 class ZunifySheetContainer extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -647,31 +654,79 @@ class ZunifySheetContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
     final isBrutal = theme.isNeoBrutalism;
-    final topRadius = isBrutal ? 18.0 : 28.0;
 
-    return Container(
-      height: height,
-      constraints: constraints,
-      padding: padding,
-      decoration: BoxDecoration(
-        color: theme.sheetBgColor,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
-        border: Border(
-          top: BorderSide(
-            color: isBrutal
-                ? theme.brutalBorderColor
-                : Colors.white.withOpacity(0.12),
-            width: isBrutal ? 2.8 : 1.0,
+    if (isBrutal) {
+      return Container(
+        height: height,
+        constraints: constraints,
+        padding: padding,
+        decoration: BoxDecoration(
+          color: theme.sheetBgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          border: Border(
+            top: BorderSide(color: theme.brutalBorderColor, width: 2.8),
+            left: BorderSide(color: theme.brutalBorderColor, width: 2.2),
+            right: BorderSide(color: theme.brutalBorderColor, width: 2.2),
           ),
-          left: isBrutal
-              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
-              : BorderSide.none,
-          right: isBrutal
-              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
-              : BorderSide.none,
+        ),
+        child: child,
+      );
+    }
+
+    // Real-Time Frosted Optical Liquid Glass Sheet
+    final accent = theme.accentColor;
+    final secondary = theme.secondaryAccentColor;
+    final blurSigma = (theme.glassBlurSigma * 1.18).clamp(18.0, 34.0);
+
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        child: CustomPaint(
+          foregroundPainter: _LiquidGlassRimPainter(
+            borderRadius: 30,
+            rimIntensity: 0.48,
+            accentTint: accent,
+          ),
+          child: Container(
+            height: height,
+            constraints: constraints,
+            padding: padding,
+            decoration: BoxDecoration(
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(30)),
+              gradient: LinearGradient(
+                begin: const Alignment(-0.90, -1.0),
+                end: const Alignment(0.90, 1.0),
+                colors: [
+                  Color.lerp(
+                    const Color(0xFF10182E),
+                    accent,
+                    0.26,
+                  )!
+                      .withOpacity(0.76),
+                  const Color(0xFF0A0F1E).withOpacity(0.80),
+                  Color.lerp(
+                    const Color(0xFF090D1A),
+                    secondary,
+                    0.20,
+                  )!
+                      .withOpacity(0.84),
+                ],
+                stops: const [0.0, 0.52, 1.0],
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.45),
+                  blurRadius: 32,
+                  offset: const Offset(0, -8),
+                ),
+              ],
+            ),
+            child: child,
+          ),
         ),
       ),
-      child: child,
     );
   }
 }
@@ -810,20 +865,41 @@ class LiquidBackgroundWidget extends StatefulWidget {
 }
 
 class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _controller;
+  bool _appResumed = true;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 24),
+      duration: const Duration(seconds: 26),
     )..repeat();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _appResumed = state == AppLifecycleState.resumed;
+    _syncTickerState();
+  }
+
+  void _syncTickerState({bool? isBrutalOverride}) {
+    if (!mounted) return;
+    final isBrutal =
+        isBrutalOverride ?? context.read<ThemeProvider>().isNeoBrutalism;
+    final shouldAnimate = _appResumed && !isBrutal;
+    if (shouldAnimate && !_controller.isAnimating) {
+      _controller.repeat();
+    } else if (!shouldAnimate && _controller.isAnimating) {
+      _controller.stop();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     super.dispose();
   }
@@ -838,8 +914,11 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
         context.select<ThemeProvider, double>((t) => t.blurIntensity);
     final animSpeed = context
         .select<ThemeProvider, double>((t) => t.animationSpeedMultiplier);
+
+    _syncTickerState(isBrutalOverride: isBrutal);
+
     final effectiveIntensity =
-        (widget.intensity * (0.60 + 0.48 * blurMult)).clamp(0.18, 0.82);
+        (widget.intensity * (0.72 + 0.48 * blurMult)).clamp(0.24, 0.88);
     final blurSigma = (44.0 * blurMult).clamp(20.0, 54.0);
     final speedFactor = (1.0 / animSpeed).clamp(0.55, 1.45);
 
@@ -871,7 +950,7 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
               ColoredBox(color: widget.baseColor),
               if (widget.imageUrl != null && widget.imageUrl!.isNotEmpty)
                 Opacity(
-                  opacity: (effectiveIntensity * 0.80).clamp(0.0, 0.72),
+                  opacity: (effectiveIntensity * 0.86).clamp(0.0, 0.78),
                   child: ImageFiltered(
                     imageFilter: ImageFilter.blur(
                       sigmaX: blurSigma,
@@ -902,7 +981,7 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
                         primaryColor:
                             widget.primaryColor.withOpacity(effectiveIntensity),
                         secondaryColor: widget.secondaryColor
-                            .withOpacity(effectiveIntensity * 0.84),
+                            .withOpacity(effectiveIntensity * 0.90),
                       ),
                     );
                   },
@@ -915,11 +994,11 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        widget.baseColor.withOpacity(0.18),
-                        widget.baseColor.withOpacity(0.54),
-                        widget.baseColor.withOpacity(0.86),
+                        widget.baseColor.withOpacity(0.10),
+                        widget.baseColor.withOpacity(0.38),
+                        widget.baseColor.withOpacity(0.70),
                       ],
-                      stops: const [0.0, 0.54, 1.0],
+                      stops: const [0.0, 0.52, 1.0],
                     ),
                   ),
                 ),

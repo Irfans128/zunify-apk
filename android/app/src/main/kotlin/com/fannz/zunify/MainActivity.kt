@@ -1,8 +1,10 @@
 package com.fannz.zunify
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
@@ -24,8 +26,12 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
 import android.util.Base64
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -48,10 +54,13 @@ class MainActivity : AudioServiceFragmentActivity() {
     private var virtualizer: Virtualizer? = null
     private var currentSessionId: Int = -1
     private val mainHandler = Handler(Looper.getMainLooper())
+    private var methodChannel: MethodChannel? = null
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var lastPartialTranscript: String = ""
+    private var pendingVoiceLang: String = "auto"
     private var pendingImageResult: MethodChannel.Result? = null
-    private var pendingVoiceResult: MethodChannel.Result? = null
     private val REQ_PICK_IMAGE = 9401
-    private val REQ_VOICE_SEARCH = 9402
+    private val REQ_RECORD_AUDIO = 9403
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -92,7 +101,9 @@ class MainActivity : AudioServiceFragmentActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        methodChannel = channel
+        channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "initAudioEffects" -> {
                     val sessionId = call.argument<Int>("sessionId") ?: 0
@@ -232,28 +243,227 @@ class MainActivity : AudioServiceFragmentActivity() {
                         }
                     }
                 }
-                "startVoiceSearch" -> {
-                    try {
-                        pendingVoiceResult = result
-                        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                            putExtra(
-                                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                            )
-                            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "id-ID")
-                            putExtra(
-                                RecognizerIntent.EXTRA_PROMPT,
-                                "Sebutkan judul lagu, artis, atau lirik..."
-                            )
-                            putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-                        }
-                        startActivityForResult(intent, REQ_VOICE_SEARCH)
-                    } catch (e: Exception) {
-                        pendingVoiceResult = null
-                        result.success(null)
+                "startCustomVoice" -> {
+                    val lang = call.argument<String>("lang") ?: "auto"
+                    pendingVoiceLang = lang
+                    if (ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.RECORD_AUDIO
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        ActivityCompat.requestPermissions(
+                            this,
+                            arrayOf(Manifest.permission.RECORD_AUDIO),
+                            REQ_RECORD_AUDIO
+                        )
+                        result.success("permission_requested")
+                    } else {
+                        launchCustomSpeechRecognizer(lang)
+                        result.success("started")
                     }
                 }
+                "stopCustomVoice" -> {
+                    mainHandler.post {
+                        try {
+                            speechRecognizer?.stopListening()
+                        } catch (_: Exception) {}
+                    }
+                    result.success(true)
+                }
+                "cancelCustomVoice" -> {
+                    destroySpeechRecognizer()
+                    result.success(true)
+                }
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun sendVoiceEvent(payload: Map<String, Any?>) {
+        mainHandler.post {
+            try {
+                methodChannel?.invokeMethod("onVoiceEvent", payload)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun destroySpeechRecognizer() {
+        mainHandler.post {
+            try {
+                speechRecognizer?.cancel()
+            } catch (_: Exception) {}
+            try {
+                speechRecognizer?.destroy()
+            } catch (_: Exception) {}
+            speechRecognizer = null
+        }
+    }
+
+    private fun launchCustomSpeechRecognizer(lang: String) {
+        mainHandler.post {
+            try {
+                speechRecognizer?.cancel()
+                speechRecognizer?.destroy()
+            } catch (_: Exception) {}
+            speechRecognizer = null
+            lastPartialTranscript = ""
+
+            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                sendVoiceEvent(
+                    mapOf(
+                        "type" to "error",
+                        "code" to -1,
+                        "message" to "Layanan pengenal suara belum tersedia di perangkat ini."
+                    )
+                )
+                return@post
+            }
+
+            try {
+                val recognizer = SpeechRecognizer.createSpeechRecognizer(this)
+                speechRecognizer = recognizer
+
+                recognizer.setRecognitionListener(object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) {
+                        sendVoiceEvent(mapOf("type" to "ready"))
+                    }
+
+                    override fun onBeginningOfSpeech() {
+                        sendVoiceEvent(mapOf("type" to "speaking"))
+                    }
+
+                    override fun onRmsChanged(rmsdB: Float) {
+                        sendVoiceEvent(
+                            mapOf(
+                                "type" to "rms",
+                                "rms" to rmsdB.toDouble()
+                            )
+                        )
+                    }
+
+                    override fun onBufferReceived(buffer: ByteArray?) {}
+
+                    override fun onEndOfSpeech() {
+                        sendVoiceEvent(mapOf("type" to "processing"))
+                    }
+
+                    override fun onPartialResults(partialResults: Bundle?) {
+                        val partials = partialResults
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val text = partials?.firstOrNull { it.isNotBlank() }?.trim() ?: ""
+                        if (text.isNotEmpty()) {
+                            lastPartialTranscript = text
+                            sendVoiceEvent(
+                                mapOf(
+                                    "type" to "partial",
+                                    "text" to text
+                                )
+                            )
+                        }
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        val matches = results
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                        val best = matches?.firstOrNull { it.isNotBlank() }?.trim()
+                            ?: lastPartialTranscript.trim()
+                        if (best.isNotEmpty()) {
+                            sendVoiceEvent(
+                                mapOf(
+                                    "type" to "result",
+                                    "text" to best
+                                )
+                            )
+                        } else {
+                            sendVoiceEvent(
+                                mapOf(
+                                    "type" to "error",
+                                    "code" to SpeechRecognizer.ERROR_NO_MATCH
+                                )
+                            )
+                        }
+                    }
+
+                    override fun onError(error: Int) {
+                        if ((error == SpeechRecognizer.ERROR_NO_MATCH ||
+                                error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) &&
+                            lastPartialTranscript.isNotBlank()
+                        ) {
+                            val fallback = lastPartialTranscript.trim()
+                            lastPartialTranscript = ""
+                            sendVoiceEvent(
+                                mapOf(
+                                    "type" to "result",
+                                    "text" to fallback
+                                )
+                            )
+                            return
+                        }
+                        sendVoiceEvent(
+                            mapOf(
+                                "type" to "error",
+                                "code" to error
+                            )
+                        )
+                    }
+
+                    override fun onEvent(eventType: Int, params: Bundle?) {}
+                })
+
+                val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(
+                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH
+                    )
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
+                    putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+                    putExtra(
+                        RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
+                        850L
+                    )
+                    putExtra(
+                        RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
+                        700L
+                    )
+                    putStringArrayListExtra(
+                        "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES",
+                        arrayListOf("id-ID", "en-US", "ja-JP", "ko-KR")
+                    )
+                    if (lang != "auto" && lang.isNotBlank()) {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, lang)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, lang)
+                    } else {
+                        putExtra("android.speech.extra.ENABLE_MULTILANG", true)
+                    }
+                }
+
+                recognizer.startListening(intent)
+            } catch (e: Exception) {
+                sendVoiceEvent(
+                    mapOf(
+                        "type" to "error",
+                        "code" to -2,
+                        "message" to (e.message ?: "Voice engine gagal dijalankan")
+                    )
+                )
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_RECORD_AUDIO) {
+            if (grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            ) {
+                launchCustomSpeechRecognizer(pendingVoiceLang)
+            } else {
+                sendVoiceEvent(mapOf("type" to "permission_denied"))
             }
         }
     }
@@ -261,19 +471,6 @@ class MainActivity : AudioServiceFragmentActivity() {
     @Deprecated("Deprecated in Java")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == REQ_VOICE_SEARCH) {
-            val cb = pendingVoiceResult
-            pendingVoiceResult = null
-            if (cb == null) return
-            if (resultCode == Activity.RESULT_OK && data != null) {
-                val matches = data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-                val topMatch = matches?.firstOrNull { it.isNotBlank() }?.trim()
-                cb.success(topMatch)
-            } else {
-                cb.success(null)
-            }
-            return
-        }
         if (requestCode == REQ_PICK_IMAGE) {
             val cb = pendingImageResult
             pendingImageResult = null
@@ -652,6 +849,8 @@ class MainActivity : AudioServiceFragmentActivity() {
     }
 
     override fun onDestroy() {
+        destroySpeechRecognizer()
+        methodChannel = null
         releaseEffects()
         super.onDestroy()
     }

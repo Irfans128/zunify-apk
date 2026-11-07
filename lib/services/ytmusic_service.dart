@@ -54,6 +54,11 @@ class YTMusicService {
   final Map<String, _CachedStreamEntry> _streamCache = {};
   final Map<String, List<ZunifySong>> _searchCache = {};
 
+  YTMusicService() {
+    // Pre-warm InnerTube visitorData asynchronously so first stream starts faster
+    unawaited(_getVisitorData());
+  }
+
   String _generateRandomToken(int length) {
     final sb = StringBuffer();
     for (int i = 0; i < length; i++) {

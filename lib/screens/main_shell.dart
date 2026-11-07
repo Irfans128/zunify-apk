@@ -31,15 +31,27 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   Timer? _broadcastPollTimer;
+  late final List<Widget> _screens;
 
   @override
   void initState() {
     super.initState();
+    _screens = [
+      HomeScreen(ytMusicService: widget.ytMusicService),
+      SearchScreen(ytMusicService: widget.ytMusicService),
+      const LibraryScreen(),
+      const SettingsScreen(),
+    ];
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkSunday18WIBRapotPopup();
       _checkBackgroundUpdate();
     });
+    _startBroadcastTimer();
+  }
+
+  void _startBroadcastTimer() {
+    _broadcastPollTimer?.cancel();
     _broadcastPollTimer = Timer.periodic(
       const Duration(minutes: 3),
       (_) => _pollBroadcastOnly(),
@@ -57,6 +69,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _pollBroadcastOnly();
+      _startBroadcastTimer();
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _broadcastPollTimer?.cancel();
+      _broadcastPollTimer = null;
     }
   }
 
@@ -290,21 +307,21 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final library = context.watch<LibraryProvider>();
-    final theme = context.watch<ThemeProvider>();
-    final player = context.watch<PlayerProvider>();
-    final accent = theme.accentColor;
-
-    if (!library.hasCompletedOnboarding) {
+    final hasCompletedOnboarding = context.select<LibraryProvider, bool>(
+      (l) => l.hasCompletedOnboarding,
+    );
+    if (!hasCompletedOnboarding) {
       return const OnboardingScreen();
     }
 
-    final screens = [
-      HomeScreen(ytMusicService: widget.ytMusicService),
-      SearchScreen(ytMusicService: widget.ytMusicService),
-      const LibraryScreen(),
-      const SettingsScreen(),
-    ];
+    final theme = context.watch<ThemeProvider>();
+    final accent = theme.accentColor;
+    final currentArtUrl = context.select<PlayerProvider, String?>(
+      (p) => p.currentSong?.highResArtUrl,
+    );
+    final hasCurrentSong = context.select<PlayerProvider, bool>(
+      (p) => p.currentSong != null,
+    );
 
     return Scaffold(
       backgroundColor: theme.scaffoldBgColor,
@@ -314,28 +331,30 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         primaryColor: theme.playerAmbientColor,
         secondaryColor: theme.secondaryAccentColor,
         baseColor: theme.scaffoldBgColor,
-        imageUrl: player.currentSong?.highResArtUrl,
-        intensity: (0.44 * theme.blurIntensity).clamp(0.18, 0.56),
+        imageUrl: currentArtUrl,
+        intensity: (0.46 * theme.blurIntensity).clamp(0.20, 0.60),
         child: Stack(
           children: [
-            TweenAnimationBuilder<double>(
-              key: ValueKey<int>(_selectedIndex),
-              tween: Tween<double>(begin: 0.985, end: 1.0),
-              duration: theme.animDuration(210),
-              curve: Curves.easeOutCubic,
-              builder: (context, value, child) {
-                final opacity = ((value - 0.985) / 0.015).clamp(0.0, 1.0);
-                return Opacity(
-                  opacity: 0.76 + (0.24 * opacity),
-                  child: Transform.scale(
-                    scale: value,
-                    child: child,
-                  ),
-                );
-              },
-              child: IndexedStack(
-                index: _selectedIndex,
-                children: screens,
+            RepaintBoundary(
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey<int>(_selectedIndex),
+                tween: Tween<double>(begin: 0.988, end: 1.0),
+                duration: theme.animDuration(190),
+                curve: Curves.easeOutCubic,
+                builder: (context, value, child) {
+                  final opacity = ((value - 0.988) / 0.012).clamp(0.0, 1.0);
+                  return Opacity(
+                    opacity: 0.80 + (0.20 * opacity),
+                    child: Transform.scale(
+                      scale: value,
+                      child: child,
+                    ),
+                  );
+                },
+                child: IndexedStack(
+                  index: _selectedIndex,
+                  children: _screens,
+                ),
               ),
             ),
 
@@ -347,17 +366,28 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (player.currentSong != null) ...[
-                    _buildFloatingMiniPlayer(
-                      context,
-                      player,
-                      library,
-                      theme,
-                      accent,
+                  if (hasCurrentSong) ...[
+                    RepaintBoundary(
+                      child: Consumer2<PlayerProvider, LibraryProvider>(
+                        builder: (ctx, player, library, _) {
+                          if (player.currentSong == null) {
+                            return const SizedBox.shrink();
+                          }
+                          return _buildFloatingMiniPlayer(
+                            ctx,
+                            player,
+                            library,
+                            theme,
+                            accent,
+                          );
+                        },
+                      ),
                     ),
                     const SizedBox(height: 8),
                   ],
-                  _buildBitChordFloatingTabBar(theme, accent),
+                  RepaintBoundary(
+                    child: _buildBitChordFloatingTabBar(theme, accent),
+                  ),
                 ],
               ),
             ),
@@ -530,17 +560,27 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           Navigator.of(context).push(
             PageRouteBuilder(
               transitionDuration: theme.animDuration(320),
-              reverseTransitionDuration: theme.animDuration(260),
+              reverseTransitionDuration: theme.animDuration(250),
               pageBuilder: (_, __, ___) => const NowPlayingScreen(),
               transitionsBuilder: (_, anim, __, child) {
-                return SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(0, 1),
-                    end: Offset.zero,
-                  ).animate(
-                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic),
+                final slideCurve = CurvedAnimation(
+                  parent: anim,
+                  curve: Curves.easeOutQuart,
+                  reverseCurve: Curves.easeInCubic,
+                );
+                final fadeCurve = CurvedAnimation(
+                  parent: anim,
+                  curve: const Interval(0.0, 0.55, curve: Curves.easeOut),
+                );
+                return FadeTransition(
+                  opacity: Tween<double>(begin: 0.35, end: 1.0).animate(fadeCurve),
+                  child: SlideTransition(
+                    position: Tween<Offset>(
+                      begin: const Offset(0, 0.94),
+                      end: Offset.zero,
+                    ).animate(slideCurve),
+                    child: RepaintBoundary(child: child),
                   ),
-                  child: child,
                 );
               },
             ),

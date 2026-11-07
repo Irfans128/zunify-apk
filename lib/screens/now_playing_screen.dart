@@ -814,8 +814,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                       Expanded(
                         child: _dockIcon(
-                          icon: Icons.bedtime_outlined,
-                          label: 'Timer',
+                          icon: player.hasActiveSleepTimer
+                              ? Icons.bedtime_rounded
+                              : Icons.bedtime_outlined,
+                          label: player.hasActiveSleepTimer
+                              ? player.formattedRemainingSleepTime
+                              : 'Timer',
                           active: player.hasActiveSleepTimer,
                           theme: theme,
                           accent: accent,
@@ -1272,36 +1276,22 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ? 0
                   : player.activeLyricIndex.clamp(0, lyrics.lines.length - 1);
 
-              return Stack(
-                children: [
-                  ShaderMask(
-                    shaderCallback: (rect) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Colors.white,
-                        Colors.white,
-                        Colors.transparent,
-                      ],
-                      stops: [0.0, 0.06, 0.88, 1.0],
-                    ).createShader(rect),
-                    blendMode: BlendMode.dstIn,
-                    child: NotificationListener<UserScrollNotification>(
-                      onNotification: (n) {
-                        _onUserScrollNotification(n);
-                        return false;
-                      },
-                      child: SingleChildScrollView(
-                        controller: _lyricsScrollController,
-                        physics: const BouncingScrollPhysics(),
-                        padding: EdgeInsets.only(
-                          top: topSafePad,
-                          bottom: bottomSafePad,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: List.generate(lyrics.lines.length, (index) {
+              final Widget lyricsScroll =
+                  NotificationListener<UserScrollNotification>(
+                    onNotification: (n) {
+                      _onUserScrollNotification(n);
+                      return false;
+                    },
+                    child: SingleChildScrollView(
+                      controller: _lyricsScrollController,
+                      physics: const BouncingScrollPhysics(),
+                      padding: EdgeInsets.only(
+                        top: topSafePad,
+                        bottom: bottomSafePad,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: List.generate(lyrics.lines.length, (index) {
                             final line = lyrics.lines[index];
                             final isActive = index == activeIdx;
                             final isPassed = index < activeIdx;
@@ -1325,6 +1315,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             final Widget lineBody = isInterlude
                                 ? _buildInterludeIndicator(
                                     isActive: isActive,
+                                    inactiveOpacity: itemOpacity,
                                     theme: theme,
                                     accent: accent,
                                     centerAligned: theme.lyricsCenterAligned,
@@ -1333,6 +1324,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   )
                                 : _buildBitChordLyricContent(
                                     isActive: isActive,
+                                    inactiveOpacity: itemOpacity,
                                     line: line,
                                     translatedText: (player.showTranslation &&
                                             lyrics.shouldShowTranslation)
@@ -1344,6 +1336,25 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     fontScale: theme.lyricsFontScale,
                                     nextTimestamp: nextTimestamp,
                                   );
+
+                            // Same-RGB fade base prevents dark/black RGB interpolation ("hitam2")
+                            // and constant border width prevents layout height jumps on scroll.
+                            final Color activeCardBase = isBrutal
+                                ? Color.lerp(theme.cardBgColor, accent, 0.34)!
+                                : Colors.white;
+                            final Color cardFill = activeCardBase.withOpacity(
+                              isActive ? (isBrutal ? 1.0 : 0.08) : 0.0,
+                            );
+                            final Color borderBase = isBrutal
+                                ? Color.lerp(
+                                    accent,
+                                    theme.brutalBorderColor,
+                                    0.55,
+                                  )!
+                                : Colors.white;
+                            final Color borderColor = borderBase.withOpacity(
+                              isActive ? (isBrutal ? 0.90 : 0.14) : 0.0,
+                            );
 
                             return _MeasuredLyricItem(
                               index: index,
@@ -1369,49 +1380,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     vertical: 11,
                                     horizontal: 14,
                                   ),
-                                  decoration: isBrutal && isActive
-                                      ? BoxDecoration(
-                                          color: Color.lerp(
-                                            theme.cardBgColor,
-                                            accent,
-                                            0.28,
-                                          ),
-                                          borderRadius:
-                                              BorderRadius.circular(13),
-                                          border: Border.all(
-                                            color: theme.brutalBorderColor,
-                                            width: 2.0,
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: theme.brutalShadowColor,
-                                              blurRadius: 0,
-                                              offset: const Offset(3.0, 3.0),
-                                            ),
-                                          ],
-                                        )
-                                      : BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(18),
-                                          color: isActive
-                                              ? Colors.white.withOpacity(0.06)
-                                              : Colors.transparent,
-                                        ),
+                                  decoration: BoxDecoration(
+                                    color: cardFill,
+                                    borderRadius: BorderRadius.circular(
+                                      isBrutal ? 13 : 18,
+                                    ),
+                                    border: Border.all(
+                                      color: borderColor,
+                                      width: isBrutal ? 1.6 : 1.0,
+                                    ),
+                                  ),
                                   child: AnimatedScale(
                                     scale: isActive
                                         ? 1.0
-                                        : (distance == 1 ? 0.95 : 0.92),
+                                        : (distance == 1 ? 0.96 : 0.93),
                                     alignment: theme.lyricsCenterAligned
                                         ? Alignment.center
                                         : Alignment.centerLeft,
-                                    duration: theme.animDuration(300),
+                                    duration: theme.animDuration(280),
                                     curve: Curves.easeOutCubic,
-                                    child: AnimatedOpacity(
-                                      duration: theme.animDuration(240),
-                                      curve: Curves.easeOutCubic,
-                                      opacity: itemOpacity,
-                                      child: lineBody,
-                                    ),
+                                    child: lineBody,
                                   ),
                                 ),
                               ),
@@ -1419,8 +1407,67 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           }),
                         ),
                       ),
+                    );
+
+              final Color paperBg = theme.scaffoldBgColor;
+
+              return Stack(
+                children: [
+                  if (isBrutal)
+                    lyricsScroll
+                  else
+                    ShaderMask(
+                      shaderCallback: (rect) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.white,
+                          Colors.white,
+                          Colors.transparent,
+                        ],
+                        stops: [0.0, 0.06, 0.88, 1.0],
+                      ).createShader(rect),
+                      blendMode: BlendMode.dstIn,
+                      child: lyricsScroll,
                     ),
-                  ),
+
+                  if (isBrutal) ...[
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: 30,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [paperBg, paperBg.withOpacity(0.0)],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      height: 52,
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [paperBg, paperBg.withOpacity(0.0)],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
 
                   // "Ikuti Lirik" button when user scrolls manually
                   if (_userScrollingLyrics)
@@ -1620,6 +1667,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
   Widget _buildBitChordLyricContent({
     required bool isActive,
+    required double inactiveOpacity,
     required LyricLine line,
     required String? translatedText,
     required ThemeProvider theme,
@@ -1647,35 +1695,43 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final textAlign = centerAligned ? TextAlign.center : TextAlign.left;
 
     if (!isActive) {
-      return Column(
-        crossAxisAlignment: crossAlign,
-        children: [
-          if (words.isNotEmpty)
-            Wrap(
-              alignment: wrapAlign,
-              spacing: 6.0,
-              runSpacing: 4,
-              children: words
-                  .map((w) => Text(w.text, style: baseStyle))
-                  .toList(),
-            )
-          else
-            Text(displayText, textAlign: textAlign, style: baseStyle),
-          if (translatedText != null && translatedText.isNotEmpty) ...[
-            const SizedBox(height: 5),
-            Text(
-              translatedText,
-              textAlign: textAlign,
-              style: GoogleFonts.dmSans(
-                color: theme.textSecondary,
-                fontSize: 14.2 * fontScale,
-                fontStyle: FontStyle.italic,
-                fontWeight: FontWeight.w600,
-                height: 1.28,
+      final dimmedStyle = baseStyle.copyWith(
+        color: fgColor.withOpacity(inactiveOpacity.clamp(0.14, 1.0)),
+      );
+      return AnimatedDefaultTextStyle(
+        duration: theme.animDuration(220),
+        curve: Curves.easeOutCubic,
+        style: dimmedStyle,
+        child: Column(
+          crossAxisAlignment: crossAlign,
+          children: [
+            if (words.isNotEmpty)
+              Wrap(
+                alignment: wrapAlign,
+                spacing: 6.0,
+                runSpacing: 4,
+                children: words.map((w) => Text(w.text)).toList(),
+              )
+            else
+              Text(displayText, textAlign: textAlign),
+            if (translatedText != null && translatedText.isNotEmpty) ...[
+              const SizedBox(height: 5),
+              Text(
+                translatedText,
+                textAlign: textAlign,
+                style: GoogleFonts.dmSans(
+                  color: theme.textSecondary.withOpacity(
+                    (inactiveOpacity * 1.15).clamp(0.18, 0.90),
+                  ),
+                  fontSize: 14.2 * fontScale,
+                  fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w600,
+                  height: 1.28,
+                ),
               ),
-            ),
+            ],
           ],
-        ],
+        ),
       );
     }
 
@@ -1770,6 +1826,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   /// 3 Animated Instrumental Dots (`•  •  •`)
   Widget _buildInterludeIndicator({
     required bool isActive,
+    required double inactiveOpacity,
     required ThemeProvider theme,
     required Color accent,
     required bool centerAligned,
@@ -1791,7 +1848,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               height: 9,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: fgColor.withOpacity(0.28),
+                color: fgColor.withOpacity(
+                  (0.45 * inactiveOpacity).clamp(0.10, 0.35),
+                ),
               ),
             );
           }),
@@ -1920,6 +1979,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             children: [
               CachedNetworkImage(
                 imageUrl: imageUrl,
+                memCacheWidth: 720,
                 fit: BoxFit.cover,
                 fadeInDuration: const Duration(milliseconds: 180),
                 errorWidget: (_, __, ___) => Container(

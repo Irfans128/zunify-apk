@@ -75,6 +75,7 @@ class PlayerProvider extends ChangeNotifier {
   // Feature #1: Crossfade & Gapless Transition (0 = Off, 3..8s = Smooth Crossfade)
   int _crossfadeSeconds = 4;
   bool _crossfadeTriggeredForCurrent = false;
+  bool _isCrossfadingHandoff = false;
   Timer? _fadeInTimer;
 
   // Zunify 2.0 Studio Speed & Pitch + Audio Output Format Badge
@@ -109,8 +110,10 @@ class PlayerProvider extends ChangeNotifier {
 
   // Sleep Timer State
   Timer? _sleepTimer;
+  Timer? _sleepFadeTimer;
   DateTime? _sleepTimerEndTime;
   bool _stopAfterCurrentSong = false;
+  bool _isSleepFadingOut = false;
 
   // Hardware Equalizer State (OFF by default, flat "Normal" preset)
   bool _eqEnabled = false;
@@ -234,6 +237,20 @@ class PlayerProvider extends ChangeNotifier {
     return diff.isNegative ? Duration.zero : diff;
   }
 
+  String get formattedRemainingSleepTime {
+    if (_stopAfterCurrentSong) return 'Akhir Lagu';
+    final rem = remainingSleepTime;
+    if (rem == null) return '';
+    final totalSecs = (rem.inMilliseconds / 1000).ceil().clamp(0, 86400);
+    final hrs = totalSecs ~/ 3600;
+    final mins = (totalSecs % 3600) ~/ 60;
+    final secs = totalSecs % 60;
+    if (hrs > 0) {
+      return '${hrs}:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+    }
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
   bool get eqEnabled => _eqEnabled;
   String get selectedEqPresetName => _selectedEqPresetName;
   List<int> get bandLevels => List.unmodifiable(_bandLevels);
@@ -287,10 +304,11 @@ class PlayerProvider extends ChangeNotifier {
       }
     });
 
-    // Coarse position updates (precise lyric sync runs on its own ticker) + Smooth Crossfade
+    // Coarse position updates (precise lyric sync runs on its own ticker) + Smooth Crossfade + Doze-safe Sleep Timer check
     _audioPlayer.positionStream.listen((pos) {
       _updateActiveLyricLine(pos);
       _handleCrossfadeTick(pos);
+      _checkSleepTimerDeadline(fromStream: true);
     });
 
     _audioPlayer.playerStateStream.listen((state) {
@@ -304,7 +322,9 @@ class PlayerProvider extends ChangeNotifier {
         _flushListenLog();
         if (_stopAfterCurrentSong) {
           cancelSleepTimer();
-          _audioPlayer.pause();
+          unawaited(_audioHandler?.pause() ?? _audioPlayer.pause());
+        } else if (_isLoadingTrack || _isCrossfadingHandoff) {
+          // Crossfade or manual skip load is already in flight — prevent double-skip
         } else if (_repeatMode == 2 && _currentSong != null) {
           _audioPlayer.seek(Duration.zero);
           _audioPlayer.play();
@@ -358,6 +378,8 @@ class PlayerProvider extends ChangeNotifier {
     if (_crossfadeSeconds <= 0 ||
         !_audioPlayer.playing ||
         _isLoadingTrack ||
+        _isCrossfadingHandoff ||
+        _isSleepFadingOut ||
         _repeatMode == 2 ||
         _stopAfterCurrentSong) {
       return;
@@ -373,8 +395,9 @@ class PlayerProvider extends ChangeNotifier {
       final ratio = (remainingMs / fadeWindowMs).clamp(0.18, 1.0);
       _audioPlayer.setVolume(ratio);
 
-      if (remainingMs <= 650 && !_crossfadeTriggeredForCurrent) {
+      if (remainingMs <= 750 && !_crossfadeTriggeredForCurrent) {
         _crossfadeTriggeredForCurrent = true;
+        _isCrossfadingHandoff = true;
         playNext(fromCompletion: true);
       }
     }
@@ -899,11 +922,12 @@ class PlayerProvider extends ChangeNotifier {
 
       _isLoadingTrack = false;
       _trackPlayStartedAt = DateTime.now();
-      final wasCrossfaded = _crossfadeTriggeredForCurrent;
+      final wasCrossfaded = _crossfadeTriggeredForCurrent || _isCrossfadingHandoff;
       _crossfadeTriggeredForCurrent = false;
-      if (wasCrossfaded && _crossfadeSeconds > 0) {
+      _isCrossfadingHandoff = false;
+      if (wasCrossfaded && _crossfadeSeconds > 0 && !_isSleepFadingOut) {
         _startSmoothFadeIn();
-      } else {
+      } else if (!_isSleepFadingOut) {
         _fadeInTimer?.cancel();
         _audioPlayer.setVolume(1.0);
       }
@@ -915,17 +939,16 @@ class PlayerProvider extends ChangeNotifier {
       unawaited(_audioPlayer.play());
       unawaited(_libraryProvider.addToRecentlyPlayed(song));
 
-      if (song.highResArtUrl.isNotEmpty) {
-        _themeProvider.updateDynamicColorFromImage(
-          CachedNetworkImageProvider(song.highResArtUrl),
-        );
-      }
-
       _prefetchNext();
       _maybeFillAutoplay();
     } catch (_) {
       if (token == _playToken) {
         _isLoadingTrack = false;
+        _crossfadeTriggeredForCurrent = false;
+        _isCrossfadingHandoff = false;
+        if (!_isSleepFadingOut) {
+          _audioPlayer.setVolume(1.0);
+        }
         notifyListeners();
       }
     }
@@ -933,14 +956,17 @@ class PlayerProvider extends ChangeNotifier {
 
   void _prefetchNext() {
     if (_offlineModeEnabled) return;
-    if (_currentIndex + 1 < _queue.length) {
-      final next = _queue[_currentIndex + 1];
-      if (!_libraryProvider.isDownloaded(next.videoId)) {
-        _ytMusicService.prefetchNextSongStream(
-          next.videoId,
-          highQuality: _audioQualityTier == 'high',
-          qualityTier: _audioQualityTier,
-        );
+    // Prefetch up to 2 upcoming tracks so consecutive skips & crossfades have 0ms stream wait
+    for (int offset = 1; offset <= 2; offset++) {
+      if (_currentIndex + offset < _queue.length) {
+        final upcoming = _queue[_currentIndex + offset];
+        if (!_libraryProvider.isDownloaded(upcoming.videoId)) {
+          _ytMusicService.prefetchNextSongStream(
+            upcoming.videoId,
+            highQuality: _audioQualityTier == 'high',
+            qualityTier: _audioQualityTier,
+          );
+        }
       }
     }
   }
@@ -1030,7 +1056,11 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> playNext({bool fromCompletion = false}) async {
     if (_queue.isEmpty) return;
 
-    if (!fromCompletion) _registerSkipSignal();
+    if (!fromCompletion) {
+      _crossfadeTriggeredForCurrent = false;
+      _isCrossfadingHandoff = false;
+      _registerSkipSignal();
+    }
 
     if (_currentIndex + 1 < _queue.length) {
       await _playAt(_currentIndex + 1);
@@ -1071,6 +1101,12 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> seekTo(Duration position) async {
+    _crossfadeTriggeredForCurrent = false;
+    _isCrossfadingHandoff = false;
+    if (!_isSleepFadingOut) {
+      _fadeInTimer?.cancel();
+      _audioPlayer.setVolume(1.0);
+    }
     await _audioPlayer.seek(position);
     _updateActiveLyricLine(position);
   }
@@ -1388,17 +1424,81 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Sleep Timer
+  // Sleep Timer (Real-Time 1s Countdown + Doze-Safe Stream Check + Smooth Fade-Out)
   // ---------------------------------------------------------------------------
   void setSleepTimerDuration(Duration duration) {
-    cancelSleepTimer();
+    _sleepTimer?.cancel();
+    _sleepFadeTimer?.cancel();
+    if (_isSleepFadingOut) {
+      _isSleepFadingOut = false;
+      _audioPlayer.setVolume(1.0);
+    }
     _stopAfterCurrentSong = false;
     _sleepTimerEndTime = DateTime.now().add(duration);
-    _sleepTimer = Timer(duration, () {
-      _audioPlayer.pause();
-      cancelSleepTimer();
+    _sleepTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _checkSleepTimerDeadline(fromStream: false);
     });
     notifyListeners();
+  }
+
+  void addSleepTimerMinutes(int minutes) {
+    if (_sleepTimerEndTime != null) {
+      _sleepTimerEndTime = _sleepTimerEndTime!.add(Duration(minutes: minutes));
+      notifyListeners();
+    } else {
+      setSleepTimerDuration(Duration(minutes: minutes));
+    }
+  }
+
+  void _checkSleepTimerDeadline({required bool fromStream}) {
+    final target = _sleepTimerEndTime;
+    if (target == null || _isSleepFadingOut) return;
+    final remaining = target.difference(DateTime.now());
+    if (remaining <= Duration.zero) {
+      _triggerSleepTimerStop();
+    } else if (!fromStream) {
+      notifyListeners();
+    }
+  }
+
+  void _triggerSleepTimerStop() {
+    if (_isSleepFadingOut) return;
+    _isSleepFadingOut = true;
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndTime = null;
+    _stopAfterCurrentSong = false;
+    _fadeInTimer?.cancel();
+    notifyListeners();
+
+    if (!_audioPlayer.playing) {
+      _isSleepFadingOut = false;
+      _audioPlayer.setVolume(1.0);
+      return;
+    }
+
+    int step = 0;
+    const totalSteps = 8;
+    _sleepFadeTimer?.cancel();
+    _sleepFadeTimer = Timer.periodic(const Duration(milliseconds: 140), (t) async {
+      step++;
+      final vol = (1.0 - (step / totalSteps)).clamp(0.0, 1.0);
+      _audioPlayer.setVolume(vol);
+      if (step >= totalSteps) {
+        t.cancel();
+        _sleepFadeTimer = null;
+        try {
+          await (_audioHandler?.pause() ?? _audioPlayer.pause());
+        } catch (_) {
+          try {
+            await _audioPlayer.pause();
+          } catch (_) {}
+        }
+        _audioPlayer.setVolume(1.0);
+        _isSleepFadingOut = false;
+        notifyListeners();
+      }
+    });
   }
 
   void setSleepTimerEndOfTrack() {
@@ -1410,6 +1510,12 @@ class PlayerProvider extends ChangeNotifier {
   void cancelSleepTimer() {
     _sleepTimer?.cancel();
     _sleepTimer = null;
+    _sleepFadeTimer?.cancel();
+    _sleepFadeTimer = null;
+    if (_isSleepFadingOut) {
+      _isSleepFadingOut = false;
+      _audioPlayer.setVolume(1.0);
+    }
     _sleepTimerEndTime = null;
     _stopAfterCurrentSong = false;
     notifyListeners();
@@ -1521,6 +1627,8 @@ class PlayerProvider extends ChangeNotifier {
   void dispose() {
     _flushListenLog();
     _sleepTimer?.cancel();
+    _sleepFadeTimer?.cancel();
+    _fadeInTimer?.cancel();
     _stopLyricsTicker();
     _audioPlayer.dispose();
     super.dispose();

@@ -34,10 +34,17 @@ class ThemeProvider extends ChangeNotifier {
   static const List<ZunifyAccentPreset> accentPresets = [
     ZunifyAccentPreset(
       id: 'ios_liquid',
-      name: 'Liquid Pearl',
-      subtitle: 'Biru kristal',
-      primary: Color(0xFF60A5FA),
+      name: 'Liquid Crystal',
+      subtitle: 'Biru safir & aurora',
+      primary: Color(0xFF38BDF8),
       secondary: Color(0xFFC084FC),
+    ),
+    ZunifyAccentPreset(
+      id: 'aurora_prism',
+      name: 'Aurora Prism',
+      subtitle: 'Sian & zamrud kaca',
+      primary: Color(0xFF22D3EE),
+      secondary: Color(0xFF34D399),
     ),
     ZunifyAccentPreset(
       id: 'brutal_amber',
@@ -48,31 +55,31 @@ class ThemeProvider extends ChangeNotifier {
     ),
     ZunifyAccentPreset(
       id: 'crimson_z',
-      name: 'Crimson Red',
-      subtitle: 'Merah berani',
+      name: 'Crimson Glow',
+      subtitle: 'Merah rubi cerah',
       primary: Color(0xFFFF4D6D),
-      secondary: Color(0xFFFF758F),
+      secondary: Color(0xFFFF8FA3),
     ),
     ZunifyAccentPreset(
       id: 'rose_quartz',
-      name: 'Coral Pink',
-      subtitle: 'Pink cerah',
+      name: 'Rose Iridescent',
+      subtitle: 'Merah muda kristal',
       primary: Color(0xFFF472B6),
-      secondary: Color(0xFFFB7185),
+      secondary: Color(0xFFA78BFA),
     ),
     ZunifyAccentPreset(
       id: 'lavender',
-      name: 'Electric Violet',
-      subtitle: 'Ungu kontras',
+      name: 'Violet Nebula',
+      subtitle: 'Ungu elektrik',
       primary: Color(0xFFA78BFA),
-      secondary: Color(0xFFF472B6),
+      secondary: Color(0xFF38BDF8),
     ),
     ZunifyAccentPreset(
       id: 'matcha',
-      name: 'Mint Green',
-      subtitle: 'Hijau segar',
+      name: 'Emerald Frost',
+      subtitle: 'Hijau mint jernih',
       primary: Color(0xFF34D399),
-      secondary: Color(0xFF6EE7B7),
+      secondary: Color(0xFF60A5FA),
     ),
   ];
 
@@ -192,7 +199,7 @@ class ThemeProvider extends ChangeNotifier {
           ? const Color(0xFF16171D)
           : const Color(0xFFFAF4E6); // Warm cream paper canvas
     }
-    return _oledPureBlack ? const Color(0xFF000000) : const Color(0xFF07090F);
+    return _oledPureBlack ? const Color(0xFF000000) : const Color(0xFF060A15);
   }
 
   Color get cardBgColor {
@@ -360,13 +367,26 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setDouble('lyrics_font_scale_v2', _lyricsFontScale);
   }
 
-  Color _boostForAestheticUi(Color raw) {
+  Color _boostForAestheticUi(Color raw, {double hueShift = 0.0}) {
     final hsl = HSLColor.fromColor(raw);
-    final sat = hsl.saturation < 0.45
-        ? (hsl.saturation + 0.34).clamp(0.55, 0.90)
-        : hsl.saturation.clamp(0.55, 0.92);
-    final light = hsl.lightness.clamp(0.62, 0.74);
-    return hsl.withSaturation(sat).withLightness(light).toColor();
+    if (hsl.saturation < 0.11) {
+      final fallback = HSLColor.fromColor(activePreset.primary);
+      return fallback
+          .withHue((fallback.hue + hueShift) % 360.0)
+          .withSaturation(0.84)
+          .withLightness(0.68)
+          .toColor();
+    }
+    final nextHue = (hsl.hue + hueShift) % 360.0;
+    final sat = hsl.saturation < 0.52
+        ? (hsl.saturation + 0.36).clamp(0.66, 0.94)
+        : hsl.saturation.clamp(0.66, 0.95);
+    final light = hsl.lightness.clamp(0.65, 0.76);
+    return hsl
+        .withHue(nextHue)
+        .withSaturation(sat)
+        .withLightness(light)
+        .toColor();
   }
 
   Future<void> updateDynamicColorFromImage(ImageProvider imageProvider) async {
@@ -393,14 +413,25 @@ class ThemeProvider extends ChangeNotifier {
           palette.lightVibrantColor?.color ??
           palette.dominantColor?.color;
       final rawSecondary = palette.lightVibrantColor?.color ??
-          palette.mutedColor?.color ??
-          rawPrimary;
+          palette.darkVibrantColor?.color ??
+          palette.mutedColor?.color;
       if (rawPrimary != null) {
         final boostedPrimary = _boostForAestheticUi(rawPrimary);
-        final boostedSecondary =
-            _boostForAestheticUi(rawSecondary ?? rawPrimary);
+        final sameHue = rawSecondary == null ||
+            (HSLColor.fromColor(rawSecondary).hue -
+                        HSLColor.fromColor(rawPrimary).hue)
+                    .abs() <
+                16.0;
+        final boostedSecondary = _boostForAestheticUi(
+          rawSecondary ?? rawPrimary,
+          hueShift: sameHue ? 34.0 : 0.0,
+        );
+        final ambientVibrant = HSLColor.fromColor(boostedPrimary)
+            .withSaturation(0.78)
+            .withLightness(0.56)
+            .toColor();
         final entry = _CachedPalettePair(
-          ambient: rawPrimary,
+          ambient: ambientVibrant,
           vibrantAccent: boostedPrimary,
           secondaryAccent: boostedSecondary,
         );

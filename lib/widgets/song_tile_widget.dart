@@ -6,6 +6,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../screens/artist_profile_screen.dart';
+import '../screens/library_screen.dart';
 import 'liquid_background_widget.dart';
 import 'share_card_modal.dart';
 import 'vinyl_disc_widget.dart';
@@ -599,96 +600,153 @@ void _showPlaylistPickerSheet(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'Simpan ke Playlist',
-                style: TextStyle(
-                  color: theme.textPrimary,
-                  fontSize: 17.5,
-                  fontWeight: FontWeight.w800,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Simpan ke Playlist',
+                    style: TextStyle(
+                      color: theme.textPrimary,
+                      fontSize: 17.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  IosGlassPillButton(
+                    icon: Icons.add_rounded,
+                    label: 'Playlist Baru',
+                    height: 31,
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                    activeColor: accent,
+                    isActive: true,
+                    fontSize: 11.5,
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      showCreatePlaylistSheet(context, initialSong: song);
+                    },
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               if (library.playlists.isEmpty)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    Icons.add_circle_outline_rounded,
-                    color: theme.accentText,
+                LiquidGlassBox(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 13,
                   ),
-                  title: Text(
-                    'Buat Playlist "Favoritku"',
-                    style: TextStyle(
-                      color: theme.textPrimary,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  onTap: () async {
-                    await library.createLocalPlaylist('Favoritku', '');
-                    if (library.playlists.isNotEmpty) {
-                      await library.addSongToPlaylist(
-                        library.playlists.first.id,
-                        song,
-                      );
-                    }
-                    if (ctx.mounted) Navigator.pop(ctx);
+                  tintOpacity: 0.08,
+                  rimIntensity: 0.36,
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    showCreatePlaylistSheet(context, initialSong: song);
                   },
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.add_circle_outline_rounded,
+                        color: theme.accentText,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Belum ada playlist • Ketuk untuk buat baru',
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 )
               else
                 ...library.playlists.take(6).map((pl) {
-                  return ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: accent.withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(10),
-                        border: theme.isNeoBrutalism
-                            ? Border.all(
-                                color: theme.brutalBorderColor,
-                                width: 1.5,
-                              )
-                            : null,
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 7),
+                    child: LiquidGlassBox(
+                      borderRadius: 15,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
                       ),
-                      child: Icon(
-                        Icons.queue_music_rounded,
-                        color: theme.isLightCanvas
-                            ? const Color(0xFF111111)
-                            : accent,
-                      ),
-                    ),
-                    title: Text(
-                      pl.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: theme.textPrimary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    subtitle: Text(
-                      '${pl.songs.length} lagu',
-                      style: TextStyle(color: theme.textMuted, fontSize: 12),
-                    ),
-                    onTap: () async {
-                      await library.addSongToPlaylist(pl.id, song);
-                      if (ctx.mounted) Navigator.pop(ctx);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            backgroundColor: accent,
-                            duration: const Duration(seconds: 1),
-                            content: Text(
-                              'Ditambahkan ke "${pl.name}"',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
+                      tintOpacity: 0.07,
+                      rimIntensity: 0.34,
+                      onTap: () async {
+                        await library.addSongToPlaylist(pl.id, song);
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: accent,
+                              duration: const Duration(seconds: 1),
+                              content: Text(
+                                'Ditambahkan ke "${pl.name}"',
+                                style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
+                          );
+                        }
+                      },
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: accent.withOpacity(0.18),
+                              borderRadius: BorderRadius.circular(10),
+                              border: theme.isNeoBrutalism
+                                  ? Border.all(
+                                      color: theme.brutalBorderColor,
+                                      width: 1.5,
+                                    )
+                                  : null,
+                            ),
+                            child: Icon(
+                              Icons.queue_music_rounded,
+                              color: theme.isLightCanvas
+                                  ? const Color(0xFF111111)
+                                  : accent,
+                            ),
                           ),
-                        );
-                      }
-                    },
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pl.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: theme.textPrimary,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13.8,
+                                  ),
+                                ),
+                                Text(
+                                  '${pl.songs.length} lagu',
+                                  style: TextStyle(
+                                    color: theme.textMuted,
+                                    fontSize: 11.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.add_rounded,
+                            color: theme.accentText,
+                            size: 19,
+                          ),
+                        ],
+                      ),
+                    ),
                   );
                 }),
             ],
