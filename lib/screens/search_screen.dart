@@ -262,8 +262,9 @@ void showImportPlaylistSheet(BuildContext context) {
                     Expanded(
                       flex: 2,
                       child: IosSpringButton(
-                        enabled: !isImporting,
-                        onTap: () async {
+                        onTap: isImporting
+                            ? null
+                            : () async {
                           final rawUrl = urlController.text.trim();
                           if (rawUrl.isEmpty) return;
 
@@ -712,7 +713,7 @@ class _SearchScreenState extends State<SearchScreen> {
             sheetSetState = setModalState;
             final theme = ctx.watch<ThemeProvider>();
             final accent = theme.accentColor;
-            final secondary = theme.secondaryGlowColor;
+            final secondary = theme.secondaryAccentColor;
             final isBrutal = theme.isNeoBrutalism;
 
             if (!autoStarted) {

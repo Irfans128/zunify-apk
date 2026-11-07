@@ -641,6 +641,7 @@ class ZunifySheetContainer extends StatelessWidget {
   final EdgeInsetsGeometry padding;
   final double? height;
   final BoxConstraints? constraints;
+  final double? blurSigma;
 
   const ZunifySheetContainer({
     super.key,
@@ -648,6 +649,7 @@ class ZunifySheetContainer extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(20, 12, 20, 22),
     this.height,
     this.constraints,
+    this.blurSigma,
   });
 
   @override
@@ -676,12 +678,15 @@ class ZunifySheetContainer extends StatelessWidget {
     // Real-Time Frosted Optical Liquid Glass Sheet
     final accent = theme.accentColor;
     final secondary = theme.secondaryAccentColor;
-    final blurSigma = (theme.glassBlurSigma * 1.18).clamp(18.0, 34.0);
+    final sigma = (blurSigma ?? (theme.glassBlurSigma * 1.18)).clamp(
+      16.0,
+      36.0,
+    );
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
+        filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
         child: CustomPaint(
           foregroundPainter: _LiquidGlassRimPainter(
             borderRadius: 30,

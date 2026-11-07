@@ -246,7 +246,7 @@ class PlayerProvider extends ChangeNotifier {
     final mins = (totalSecs % 3600) ~/ 60;
     final secs = totalSecs % 60;
     if (hrs > 0) {
-      return '${hrs}:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+      return '$hrs:${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
     }
     return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
