@@ -10,8 +10,7 @@ import 'liquid_background_widget.dart';
 import 'share_card_modal.dart';
 import 'vinyl_disc_widget.dart';
 
-/// Clean Modern Song Row (Spotify / Apple Music style)
-/// Displays cover art, title, artist, subtle status badges, and a single clean `⋮` menu button.
+/// Clean Song Row (Adapts seamlessly to Liquid Glass & Neo-Brutalism)
 class ZunifySongTile extends StatelessWidget {
   final ZunifySong song;
   final List<ZunifySong> queueContext;
@@ -36,188 +35,241 @@ class ZunifySongTile extends StatelessWidget {
     final library = context.watch<LibraryProvider>();
     final theme = context.watch<ThemeProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
 
     final isCurrent = player.currentSong?.videoId == song.videoId;
     final isFav = library.isFavorite(song.videoId);
     final isDownloaded = library.isDownloaded(song.videoId);
     final downloadProgress = library.activeDownloadProgress[song.videoId];
 
-    return IosSpringButton(
-      scaleDown: 0.96,
-      borderRadius: 16,
-      onTap: onTapOverride ??
-          () => player.playSong(
-                song,
-                customQueue: queueContext,
-                contextName: contextName,
-              ),
-      onLongPress: () => showSongActionSheet(
-        context,
-        song: song,
-        playlistIdForRemoval: playlistIdForRemoval,
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        margin: const EdgeInsets.only(bottom: 4),
-        decoration: BoxDecoration(
-          color: isCurrent
-              ? accent.withOpacity(0.13)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-          border: isCurrent
-              ? Border.all(
-                  color: accent.withOpacity(0.28),
-                  width: 0.9,
-                )
-              : null,
+    final BoxDecoration rowDecoration;
+    if (isBrutal) {
+      rowDecoration = BoxDecoration(
+        color: isCurrent
+            ? Color.lerp(theme.cardBgColor, accent, 0.36)
+            : theme.cardBgColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.brutalBorderColor,
+          width: isCurrent ? 2.2 : 1.8,
         ),
-        child: Row(
-          children: [
-            if (rank != null) ...[
-              SizedBox(
-                width: 24,
-                child: Text(
-                  '$rank',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isCurrent
-                        ? accent
-                        : (rank! <= 3 ? Colors.white : Colors.white54),
-                    fontWeight: rank! <= 3 ? FontWeight.w800 : FontWeight.w600,
-                    fontSize: 13.5,
+        boxShadow: [
+          BoxShadow(
+            color: theme.brutalShadowColor,
+            blurRadius: 0,
+            offset: Offset(isCurrent ? 3.5 : 2.5, isCurrent ? 3.5 : 2.5),
+          ),
+        ],
+      );
+    } else {
+      rowDecoration = BoxDecoration(
+        color: isCurrent ? accent.withOpacity(0.13) : Colors.transparent,
+        borderRadius: BorderRadius.circular(16),
+        border: isCurrent
+            ? Border.all(color: accent.withOpacity(0.30), width: 0.9)
+            : null,
+      );
+    }
+
+    final activeTitleColor =
+        isBrutal ? const Color(0xFF111111) : (isCurrent ? accent : Colors.white);
+
+    return RepaintBoundary(
+      child: IosSpringButton(
+        scaleDown: 0.96,
+        borderRadius: isBrutal ? 12 : 16,
+        onTap: onTapOverride ??
+            () => player.playSong(
+                  song,
+                  customQueue: queueContext,
+                  contextName: contextName,
+                ),
+        onLongPress: () => showSongActionSheet(
+          context,
+          song: song,
+          playlistIdForRemoval: playlistIdForRemoval,
+        ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: EdgeInsets.symmetric(
+            horizontal: isBrutal ? 11 : 10,
+            vertical: isBrutal ? 9 : 8,
+          ),
+          margin: EdgeInsets.only(bottom: isBrutal ? 9 : 4),
+          decoration: rowDecoration,
+          child: Row(
+            children: [
+              if (rank != null) ...[
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    '$rank',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: isCurrent
+                          ? theme.accentText
+                          : (rank! <= 3 ? theme.textPrimary : theme.textMuted),
+                      fontWeight:
+                          rank! <= 3 ? FontWeight.w900 : FontWeight.w700,
+                      fontSize: 13.5,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+
+              // Cover Art Thumbnail
+              Container(
+                decoration: isBrutal
+                    ? BoxDecoration(
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                          color: theme.brutalBorderColor,
+                          width: 1.6,
+                        ),
+                      )
+                    : null,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(isBrutal ? 7.5 : 10),
+                  child: CachedNetworkImage(
+                    imageUrl: song.thumbnailUrl,
+                    width: 48,
+                    height: 48,
+                    memCacheWidth: 144,
+                    fadeInDuration: const Duration(milliseconds: 120),
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      width: 48,
+                      height: 48,
+                      color: theme.subtleFill,
+                      child: Icon(
+                        Icons.music_note_rounded,
+                        color: theme.accentText,
+                        size: 22,
+                      ),
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 12),
+
+              // Song Title & Subtitle
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        if (isCurrent) ...[
+                          MiniAudioSpectrumBars(
+                            isPlaying: player.isPlaying,
+                            color: isBrutal
+                                ? const Color(0xFF111111)
+                                : accent,
+                            height: 12,
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Expanded(
+                          child: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isBrutal && !isCurrent
+                                  ? theme.textPrimary
+                                  : activeTitleColor,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w800
+                                  : FontWeight.w700,
+                              fontSize: 14.2,
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        if (isDownloaded) ...[
+                          Icon(
+                            Icons.download_done_rounded,
+                            color: theme.accentText,
+                            size: 13.5,
+                          ),
+                          const SizedBox(width: 4),
+                        ] else if (downloadProgress != null) ...[
+                          SizedBox(
+                            width: 11,
+                            height: 11,
+                            child: CircularProgressIndicator(
+                              value: downloadProgress,
+                              strokeWidth: 1.8,
+                              color: theme.accentText,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                        ],
+                        if (isFav) ...[
+                          Icon(
+                            Icons.favorite_rounded,
+                            color: isBrutal
+                                ? const Color(0xFFE11D48)
+                                : accent,
+                            size: 12.5,
+                          ),
+                          const SizedBox(width: 4),
+                        ],
+                        Expanded(
+                          child: Text(
+                            song.duration.inSeconds > 0
+                                ? '${song.artist} • ${song.formattedDuration}'
+                                : song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isBrutal && isCurrent
+                                  ? const Color(0xFF27272A)
+                                  : theme.textMuted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                splashRadius: 20,
+                icon: Icon(
+                  Icons.more_vert_rounded,
+                  color: isBrutal && isCurrent
+                      ? const Color(0xFF111111)
+                      : theme.textMuted,
+                  size: 20,
+                ),
+                onPressed: () => showSongActionSheet(
+                  context,
+                  song: song,
+                  playlistIdForRemoval: playlistIdForRemoval,
+                ),
+              ),
             ],
-
-            // Cover Art Thumbnail
-            ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: CachedNetworkImage(
-                imageUrl: song.thumbnailUrl,
-                width: 48,
-                height: 48,
-                memCacheWidth: 144,
-                fadeInDuration: const Duration(milliseconds: 120),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: 48,
-                  height: 48,
-                  color: Colors.white.withOpacity(0.08),
-                  child: Icon(Icons.music_note_rounded, color: accent, size: 22),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-
-            // Song Title & Subtitle with clean inline status indicators
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      if (isCurrent) ...[
-                        MiniAudioSpectrumBars(
-                          isPlaying: player.isPlaying,
-                          color: accent,
-                          height: 12,
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      Expanded(
-                        child: Text(
-                          song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: isCurrent ? accent : Colors.white,
-                            fontWeight:
-                                isCurrent ? FontWeight.w800 : FontWeight.w600,
-                            fontSize: 14.5,
-                            letterSpacing: -0.2,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      if (isDownloaded) ...[
-                        Icon(
-                          Icons.arrow_circle_down_rounded,
-                          color: accent,
-                          size: 13.5,
-                        ),
-                        const SizedBox(width: 4),
-                      ] else if (downloadProgress != null) ...[
-                        SizedBox(
-                          width: 11,
-                          height: 11,
-                          child: CircularProgressIndicator(
-                            value: downloadProgress,
-                            strokeWidth: 1.8,
-                            color: accent,
-                          ),
-                        ),
-                        const SizedBox(width: 5),
-                      ],
-                      if (isFav) ...[
-                        Icon(
-                          Icons.favorite_rounded,
-                          color: accent,
-                          size: 12,
-                        ),
-                        const SizedBox(width: 4),
-                      ],
-                      Expanded(
-                        child: Text(
-                          song.duration.inSeconds > 0
-                              ? '${song.artist} • ${song.formattedDuration}'
-                              : song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.58),
-                            fontSize: 12.2,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Single Clean More Button (⋮)
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              splashRadius: 20,
-              icon: const Icon(
-                Icons.more_vert_rounded,
-                color: Colors.white54,
-                size: 20,
-              ),
-              onPressed: () => showSongActionSheet(
-                context,
-                song: song,
-                playlistIdForRemoval: playlistIdForRemoval,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// Opens a clean Spotify / Apple Music style bottom sheet for song actions
+/// Clean Song Action Bottom Sheet
 void showSongActionSheet(
   BuildContext context, {
   required ZunifySong song,
@@ -236,23 +288,18 @@ void showSongActionSheet(
       final isFav = library.isFavorite(song.videoId);
       final isDownloaded = library.isDownloaded(song.videoId);
 
-      return Container(
-        padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-        decoration: BoxDecoration(
-          color: const Color(0xFF101420),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
-        ),
+      return ZunifySheetContainer(
+        padding: const EdgeInsets.fromLTRB(18, 12, 18, 22),
         child: SafeArea(
           top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 40,
+                width: 38,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: theme.dividerColor,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -261,20 +308,35 @@ void showSongActionSheet(
               // Song Header Preview
               Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: CachedNetworkImage(
-                      imageUrl: song.highResArtUrl,
-                      width: 54,
-                      height: 54,
-                      memCacheWidth: 162,
-                      fadeInDuration: const Duration(milliseconds: 120),
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
-                        width: 54,
-                        height: 54,
-                        color: Colors.white10,
-                        child: Icon(Icons.music_note_rounded, color: accent),
+                  Container(
+                    decoration: theme.isNeoBrutalism
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 1.8,
+                            ),
+                          )
+                        : null,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(
+                        theme.isNeoBrutalism ? 9 : 12,
+                      ),
+                      child: CachedNetworkImage(
+                        imageUrl: song.highResArtUrl,
+                        width: 52,
+                        height: 52,
+                        memCacheWidth: 160,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 52,
+                          height: 52,
+                          color: theme.subtleFill,
+                          child: Icon(
+                            Icons.music_note_rounded,
+                            color: theme.accentText,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -287,46 +349,48 @@ void showSongActionSheet(
                           song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 15.5,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          '${song.artist} • ${song.formattedDuration}',
+                          song.duration.inSeconds > 0
+                              ? '${song.artist} • ${song.formattedDuration}'
+                              : song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white60,
-                            fontSize: 12.5,
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 12.2,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => library.toggleFavorite(song),
-                    icon: Icon(
-                      isFav
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      color: isFav ? accent : Colors.white60,
-                    ),
+                  IosGlassIconButton(
+                    icon: isFav
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    size: 38,
+                    iconSize: 19,
+                    isActive: isFav,
+                    activeColor: accent,
+                    onTap: () => library.toggleFavorite(song),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
-              Divider(color: Colors.white.withOpacity(0.08), height: 1),
+              Divider(color: theme.dividerColor, height: 1),
               const SizedBox(height: 6),
 
-              // Action Items
               _sheetActionTile(
+                theme: theme,
                 icon: Icons.playlist_play_rounded,
                 title: 'Putar Berikutnya',
-                subtitle: 'Dimainkan tepat setelah lagu saat ini selesai',
-                accent: accent,
                 onTap: () {
                   player.playNextInQueue(song);
                   Navigator.pop(ctx);
@@ -346,10 +410,9 @@ void showSongActionSheet(
                 },
               ),
               _sheetActionTile(
+                theme: theme,
                 icon: Icons.queue_music_rounded,
                 title: 'Tambahkan ke Antrean',
-                subtitle: 'Masuk ke urutan paling bawah antrean',
-                accent: accent,
                 onTap: () {
                   player.addToQueue(song);
                   Navigator.pop(ctx);
@@ -369,13 +432,17 @@ void showSongActionSheet(
                 },
               ),
               _sheetActionTile(
+                theme: theme,
                 icon: Icons.person_search_rounded,
-                title: 'Lihat Profil Artis',
-                subtitle: 'Buka lagu populer & album dari ${song.artist}',
-                accent: accent,
+                title: 'Profil Artis',
                 onTap: () {
                   final primaryArtist = song.artist
-                      .split(RegExp(r'\s*(?:,|&|\bfeat\.?|\bft\.?)\s*', caseSensitive: false))
+                      .split(
+                        RegExp(
+                          r'\s*(?:,|&|\bfeat\.?|\bft\.?)\s*',
+                          caseSensitive: false,
+                        ),
+                      )
                       .first
                       .trim();
                   Navigator.pop(ctx);
@@ -392,43 +459,33 @@ void showSongActionSheet(
                 },
               ),
               _sheetActionTile(
+                theme: theme,
                 icon: Icons.playlist_add_rounded,
-                title: 'Simpan ke Playlist...',
-                subtitle: 'Tambahkan lagu ini ke koleksi playlist kamu',
-                accent: accent,
+                title: 'Simpan ke Playlist',
                 onTap: () {
                   Navigator.pop(ctx);
                   _showPlaylistPickerSheet(context, library, song, accent);
                 },
               ),
               _sheetActionTile(
+                theme: theme,
                 icon: isDownloaded
                     ? Icons.delete_outline_rounded
-                    : Icons.download_for_offline_outlined,
-                title: isDownloaded
-                    ? 'Hapus dari Penyimpanan Offline'
-                    : 'Unduh untuk Mode Offline',
-                subtitle: isDownloaded
-                    ? 'Lagu sudah tersimpan di Private Vault'
-                    : 'Dengarkan kapan saja tanpa kuota internet',
-                accent: accent,
+                    : Icons.download_rounded,
+                title: isDownloaded ? 'Hapus Unduhan' : 'Unduh Lagu',
                 onTap: () {
                   Navigator.pop(ctx);
                   if (isDownloaded) {
                     library.removeDownloadedSong(song.videoId);
                   } else {
-                    library.downloadSong(
-                      song,
-                      highQuality: player.highQualityAudio,
-                    );
+                    library.downloadSong(song, highQuality: true);
                   }
                 },
               ),
               _sheetActionTile(
+                theme: theme,
                 icon: Icons.ios_share_rounded,
-                title: 'Bagikan Kartu Lagu ke Story / SW',
-                subtitle: 'Buat kartu estetik untuk WhatsApp atau IG Story',
-                accent: accent,
+                title: 'Bagikan Lirik / Lagu',
                 onTap: () {
                   Navigator.pop(ctx);
                   showModalBottomSheet(
@@ -440,17 +497,18 @@ void showSongActionSheet(
                       lyrics: player.currentSong?.videoId == song.videoId
                           ? player.currentLyrics
                           : null,
-                      initialLyricIndex:
-                          player.activeLyricIndex < 0 ? 0 : player.activeLyricIndex,
+                      initialLyricIndex: player.activeLyricIndex < 0
+                          ? 0
+                          : player.activeLyricIndex,
                     ),
                   );
                 },
               ),
               if (playlistIdForRemoval != null)
                 _sheetActionTile(
+                  theme: theme,
                   icon: Icons.remove_circle_outline_rounded,
                   title: 'Hapus dari Playlist Ini',
-                  accent: Colors.redAccent,
                   isDestructive: true,
                   onTap: () {
                     library.removeSongFromPlaylist(
@@ -469,45 +527,57 @@ void showSongActionSheet(
 }
 
 Widget _sheetActionTile({
+  required ThemeProvider theme,
   required IconData icon,
   required String title,
-  String? subtitle,
-  required Color accent,
   required VoidCallback onTap,
   bool isDestructive = false,
 }) {
-  return ListTile(
-    contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-    leading: Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: isDestructive
-            ? Colors.redAccent.withOpacity(0.12)
-            : Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(11),
-      ),
-      child: Icon(
-        icon,
-        color: isDestructive ? Colors.redAccent : Colors.white,
-        size: 20,
-      ),
-    ),
-    title: Text(
-      title,
-      style: TextStyle(
-        color: isDestructive ? Colors.redAccent : Colors.white,
-        fontWeight: FontWeight.w700,
-        fontSize: 14,
-      ),
-    ),
-    subtitle: subtitle != null
-        ? Text(
-            subtitle,
-            style: const TextStyle(color: Colors.white54, fontSize: 11.5),
-          )
-        : null,
+  final color = isDestructive ? Colors.redAccent : theme.textPrimary;
+  return IosSpringButton(
     onTap: onTap,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: isDestructive
+                  ? Colors.redAccent.withOpacity(0.14)
+                  : theme.subtleFill,
+              borderRadius: BorderRadius.circular(10),
+              border: theme.isNeoBrutalism
+                  ? Border.all(
+                      color: isDestructive
+                          ? Colors.redAccent
+                          : theme.brutalBorderColor,
+                      width: 1.5,
+                    )
+                  : null,
+            ),
+            child: Icon(icon, color: color, size: 19),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              title,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+              ),
+            ),
+          ),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: theme.textMuted,
+            size: 18,
+          ),
+        ],
+      ),
+    ),
   );
 }
 
@@ -519,23 +589,21 @@ void _showPlaylistPickerSheet(
 ) {
   showModalBottomSheet(
     context: context,
-    backgroundColor: const Color(0xFF101420),
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-    ),
+    backgroundColor: Colors.transparent,
     builder: (ctx) {
-      return SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+      final theme = ctx.watch<ThemeProvider>();
+      return ZunifySheetContainer(
+        child: SafeArea(
+          top: false,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Simpan ke Playlist',
                 style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
+                  color: theme.textPrimary,
+                  fontSize: 17.5,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -543,12 +611,15 @@ void _showPlaylistPickerSheet(
               if (library.playlists.isEmpty)
                 ListTile(
                   contentPadding: EdgeInsets.zero,
-                  leading: Icon(Icons.add_circle_outline_rounded, color: accent),
-                  title: const Text(
-                    'Buat Playlist Baru "Favoritku"',
+                  leading: Icon(
+                    Icons.add_circle_outline_rounded,
+                    color: theme.accentText,
+                  ),
+                  title: Text(
+                    'Buat Playlist "Favoritku"',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
+                      color: theme.textPrimary,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   onTap: () async {
@@ -567,29 +638,37 @@ void _showPlaylistPickerSheet(
                   return ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: Container(
-                      width: 40,
-                      height: 40,
+                      width: 38,
+                      height: 38,
                       decoration: BoxDecoration(
-                        color: accent.withOpacity(0.15),
+                        color: accent.withOpacity(0.18),
                         borderRadius: BorderRadius.circular(10),
+                        border: theme.isNeoBrutalism
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 1.5,
+                              )
+                            : null,
                       ),
-                      child: Icon(Icons.queue_music_rounded, color: accent),
+                      child: Icon(
+                        Icons.queue_music_rounded,
+                        color: theme.isLightCanvas
+                            ? const Color(0xFF111111)
+                            : accent,
+                      ),
                     ),
                     title: Text(
                       pl.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.textPrimary,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     subtitle: Text(
                       '${pl.songs.length} lagu',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: theme.textMuted, fontSize: 12),
                     ),
                     onTap: () async {
                       await library.addSongToPlaylist(pl.id, song);

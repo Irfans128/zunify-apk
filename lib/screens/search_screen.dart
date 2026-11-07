@@ -15,6 +15,222 @@ import '../widgets/song_tile_widget.dart';
 import 'artist_profile_screen.dart';
 import 'library_screen.dart';
 
+/// Reusable Import Playlist Bottom Sheet (Spotify & YouTube Music)
+void showImportPlaylistSheet(BuildContext context) {
+  final urlController = TextEditingController();
+  final library = context.read<LibraryProvider>();
+
+  bool isImporting = false;
+  String progressStatus = '';
+  double progressValue = 0.0;
+
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      return StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final theme = ctx.watch<ThemeProvider>();
+          final accent = theme.accentColor;
+          final isBrutal = theme.isNeoBrutalism;
+
+          return ZunifySheetContainer(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 14,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.dividerColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.playlist_add_check_circle_rounded,
+                      color: theme.accentText,
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Import Playlist',
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: urlController,
+                  style: TextStyle(color: theme.textPrimary, fontSize: 13.5),
+                  decoration: InputDecoration(
+                    hintText: 'Tempel link playlist Spotify atau YouTube Music',
+                    hintStyle: TextStyle(
+                      color: theme.textMuted,
+                      fontSize: 12.5,
+                    ),
+                    filled: true,
+                    fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
+                    prefixIcon: Icon(
+                      Icons.link_rounded,
+                      color: theme.accentText,
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(isBrutal ? 11 : 14),
+                      borderSide: isBrutal
+                          ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
+                          : BorderSide(color: theme.dividerColor),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(isBrutal ? 11 : 14),
+                      borderSide: BorderSide(
+                        color: isBrutal ? theme.brutalBorderColor : accent,
+                        width: isBrutal ? 2.2 : 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                if (isImporting) ...[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: LinearProgressIndicator(
+                      value: progressValue > 0 ? progressValue : null,
+                      color: theme.accentText,
+                      backgroundColor: theme.dividerColor,
+                      minHeight: 5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    progressStatus,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.accentText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ] else if (progressStatus.isNotEmpty) ...[
+                  Text(
+                    progressStatus,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: accent,
+                      foregroundColor: const Color(0xFF111111),
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      side: isBrutal
+                          ? BorderSide(
+                              color: theme.brutalBorderColor,
+                              width: 2.2,
+                            )
+                          : BorderSide.none,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(isBrutal ? 11 : 14),
+                      ),
+                    ),
+                    onPressed: isImporting
+                        ? null
+                        : () async {
+                            final rawUrl = urlController.text.trim();
+                            if (rawUrl.isEmpty) return;
+
+                            setModalState(() {
+                              isImporting = true;
+                              progressStatus = 'Memuat playlist...';
+                            });
+
+                            try {
+                              final imported =
+                                  await library.importExternalPlaylist(
+                                rawUrl,
+                                onProgress: (cur, tot, name) {
+                                  if (!ctx.mounted) return;
+                                  setModalState(() {
+                                    progressValue = tot > 0 ? cur / tot : 0.0;
+                                    progressStatus = '($cur/$tot) $name';
+                                  });
+                                },
+                              );
+                              if (!ctx.mounted) return;
+                              Navigator.pop(ctx);
+                              if (imported != null && context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    backgroundColor: accent,
+                                    content: Text(
+                                      'Berhasil import "${imported.name}" (${imported.songs.length} lagu)',
+                                      style: const TextStyle(
+                                        color: Color(0xFF111111),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                                showPlaylistDetailSheet(context, imported.id);
+                              }
+                            } catch (e) {
+                              if (!ctx.mounted) return;
+                              setModalState(() {
+                                isImporting = false;
+                                progressStatus = e
+                                    .toString()
+                                    .replaceAll('Exception: ', '');
+                              });
+                            }
+                          },
+                    icon: const Icon(Icons.cloud_download_rounded, size: 20),
+                    label: const Text(
+                      'Import Sekarang',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
 class SearchScreen extends StatefulWidget {
   final YTMusicService ytMusicService;
 
@@ -181,10 +397,8 @@ class _SearchScreenState extends State<SearchScreen> {
     });
   }
 
-  /// Unified Voice & Song Search (seperti YouTube)
+  /// Unified Voice Search Modal (Cari Lagu / Artis & Cari dari Lirik)
   Future<void> _openVoiceSearchModal(BuildContext context) async {
-    final theme = context.read<ThemeProvider>();
-    final accent = theme.accentColor;
     _searchFocusNode.unfocus();
 
     String voiceMode = 'song'; // 'song' | 'lyrics'
@@ -195,8 +409,8 @@ class _SearchScreenState extends State<SearchScreen> {
       setModalState(() {
         isListening = true;
         statusText = voiceMode == 'lyrics'
-            ? 'Mendengarkan potongan lirik lagu...'
-            : 'Sebutkan judul lagu atau nama artis...';
+            ? 'Mendengarkan potongan lirik...'
+            : 'Sebutkan judul lagu atau artis...';
       });
       try {
         final spoken = await _nativeChannel.invokeMethod<String>(
@@ -215,7 +429,7 @@ class _SearchScreenState extends State<SearchScreen> {
         } else {
           setModalState(() {
             isListening = false;
-            statusText = 'Suara belum terdengar. Ketuk mic untuk coba lagi.';
+            statusText = 'Suara belum terdengar. Ketuk mikrofon untuk ulangi.';
           });
         }
       } catch (_) {
@@ -229,21 +443,23 @@ class _SearchScreenState extends State<SearchScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         var autoStarted = false;
         return StatefulBuilder(
           builder: (ctx, setModalState) {
+            final theme = ctx.watch<ThemeProvider>();
+            final accent = theme.accentColor;
+            final isBrutal = theme.isNeoBrutalism;
+
             if (!autoStarted) {
               autoStarted = true;
               Future.microtask(() => triggerSpeechRecognition(setModalState));
             }
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(22, 14, 22, 24),
+            return ZunifySheetContainer(
+              padding: const EdgeInsets.fromLTRB(22, 14, 22, 26),
+              child: SafeArea(
+                top: false,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -251,7 +467,7 @@ class _SearchScreenState extends State<SearchScreen> {
                       width: 38,
                       height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.white24,
+                        color: theme.dividerColor,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -259,22 +475,22 @@ class _SearchScreenState extends State<SearchScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _voiceModeTab(
-                          label: 'Cari Lagu / Artis',
+                        IosGlassPillButton(
+                          label: 'Lagu / Artis',
                           icon: Icons.music_note_rounded,
-                          selected: voiceMode == 'song',
-                          accent: accent,
+                          isActive: voiceMode == 'song',
+                          activeColor: accent,
                           onTap: () {
                             setModalState(() => voiceMode = 'song');
                             triggerSpeechRecognition(setModalState);
                           },
                         ),
                         const SizedBox(width: 10),
-                        _voiceModeTab(
-                          label: 'Cari dari Lirik',
+                        IosGlassPillButton(
+                          label: 'Dari Lirik',
                           icon: Icons.lyrics_rounded,
-                          selected: voiceMode == 'lyrics',
-                          accent: accent,
+                          isActive: voiceMode == 'lyrics',
+                          activeColor: accent,
                           onTap: () {
                             setModalState(() => voiceMode = 'lyrics');
                             triggerSpeechRecognition(setModalState);
@@ -289,28 +505,46 @@ class _SearchScreenState extends State<SearchScreen> {
                         duration: const Duration(milliseconds: 220),
                         width: 84,
                         height: 84,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isListening
-                              ? accent
-                              : accent.withOpacity(0.18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(
-                                isListening ? 0.48 : 0.20,
+                        decoration: isBrutal
+                            ? BoxDecoration(
+                                color: isListening ? accent : theme.cardBgColor,
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: theme.brutalBorderColor,
+                                  width: 2.6,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: theme.brutalShadowColor,
+                                    blurRadius: 0,
+                                    offset: const Offset(4.5, 4.5),
+                                  ),
+                                ],
+                              )
+                            : BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isListening
+                                    ? accent
+                                    : accent.withOpacity(0.18),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: accent.withOpacity(
+                                      isListening ? 0.48 : 0.20,
+                                    ),
+                                    blurRadius: isListening ? 28 : 14,
+                                    spreadRadius: isListening ? 4 : 1,
+                                  ),
+                                ],
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.32),
+                                  width: 1.5,
+                                ),
                               ),
-                              blurRadius: isListening ? 28 : 14,
-                              spreadRadius: isListening ? 4 : 1,
-                            ),
-                          ],
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.32),
-                            width: 1.5,
-                          ),
-                        ),
                         child: Icon(
                           Icons.mic_rounded,
-                          color: isListening ? Colors.black : accent,
+                          color: isListening
+                              ? const Color(0xFF111111)
+                              : theme.accentText,
                           size: 38,
                         ),
                       ),
@@ -319,252 +553,26 @@ class _SearchScreenState extends State<SearchScreen> {
                     Text(
                       statusText,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.textPrimary,
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 5),
                     Text(
                       voiceMode == 'lyrics'
-                          ? 'Ucapkan penggalan lirik lagu yang kamu ingat'
-                          : 'Ucapkan judul lagu atau penyanyi seperti di YouTube',
+                          ? 'Ucapkan lirik lagu yang kamu ingat'
+                          : 'Ucapkan judul lagu atau nama penyanyi',
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _voiceModeTab({
-    required String label,
-    required IconData icon,
-    required bool selected,
-    required Color accent,
-    required VoidCallback onTap,
-  }) {
-    return IosSpringButton(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected ? accent : Colors.white.withOpacity(0.07),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(
-            color: selected ? accent : Colors.white12,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 15,
-              color: selected ? Colors.black : Colors.white70,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: selected ? Colors.black : Colors.white,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showImportPlaylistModal(BuildContext context) {
-    final urlController = TextEditingController();
-    final theme = context.read<ThemeProvider>();
-    final library = context.read<LibraryProvider>();
-    final accent = theme.accentColor;
-
-    bool isImporting = false;
-    String progressStatus = '';
-    double progressValue = 0.0;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 16,
-                bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white24,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.playlist_add_check_circle_rounded,
-                        color: accent,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 10),
-                      const Expanded(
-                        child: Text(
-                          'Import Playlist',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 17,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: urlController,
-                    style: const TextStyle(color: Colors.white, fontSize: 13.5),
-                    decoration: InputDecoration(
-                      hintText:
-                          'Link playlist Spotify atau YouTube Music...',
-                      hintStyle: const TextStyle(
-                        color: Colors.white38,
-                        fontSize: 12.5,
-                      ),
-                      filled: true,
-                      fillColor: Colors.white.withOpacity(0.06),
-                      prefixIcon: Icon(Icons.link_rounded, color: accent),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (isImporting) ...[
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: LinearProgressIndicator(
-                        value: progressValue > 0 ? progressValue : null,
-                        color: accent,
-                        backgroundColor: Colors.white12,
-                        minHeight: 5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      progressStatus,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: accent,
+                        color: theme.textMuted,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 12),
                   ],
-
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: accent,
-                        foregroundColor: Colors.black,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      onPressed: isImporting
-                          ? null
-                          : () async {
-                              final rawUrl = urlController.text.trim();
-                              if (rawUrl.isEmpty) return;
-
-                              setModalState(() {
-                                isImporting = true;
-                                progressStatus = 'Memuat playlist...';
-                              });
-
-                              try {
-                                final imported =
-                                    await library.importExternalPlaylist(
-                                  rawUrl,
-                                  onProgress: (cur, tot, name) {
-                                    setModalState(() {
-                                      progressValue = cur / tot;
-                                      progressStatus = '($cur/$tot) $name';
-                                    });
-                                  },
-                                );
-                                if (!ctx.mounted) return;
-                                Navigator.pop(ctx);
-                                if (imported != null && context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      backgroundColor: accent,
-                                      content: Text(
-                                        'Berhasil import "${imported.name}" (${imported.songs.length} lagu)',
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                  showPlaylistDetailSheet(context, imported.id);
-                                }
-                              } catch (e) {
-                                setModalState(() {
-                                  isImporting = false;
-                                  progressStatus = e
-                                      .toString()
-                                      .replaceAll('Exception: ', '');
-                                });
-                              }
-                            },
-                      icon: const Icon(Icons.cloud_download_rounded, size: 20),
-                      label: const Text(
-                        'Import Sekarang',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             );
           },
@@ -588,7 +596,7 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Clean Header + Quick Tools
+              // Clean Header + Single Import Playlist Action (No Duplicate Mic Pill)
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -596,40 +604,26 @@ class _SearchScreenState extends State<SearchScreen> {
                   Text(
                     'Cari',
                     style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
                     ),
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IosGlassPillButton(
-                        icon: Icons.mic_rounded,
-                        label: 'Suara',
-                        height: 34,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        activeColor: accent,
-                        onTap: () => _openVoiceSearchModal(context),
-                      ),
-                      const SizedBox(width: 8),
-                      IosGlassPillButton(
-                        icon: Icons.add_link_rounded,
-                        label: 'Import',
-                        height: 34,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        activeColor: accent,
-                        isActive: true,
-                        onTap: () => _showImportPlaylistModal(context),
-                      ),
-                    ],
+                  IosGlassPillButton(
+                    icon: Icons.add_link_rounded,
+                    label: 'Import Playlist',
+                    height: 34,
+                    padding: const EdgeInsets.symmetric(horizontal: 13),
+                    activeColor: accent,
+                    isActive: true,
+                    onTap: () => showImportPlaylistSheet(context),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // Unified Search Bar + Integrated YouTube-Style Mic Button
+              // Unified Search Input + Integrated YouTube-Style Voice Mic Button
               Row(
                 children: [
                   Expanded(
@@ -644,8 +638,8 @@ class _SearchScreenState extends State<SearchScreen> {
                         focusNode: _searchFocusNode,
                         textInputAction: TextInputAction.search,
                         textAlignVertical: TextAlignVertical.center,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.textPrimary,
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
                         ),
@@ -654,8 +648,8 @@ class _SearchScreenState extends State<SearchScreen> {
                         decoration: InputDecoration(
                           isDense: true,
                           hintText: 'Cari lagu, artis, atau lirik...',
-                          hintStyle: const TextStyle(
-                            color: Colors.white54,
+                          hintStyle: TextStyle(
+                            color: theme.textMuted,
                             fontSize: 13.5,
                           ),
                           border: InputBorder.none,
@@ -664,7 +658,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           ),
                           prefixIcon: Icon(
                             Icons.search_rounded,
-                            color: accent,
+                            color: theme.accentText,
                             size: 20,
                           ),
                           suffixIcon: _searchController.text.isNotEmpty
@@ -679,9 +673,9 @@ class _SearchScreenState extends State<SearchScreen> {
                                       _showingSuggestions = false;
                                     });
                                   },
-                                  child: const Icon(
+                                  child: Icon(
                                     Icons.cancel_rounded,
-                                    color: Colors.white54,
+                                    color: theme.textMuted,
                                     size: 18,
                                   ),
                                 )
@@ -697,15 +691,14 @@ class _SearchScreenState extends State<SearchScreen> {
                     iconSize: 21,
                     isActive: true,
                     activeColor: accent,
-                    iconColor: Colors.white,
-                    tooltip: 'Cari lagu pakai suara',
+                    tooltip: 'Cari pakai suara',
                     onTap: () => _openVoiceSearchModal(context),
                   ),
                 ],
               ),
               const SizedBox(height: 12),
 
-              // Quick Filter Pills when results or search text active
+              // Quick Filter Pills when results or search active
               if (_results.isNotEmpty || _isSearching) ...[
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -789,12 +782,16 @@ class _SearchScreenState extends State<SearchScreen> {
               // Results, Live Autocomplete Suggestions, or Browse Categories
               Expanded(
                 child: _isSearching
-                    ? Center(child: CircularProgressIndicator(color: accent))
+                    ? Center(
+                        child: CircularProgressIndicator(
+                          color: theme.accentText,
+                        ),
+                      )
                     : (_showingSuggestions && _suggestions.isNotEmpty)
-                        ? _buildLiveSuggestionsList(accent)
+                        ? _buildLiveSuggestionsList(theme)
                         : _results.isEmpty
-                            ? _buildBrowseAndSuggestions(accent)
-                            : _buildSearchResultsList(accent),
+                            ? _buildBrowseAndSuggestions(theme, accent)
+                            : _buildSearchResultsList(theme, accent),
               ),
             ],
           ),
@@ -803,7 +800,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildLiveSuggestionsList(Color accent) {
+  Widget _buildLiveSuggestionsList(ThemeProvider theme) {
     final currentText = _searchController.text.trim();
     return ListView.builder(
       padding: const EdgeInsets.only(bottom: 176),
@@ -819,7 +816,7 @@ class _SearchScreenState extends State<SearchScreen> {
               children: [
                 Icon(
                   Icons.search_rounded,
-                  color: accent.withOpacity(0.85),
+                  color: theme.accentText,
                   size: 19,
                 ),
                 const SizedBox(width: 14),
@@ -827,7 +824,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: _buildHighlightedSuggestionText(
                     suggestion,
                     currentText,
-                    accent,
+                    theme,
                   ),
                 ),
                 IosSpringButton(
@@ -838,11 +835,11 @@ class _SearchScreenState extends State<SearchScreen> {
                     );
                     _onSearchTextChanged(suggestion);
                   },
-                  child: const Padding(
-                    padding: EdgeInsets.all(6.0),
+                  child: Padding(
+                    padding: const EdgeInsets.all(6.0),
                     child: Icon(
                       Icons.north_west_rounded,
-                      color: Colors.white38,
+                      color: theme.textMuted,
                       size: 17,
                     ),
                   ),
@@ -858,13 +855,13 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget _buildHighlightedSuggestionText(
     String suggestion,
     String query,
-    Color accent,
+    ThemeProvider theme,
   ) {
     if (query.isEmpty) {
       return Text(
         suggestion,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: theme.textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
@@ -876,8 +873,8 @@ class _SearchScreenState extends State<SearchScreen> {
     if (matchIdx < 0) {
       return Text(
         suggestion,
-        style: const TextStyle(
-          color: Colors.white,
+        style: TextStyle(
+          color: theme.textPrimary,
           fontSize: 14,
           fontWeight: FontWeight.w600,
         ),
@@ -890,8 +887,8 @@ class _SearchScreenState extends State<SearchScreen> {
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       text: TextSpan(
-        style: const TextStyle(
-          color: Colors.white70,
+        style: TextStyle(
+          color: theme.textSecondary,
           fontSize: 14,
           fontWeight: FontWeight.w500,
         ),
@@ -900,15 +897,15 @@ class _SearchScreenState extends State<SearchScreen> {
           TextSpan(
             text: matched,
             style: TextStyle(
-              color: accent,
+              color: theme.accentText,
               fontWeight: FontWeight.w800,
             ),
           ),
           if (after.isNotEmpty)
             TextSpan(
               text: after,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: theme.textPrimary,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -917,7 +914,7 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildSearchResultsList(Color accent) {
+  Widget _buildSearchResultsList(ThemeProvider theme, Color accent) {
     final hasArtistCard = _matchedArtist != null;
     final totalCount = _results.length + (hasArtistCard ? 1 : 0);
 
@@ -950,34 +947,45 @@ class _SearchScreenState extends State<SearchScreen> {
               },
               child: Row(
                 children: [
-                  ClipOval(
-                    child: artist.avatarUrl.isNotEmpty
-                        ? CachedNetworkImage(
-                            imageUrl: artist.avatarUrl,
-                            width: 52,
-                            height: 52,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
+                  Container(
+                    decoration: theme.isNeoBrutalism
+                        ? BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 2.0,
+                            ),
+                          )
+                        : null,
+                    child: ClipOval(
+                      child: artist.avatarUrl.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: artist.avatarUrl,
                               width: 52,
                               height: 52,
-                              color: Colors.white10,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Container(
+                                width: 52,
+                                height: 52,
+                                color: theme.subtleFill,
+                                child: Icon(
+                                  Icons.person_rounded,
+                                  color: theme.accentText,
+                                  size: 26,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: 52,
+                              height: 52,
+                              color: theme.subtleFill,
                               child: Icon(
                                 Icons.person_rounded,
-                                color: accent,
+                                color: theme.accentText,
                                 size: 26,
                               ),
                             ),
-                          )
-                        : Container(
-                            width: 52,
-                            height: 52,
-                            color: Colors.white10,
-                            child: Icon(
-                              Icons.person_rounded,
-                              color: accent,
-                              size: 26,
-                            ),
-                          ),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -988,8 +996,8 @@ class _SearchScreenState extends State<SearchScreen> {
                           artist.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1002,7 +1010,7 @@ class _SearchScreenState extends State<SearchScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: accent,
+                            color: theme.accentText,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -1012,7 +1020,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   Icon(
                     Icons.arrow_forward_ios_rounded,
-                    color: accent,
+                    color: theme.accentText,
                     size: 16,
                   ),
                 ],
@@ -1032,14 +1040,45 @@ class _SearchScreenState extends State<SearchScreen> {
     );
   }
 
-  Widget _buildBrowseAndSuggestions(Color accent) {
+  Widget _buildBrowseAndSuggestions(ThemeProvider theme, Color accent) {
+    final isBrutal = theme.isNeoBrutalism;
     const categories = [
-      {'title': 'Pop Indonesia', 'query': 'Lagu Pop Indonesia Hits', 'color': 0xFF10B981, 'icon': Icons.music_note_rounded},
-      {'title': 'Hits Global', 'query': 'Top Global Hits 2025', 'color': 0xFF6366F1, 'icon': Icons.public_rounded},
-      {'title': 'Galau Malam', 'query': 'Lagu Galau Indonesia Terbaik', 'color': 0xFF3B82F6, 'icon': Icons.nightlight_round},
-      {'title': 'Indie & Senja', 'query': 'Hindia Perunggu Feast Indie', 'color': 0xFFF59E0B, 'icon': Icons.wb_twilight_rounded},
-      {'title': 'J-Pop & Anime', 'query': 'YOASOBI Kenshi Yonezu Anime', 'color': 0xFFEC4899, 'icon': Icons.auto_awesome_rounded},
-      {'title': 'K-Pop Hits', 'query': 'NewJeans aespa DAY6 Kpop', 'color': 0xFF8B5CF6, 'icon': Icons.bolt_rounded},
+      {
+        'title': 'Pop Indonesia',
+        'query': 'Lagu Pop Indonesia Hits',
+        'color': 0xFF10B981,
+        'icon': Icons.music_note_rounded,
+      },
+      {
+        'title': 'Hits Global',
+        'query': 'Top Global Hits 2025',
+        'color': 0xFF6366F1,
+        'icon': Icons.public_rounded,
+      },
+      {
+        'title': 'Galau Malam',
+        'query': 'Lagu Galau Indonesia Terbaik',
+        'color': 0xFF3B82F6,
+        'icon': Icons.nightlight_round,
+      },
+      {
+        'title': 'Indie & Senja',
+        'query': 'Hindia Perunggu Feast Indie',
+        'color': 0xFFF59E0B,
+        'icon': Icons.wb_twilight_rounded,
+      },
+      {
+        'title': 'J-Pop & Anime',
+        'query': 'YOASOBI Kenshi Yonezu Anime',
+        'color': 0xFFEC4899,
+        'icon': Icons.auto_awesome_rounded,
+      },
+      {
+        'title': 'K-Pop Hits',
+        'query': 'NewJeans aespa DAY6 Kpop',
+        'color': 0xFF8B5CF6,
+        'icon': Icons.bolt_rounded,
+      },
     ];
 
     const quickQueries = [
@@ -1059,10 +1098,10 @@ class _SearchScreenState extends State<SearchScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'Riwayat Pencarian',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: theme.textPrimary,
                   fontWeight: FontWeight.w800,
                   fontSize: 15.5,
                 ),
@@ -1077,9 +1116,9 @@ class _SearchScreenState extends State<SearchScreen> {
                   child: Text(
                     'Hapus Semua',
                     style: TextStyle(
-                      color: accent,
+                      color: theme.accentText,
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -1100,9 +1139,9 @@ class _SearchScreenState extends State<SearchScreen> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.history_rounded,
-                      color: Colors.white60,
+                      color: theme.textMuted,
                       size: 15,
                     ),
                     const SizedBox(width: 6),
@@ -1112,21 +1151,21 @@ class _SearchScreenState extends State<SearchScreen> {
                         historyQuery,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.textPrimary,
                           fontSize: 12.5,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                     const SizedBox(width: 4),
                     IosSpringButton(
                       onTap: () => _removeHistoryItem(historyQuery),
-                      child: const Padding(
-                        padding: EdgeInsets.all(2.0),
+                      child: Padding(
+                        padding: const EdgeInsets.all(2.0),
                         child: Icon(
                           Icons.close_rounded,
-                          color: Colors.white38,
+                          color: theme.textMuted,
                           size: 14,
                         ),
                       ),
@@ -1139,10 +1178,10 @@ class _SearchScreenState extends State<SearchScreen> {
           const SizedBox(height: 18),
         ],
 
-        const Text(
+        Text(
           'Kategori Musik',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.textPrimary,
             fontWeight: FontWeight.w800,
             fontSize: 15.5,
           ),
@@ -1164,9 +1203,9 @@ class _SearchScreenState extends State<SearchScreen> {
             final iconData = item['icon'] as IconData;
             return LiquidGlassBox(
               borderRadius: 18,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
               tintColor: cardColor,
-              tintOpacity: 0.22,
+              tintOpacity: isBrutal ? 0.14 : 0.22,
               rimIntensity: 0.38,
               onTap: () {
                 final q = item['query'] as String;
@@ -1179,8 +1218,16 @@ class _SearchScreenState extends State<SearchScreen> {
                     width: 34,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: cardColor.withOpacity(0.28),
-                      borderRadius: BorderRadius.circular(10),
+                      color: isBrutal
+                          ? cardColor
+                          : cardColor.withOpacity(0.28),
+                      borderRadius: BorderRadius.circular(isBrutal ? 8 : 10),
+                      border: isBrutal
+                          ? Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 1.7,
+                            )
+                          : null,
                     ),
                     child: Icon(iconData, color: Colors.white, size: 18),
                   ),
@@ -1190,10 +1237,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       item['title'] as String,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.textPrimary,
                         fontWeight: FontWeight.w800,
-                        fontSize: 13.2,
+                        fontSize: 13.0,
                       ),
                     ),
                   ),
@@ -1203,10 +1250,10 @@ class _SearchScreenState extends State<SearchScreen> {
           },
         ),
         const SizedBox(height: 20),
-        const Text(
+        Text(
           'Populer Dicari',
           style: TextStyle(
-            color: Colors.white,
+            color: theme.textPrimary,
             fontWeight: FontWeight.w800,
             fontSize: 15.5,
           ),

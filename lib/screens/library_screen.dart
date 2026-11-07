@@ -9,9 +9,9 @@ import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/song_tile_widget.dart';
-import '../widgets/weekly_rapot_modal.dart';
+import 'search_screen.dart';
 
-/// Opens the full interactive Playlist Detail Sheet (works for Spotify Import, YT Music Import, and Local Playlists)
+/// Opens the full interactive Playlist Detail Sheet (Spotify Import, YT Music Import, and Local Playlists)
 void showPlaylistDetailSheet(BuildContext context, String playlistId) {
   showModalBottomSheet(
     context: context,
@@ -47,38 +47,79 @@ class _LibraryScreenState extends State<LibraryScreen>
   void _showCreatePlaylistDialog(
     BuildContext context,
     LibraryProvider library,
+    ThemeProvider theme,
     Color accent,
   ) {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
+    final isBrutal = theme.isNeoBrutalism;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF131722),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text(
+        backgroundColor: theme.sheetBgColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(isBrutal ? 15 : 22),
+          side: isBrutal
+              ? BorderSide(color: theme.brutalBorderColor, width: 2.4)
+              : BorderSide(color: Colors.white.withOpacity(0.10)),
+        ),
+        title: Text(
           'Playlist Baru',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800),
+          style: TextStyle(
+            color: theme.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              autofocus: true,
+              style: TextStyle(color: theme.textPrimary),
+              decoration: InputDecoration(
                 hintText: 'Nama Playlist',
-                hintStyle: TextStyle(color: Colors.white38),
+                hintStyle: TextStyle(color: theme.textMuted),
+                filled: true,
+                fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+                  borderSide: isBrutal
+                      ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
+                      : BorderSide(color: theme.dividerColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+                  borderSide: BorderSide(
+                    color: isBrutal ? theme.brutalBorderColor : accent,
+                    width: isBrutal ? 2.2 : 1.4,
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: descCtrl,
-              style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              style: TextStyle(color: theme.textPrimary),
+              decoration: InputDecoration(
                 hintText: 'Catatan (opsional)',
-                hintStyle: TextStyle(color: Colors.white38),
+                hintStyle: TextStyle(color: theme.textMuted),
+                filled: true,
+                fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+                  borderSide: isBrutal
+                      ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
+                      : BorderSide(color: theme.dividerColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+                  borderSide: BorderSide(
+                    color: isBrutal ? theme.brutalBorderColor : accent,
+                    width: isBrutal ? 2.2 : 1.4,
+                  ),
+                ),
               ),
             ),
           ],
@@ -86,12 +127,25 @@ class _LibraryScreenState extends State<LibraryScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(color: Colors.white54)),
+            child: Text(
+              'Batal',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: accent,
-              foregroundColor: Colors.black,
+              foregroundColor: const Color(0xFF111111),
+              elevation: 0,
+              side: isBrutal
+                  ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
+                  : BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+              ),
             ),
             onPressed: () {
               if (nameCtrl.text.trim().isNotEmpty) {
@@ -101,7 +155,7 @@ class _LibraryScreenState extends State<LibraryScreen>
             },
             child: const Text(
               'Buat',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -115,6 +169,7 @@ class _LibraryScreenState extends State<LibraryScreen>
     final library = context.watch<LibraryProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -124,7 +179,7 @@ class _LibraryScreenState extends State<LibraryScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Clean Header + Wrapped & New Playlist Pills
+            // Logical Header: Koleksi + Import Playlist & Buat Baru
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
               child: Row(
@@ -134,7 +189,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   Text(
                     'Koleksi',
                     style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 26,
                       fontWeight: FontWeight.w800,
                       letterSpacing: -0.6,
@@ -144,21 +199,12 @@ class _LibraryScreenState extends State<LibraryScreen>
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IosGlassPillButton(
-                        icon: Icons.auto_awesome_rounded,
-                        label: 'Wrapped',
+                        icon: Icons.add_link_rounded,
+                        label: 'Import',
                         height: 34,
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         activeColor: accent,
-                        onTap: () async {
-                          final rapot = await player.getWeeklyRapot();
-                          if (!context.mounted) return;
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => WeeklyRapotModal(rapot: rapot),
-                          );
-                        },
+                        onTap: () => showImportPlaylistSheet(context),
                       ),
                       const SizedBox(width: 8),
                       IosGlassPillButton(
@@ -171,6 +217,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         onTap: () => _showCreatePlaylistDialog(
                           context,
                           library,
+                          theme,
                           accent,
                         ),
                       ),
@@ -190,27 +237,38 @@ class _LibraryScreenState extends State<LibraryScreen>
                 rimIntensity: 0.34,
                 child: TabBar(
                   controller: _tabController,
-                  indicator: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.18),
-                        accent.withOpacity(0.24),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.28),
-                      width: 0.9,
-                    ),
-                  ),
+                  indicator: isBrutal
+                      ? BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: theme.brutalBorderColor,
+                            width: 1.8,
+                          ),
+                        )
+                      : BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.18),
+                              accent.withOpacity(0.24),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.28),
+                            width: 0.9,
+                          ),
+                        ),
                   indicatorSize: TabBarIndicatorSize.tab,
                   dividerColor: Colors.transparent,
-                  labelColor: Colors.white,
+                  labelColor:
+                      isBrutal ? const Color(0xFF111111) : Colors.white,
                   labelStyle: const TextStyle(
                     fontWeight: FontWeight.w800,
                     fontSize: 12.0,
                   ),
-                  unselectedLabelColor: Colors.white60,
+                  unselectedLabelColor:
+                      isBrutal ? theme.textSecondary : Colors.white60,
                   unselectedLabelStyle: const TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 12.0,
@@ -238,10 +296,11 @@ class _LibraryScreenState extends State<LibraryScreen>
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildPlaylistsTab(library, player, accent),
+                  _buildPlaylistsTab(library, player, theme, accent),
                   _buildSongList(
                     library.downloadedSongs,
                     player: player,
+                    theme: theme,
                     accent: accent,
                     contextLabel: 'Lagu Diunduh',
                     emptyText: 'Belum ada lagu yang diunduh.',
@@ -249,6 +308,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                   _buildSongList(
                     library.favorites,
                     player: player,
+                    theme: theme,
                     accent: accent,
                     contextLabel: 'Lagu Disukai',
                     emptyText: 'Belum ada lagu yang disukai.',
@@ -265,6 +325,7 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildSongList(
     List<ZunifySong> songs, {
     required PlayerProvider player,
+    required ThemeProvider theme,
     required Color accent,
     required String contextLabel,
     required String emptyText,
@@ -276,10 +337,11 @@ class _LibraryScreenState extends State<LibraryScreen>
           child: Text(
             emptyText,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white54,
+            style: TextStyle(
+              color: theme.textMuted,
               height: 1.5,
               fontSize: 13.5,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
@@ -326,8 +388,8 @@ class _LibraryScreenState extends State<LibraryScreen>
               const Spacer(),
               Text(
                 '${songs.length} lagu',
-                style: const TextStyle(
-                  color: Colors.white54,
+                style: TextStyle(
+                  color: theme.textMuted,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -356,20 +418,37 @@ class _LibraryScreenState extends State<LibraryScreen>
   Widget _buildPlaylistsTab(
     LibraryProvider library,
     PlayerProvider player,
+    ThemeProvider theme,
     Color accent,
   ) {
+    final isBrutal = theme.isNeoBrutalism;
     if (library.playlists.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Text(
-            'Belum ada playlist.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.white54,
-              height: 1.5,
-              fontSize: 13.5,
-            ),
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Belum ada playlist.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: theme.textMuted,
+                  height: 1.5,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 14),
+              IosGlassPillButton(
+                icon: Icons.add_link_rounded,
+                label: 'Import dari Spotify / YT Music',
+                height: 36,
+                activeColor: accent,
+                isActive: true,
+                onTap: () => showImportPlaylistSheet(context),
+              ),
+            ],
           ),
         ),
       );
@@ -386,6 +465,15 @@ class _LibraryScreenState extends State<LibraryScreen>
             : pl.origin == PlaylistOrigin.youtubeMusicImport
                 ? const Color(0xFFFF4E45)
                 : accent;
+        final Color badgeTextColor = pl.origin == PlaylistOrigin.spotifyImport
+            ? (theme.isLightCanvas
+                ? const Color(0xFF0F7A35)
+                : const Color(0xFF1DB954))
+            : pl.origin == PlaylistOrigin.youtubeMusicImport
+                ? (theme.isLightCanvas
+                    ? const Color(0xFFC5221F)
+                    : const Color(0xFFFF4E45))
+                : theme.accentText;
 
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -397,7 +485,18 @@ class _LibraryScreenState extends State<LibraryScreen>
             onTap: () => showPlaylistDetailSheet(context, pl.id),
             child: Row(
               children: [
-                _buildPlaylistCoverThumb(pl, accent),
+                Container(
+                  decoration: isBrutal
+                      ? BoxDecoration(
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(
+                            color: theme.brutalBorderColor,
+                            width: 1.8,
+                          ),
+                        )
+                      : null,
+                  child: _buildPlaylistCoverThumb(pl, theme, accent),
+                ),
                 const SizedBox(width: 13),
                 Expanded(
                   child: Column(
@@ -407,8 +506,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                         pl.name,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.textPrimary,
                           fontWeight: FontWeight.w800,
                           fontSize: 15,
                         ),
@@ -422,13 +521,22 @@ class _LibraryScreenState extends State<LibraryScreen>
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: badgeColor.withOpacity(0.16),
+                              color: badgeColor.withOpacity(
+                                isBrutal ? 0.22 : 0.16,
+                              ),
                               borderRadius: BorderRadius.circular(6),
+                              border: isBrutal
+                                  ? Border.all(
+                                      color: theme.brutalBorderColor
+                                          .withOpacity(0.55),
+                                      width: 1.2,
+                                    )
+                                  : null,
                             ),
                             child: Text(
                               pl.originBadgeLabel,
                               style: TextStyle(
-                                color: badgeColor,
+                                color: badgeTextColor,
                                 fontSize: 10,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -440,8 +548,8 @@ class _LibraryScreenState extends State<LibraryScreen>
                               '${pl.songs.length} lagu',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Colors.white60,
+                              style: TextStyle(
+                                color: theme.textSecondary,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -479,23 +587,28 @@ class _LibraryScreenState extends State<LibraryScreen>
     );
   }
 
-  Widget _buildPlaylistCoverThumb(ZunifyPlaylist pl, Color accent) {
+  Widget _buildPlaylistCoverThumb(
+    ZunifyPlaylist pl,
+    ThemeProvider theme,
+    Color accent,
+  ) {
+    final radius = theme.isNeoBrutalism ? 9.2 : 14.0;
     if (pl.coverUrl != null && pl.coverUrl!.isNotEmpty) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(radius),
         child: CachedNetworkImage(
           imageUrl: pl.coverUrl!,
           width: 58,
           height: 58,
           memCacheWidth: 174,
           fit: BoxFit.cover,
-          errorWidget: (_, __, ___) => _fallbackCover(accent),
+          errorWidget: (_, __, ___) => _fallbackCover(theme, accent, radius),
         ),
       );
     }
     if (pl.songs.length >= 4) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(radius),
         child: SizedBox(
           width: 58,
           height: 58,
@@ -509,7 +622,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         imageUrl: pl.songs[0].thumbnailUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
-                            Container(color: Colors.white10),
+                            Container(color: theme.subtleFill),
                       ),
                     ),
                     Expanded(
@@ -517,7 +630,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         imageUrl: pl.songs[1].thumbnailUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
-                            Container(color: Colors.white10),
+                            Container(color: theme.subtleFill),
                       ),
                     ),
                   ],
@@ -531,7 +644,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         imageUrl: pl.songs[2].thumbnailUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
-                            Container(color: Colors.white10),
+                            Container(color: theme.subtleFill),
                       ),
                     ),
                     Expanded(
@@ -539,7 +652,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                         imageUrl: pl.songs[3].thumbnailUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
-                            Container(color: Colors.white10),
+                            Container(color: theme.subtleFill),
                       ),
                     ),
                   ],
@@ -552,34 +665,38 @@ class _LibraryScreenState extends State<LibraryScreen>
     }
     if (pl.songs.isNotEmpty && pl.songs.first.thumbnailUrl.isNotEmpty) {
       return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(radius),
         child: CachedNetworkImage(
           imageUrl: pl.songs.first.thumbnailUrl,
           width: 58,
           height: 58,
           memCacheWidth: 174,
           fit: BoxFit.cover,
-          errorWidget: (_, __, ___) => _fallbackCover(accent),
+          errorWidget: (_, __, ___) => _fallbackCover(theme, accent, radius),
         ),
       );
     }
-    return _fallbackCover(accent);
+    return _fallbackCover(theme, accent, radius);
   }
 
-  Widget _fallbackCover(Color accent) {
+  Widget _fallbackCover(ThemeProvider theme, Color accent, double radius) {
     return Container(
       width: 58,
       height: 58,
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.16),
-        borderRadius: BorderRadius.circular(14),
+        color: accent.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(radius),
       ),
-      child: Icon(Icons.queue_music_rounded, color: accent, size: 26),
+      child: Icon(
+        Icons.queue_music_rounded,
+        color: theme.accentText,
+        size: 26,
+      ),
     );
   }
 }
 
-/// Clean Interactive Playlist Detail Sheet
+/// Clean Interactive Playlist Detail Sheet (Liquid Glass & Neo-Brutalism)
 class PlaylistDetailSheet extends StatefulWidget {
   final String playlistId;
 
@@ -605,6 +722,7 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
     final library = context.watch<LibraryProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
 
     final idx = library.playlists.indexWhere((p) => p.id == widget.playlistId);
     if (idx < 0) return const SizedBox.shrink();
@@ -618,6 +736,16 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
         : playlist.origin == PlaylistOrigin.youtubeMusicImport
             ? const Color(0xFFFF4E45)
             : accent;
+    final Color badgeTextColor =
+        playlist.origin == PlaylistOrigin.spotifyImport
+            ? (theme.isLightCanvas
+                ? const Color(0xFF0F7A35)
+                : const Color(0xFF1DB954))
+            : playlist.origin == PlaylistOrigin.youtubeMusicImport
+                ? (theme.isLightCanvas
+                    ? const Color(0xFFC5221F)
+                    : const Color(0xFFFF4E45))
+                : theme.accentText;
 
     final filteredSongs = _searchQuery.trim().isEmpty
         ? playlist.songs
@@ -627,13 +755,9 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                 s.artist.toLowerCase().contains(q);
           }).toList();
 
-    return Container(
+    return ZunifySheetContainer(
       height: MediaQuery.of(context).size.height * 0.88,
-      decoration: BoxDecoration(
-        color: const Color(0xFF0C101B),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
+      padding: EdgeInsets.zero,
       child: Column(
         children: [
           const SizedBox(height: 12),
@@ -641,7 +765,7 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white24,
+              color: theme.dividerColor,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -651,19 +775,38 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
             padding: const EdgeInsets.fromLTRB(18, 16, 12, 12),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: coverArt != null && coverArt.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: coverArt,
-                          width: 80,
-                          height: 80,
-                          memCacheWidth: 240,
-                          fadeInDuration: const Duration(milliseconds: 140),
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => _heroFallback(accent),
+                Container(
+                  decoration: isBrutal
+                      ? BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.brutalBorderColor,
+                            width: 2.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: theme.brutalShadowColor,
+                              blurRadius: 0,
+                              offset: const Offset(3.0, 3.0),
+                            ),
+                          ],
                         )
-                      : _heroFallback(accent),
+                      : null,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
+                    child: coverArt != null && coverArt.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: coverArt,
+                            width: 80,
+                            height: 80,
+                            memCacheWidth: 240,
+                            fadeInDuration: const Duration(milliseconds: 140),
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                _heroFallback(theme, accent),
+                          )
+                        : _heroFallback(theme, accent),
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -676,13 +819,13 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                           vertical: 2.5,
                         ),
                         decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.16),
+                          color: badgeColor.withOpacity(isBrutal ? 0.22 : 0.16),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           playlist.originBadgeLabel,
                           style: TextStyle(
-                            color: badgeColor,
+                            color: badgeTextColor,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                           ),
@@ -693,8 +836,8 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                         playlist.name,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.textPrimary,
                           fontSize: 18,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.3,
@@ -703,20 +846,27 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                       const SizedBox(height: 3),
                       Text(
                         '${playlist.songs.length} lagu',
-                        style: const TextStyle(
-                          color: Colors.white54,
+                        style: TextStyle(
+                          color: theme.textMuted,
                           fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
                   ),
                 ),
                 PopupMenuButton<String>(
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.more_vert_rounded,
-                    color: Colors.white70,
+                    color: theme.textSecondary,
                   ),
-                  color: const Color(0xFF171C2B),
+                  color: theme.cardBgColor,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(isBrutal ? 11 : 14),
+                    side: isBrutal
+                        ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
+                        : BorderSide(color: theme.dividerColor),
+                  ),
                   onSelected: (val) async {
                     if (val == 'queue_all') {
                       for (final s in playlist.songs) {
@@ -729,8 +879,8 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                           content: Text(
                             '${playlist.songs.length} lagu ditambahkan ke antrean',
                             style: const TextStyle(
-                              color: Colors.black,
-                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF111111),
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                         ),
@@ -741,19 +891,25 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                       Navigator.pop(context);
                     }
                   },
-                  itemBuilder: (_) => const [
+                  itemBuilder: (_) => [
                     PopupMenuItem(
                       value: 'queue_all',
                       child: Text(
                         'Tambah ke Antrean',
-                        style: TextStyle(color: Colors.white),
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: 'delete',
                       child: Text(
                         'Hapus Playlist',
-                        style: TextStyle(color: Colors.redAccent),
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],
@@ -762,7 +918,7 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
             ),
           ),
 
-          // Play All & Shuffle Row with Spring Buttons
+          // Play All & Shuffle Row
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 18),
             child: Row(
@@ -782,21 +938,36 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                       height: 42,
                       decoration: BoxDecoration(
                         color: accent,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(isBrutal ? 11 : 14),
+                        border: isBrutal
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 2.0,
+                              )
+                            : null,
+                        boxShadow: isBrutal
+                            ? [
+                                BoxShadow(
+                                  color: theme.brutalShadowColor,
+                                  blurRadius: 0,
+                                  offset: const Offset(3.0, 3.0),
+                                ),
+                              ]
+                            : null,
                       ),
                       child: const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(
                             Icons.play_arrow_rounded,
-                            color: Colors.black,
+                            color: Color(0xFF111111),
                             size: 20,
                           ),
                           SizedBox(width: 6),
                           Text(
                             'Putar Semua',
                             style: TextStyle(
-                              color: Colors.black,
+                              color: Color(0xFF111111),
                               fontWeight: FontWeight.w800,
                               fontSize: 13.5,
                             ),
@@ -828,12 +999,16 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.shuffle_rounded, size: 18, color: accent),
+                        Icon(
+                          Icons.shuffle_rounded,
+                          size: 18,
+                          color: theme.accentText,
+                        ),
                         const SizedBox(width: 6),
-                        const Text(
+                        Text(
                           'Putar Acak',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: theme.textPrimary,
                             fontWeight: FontWeight.w800,
                             fontSize: 13.5,
                           ),
@@ -855,19 +1030,19 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                 child: TextField(
                   controller: _filterCtrl,
                   onChanged: (v) => setState(() => _searchQuery = v),
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: TextStyle(color: theme.textPrimary, fontSize: 13),
                   decoration: InputDecoration(
                     hintText: 'Cari di playlist ini...',
-                    hintStyle: const TextStyle(
-                      color: Colors.white38,
+                    hintStyle: TextStyle(
+                      color: theme.textMuted,
                       fontSize: 12.5,
                     ),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.06),
+                    fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
                     contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     prefixIcon: Icon(
                       Icons.search_rounded,
-                      color: accent,
+                      color: theme.accentText,
                       size: 18,
                     ),
                     suffixIcon: _searchQuery.isNotEmpty
@@ -876,16 +1051,28 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                               _filterCtrl.clear();
                               setState(() => _searchQuery = '');
                             },
-                            child: const Icon(
+                            child: Icon(
                               Icons.clear_rounded,
                               size: 16,
-                              color: Colors.white54,
+                              color: theme.textMuted,
                             ),
                           )
                         : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+                      borderSide: isBrutal
+                          ? BorderSide(
+                              color: theme.brutalBorderColor,
+                              width: 1.8,
+                            )
+                          : BorderSide.none,
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+                      borderSide: BorderSide(
+                        color: isBrutal ? theme.brutalBorderColor : accent,
+                        width: isBrutal ? 2.0 : 1.2,
+                      ),
                     ),
                   ),
                 ),
@@ -895,10 +1082,10 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
 
           Expanded(
             child: filteredSongs.isEmpty
-                ? const Center(
+                ? Center(
                     child: Text(
                       'Tidak ada lagu ditemukan.',
-                      style: TextStyle(color: Colors.white54),
+                      style: TextStyle(color: theme.textMuted),
                     ),
                   )
                 : ListView.builder(
@@ -942,15 +1129,19 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
     );
   }
 
-  Widget _heroFallback(Color accent) {
+  Widget _heroFallback(ThemeProvider theme, Color accent) {
     return Container(
       width: 80,
       height: 80,
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.16),
-        borderRadius: BorderRadius.circular(14),
+        color: accent.withOpacity(0.18),
+        borderRadius: BorderRadius.circular(theme.isNeoBrutalism ? 10 : 14),
       ),
-      child: Icon(Icons.library_music_rounded, color: accent, size: 34),
+      child: Icon(
+        Icons.library_music_rounded,
+        color: theme.accentText,
+        size: 34,
+      ),
     );
   }
 }

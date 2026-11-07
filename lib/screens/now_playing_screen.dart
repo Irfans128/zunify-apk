@@ -28,7 +28,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   bool _showLyricsView = false;
   final ScrollController _lyricsScrollController = ScrollController();
 
-  // Deterministic Measured-Height LyricPlayhead Engine (BitChord style)
+  // Deterministic Measured-Height LyricPlayhead Engine
   final Map<int, double> _lineHeights = {};
   double _lyricsViewportHeight = 360.0;
   int _lastScrolledLyricIdx = -99;
@@ -63,7 +63,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           _smoothPosMs.value = ms;
         }
 
-        // Continuously verify active lyric scroll position so lyrics NEVER freeze
         if (!_userScrollingLyrics) {
           final totalLines = player.currentLyrics?.lines.length ?? 0;
           if (totalLines > 0) {
@@ -118,10 +117,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     }
   }
 
-  /// BitChord `LyricPlayhead` Deterministic Auto-Scroll Engine:
-  /// Sums exact measured heights of lines `[0 .. targetIdx - 1]` and positions
-  /// the active line at the upper-third focal playhead (`playheadTopPad = 68px`)
-  /// so line 0 is NEVER cut off at the top and every subsequent line glides smoothly.
   void _scrollToActiveLyric(
     String videoId,
     int activeIdx,
@@ -140,15 +135,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     final targetIdx = activeIdx < 0 ? 0 : activeIdx.clamp(0, totalLines - 1);
     if (!force && _lastScrolledLyricIdx == activeIdx) return;
 
-    // Top padding inside SingleChildScrollView equals playhead focal offset (68px),
-    // so for targetIdx == 0, sumBefore == 0 -> targetOffset == 0.0 (never clipped!).
     double sumBefore = 0.0;
     for (int i = 0; i < targetIdx; i++) {
       sumBefore += (_lineHeights[i] ?? 72.0);
     }
 
     final activeHeight = _lineHeights[targetIdx] ?? 76.0;
-    // Center the active line comfortably around 26% of viewport height
     final desiredPlayheadShift =
         ((_lyricsViewportHeight * 0.24) - 68.0 - (activeHeight * 0.15))
             .clamp(-12.0, 56.0);
@@ -198,6 +190,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     final accent = theme.accentColor;
     final ambient = theme.playerAmbientColor;
+    final isBrutal = theme.isNeoBrutalism;
     final isFav = library.isFavorite(song.videoId);
     final isDownloaded = library.isDownloaded(song.videoId);
     final downloadProgress = library.activeDownloadProgress[song.videoId];
@@ -238,13 +231,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.26),
+                      color: theme.dividerColor,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                 ),
 
-                // iOS 26 Liquid Glass Top Navigation Bar
+                // Top Navigation Bar: Close | Musik / Lirik | More
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -267,12 +260,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           _modePillButton(
                             label: 'Musik',
                             selected: !_showLyricsView,
+                            theme: theme,
                             accent: accent,
                             onTap: () => setState(() => _showLyricsView = false),
                           ),
                           _modePillButton(
                             label: 'Lirik',
                             selected: _showLyricsView,
+                            theme: theme,
                             accent: accent,
                             onTap: () {
                               setState(() {
@@ -307,8 +302,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 SizedBox(height: 6 * theme.playerSpacingFactor),
 
-                // Main Centerpiece: Either Lyrics View (NO conflicting vertical gesture wrapper!)
-                // OR Artwork/Vinyl View (with swipe gestures)
+                // Main Centerpiece: Synced Lyrics View OR Responsive Artwork/Vinyl + Live Lyrics Card
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: theme.animDuration(260),
@@ -343,9 +337,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             },
                             child: LayoutBuilder(
                               builder: (context, constraints) {
-                                final availableForArt =
-                                    (constraints.maxHeight - 128)
-                                        .clamp(150.0, 256.0);
+                                final availableForArt = math
+                                    .min(
+                                      constraints.maxWidth - 20,
+                                      constraints.maxHeight - 104,
+                                    )
+                                    .clamp(160.0, 294.0);
                                 return Column(
                                   mainAxisAlignment:
                                       MainAxisAlignment.spaceEvenly,
@@ -380,6 +377,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                 : Icons.album_rounded,
                                             size: 32,
                                             iconSize: 15,
+                                            tooltip:
+                                                theme.playerCoverStyle == 'vinyl'
+                                                    ? 'Mode Sampul'
+                                                    : 'Mode Piringan',
                                             onTap: () =>
                                                 theme.setPlayerCoverStyle(
                                               theme.playerCoverStyle == 'vinyl'
@@ -392,6 +393,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ),
                                     _buildLiveLyricsGlassCard(
                                       player,
+                                      theme,
                                       accent,
                                       song.videoId,
                                       totalLyricLines,
@@ -404,28 +406,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   ),
                 ),
 
-                SizedBox(height: 6 * theme.playerSpacingFactor),
-
-                // Minimalist Tempo Button
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: IosGlassPillButton(
-                      icon: Icons.speed_rounded,
-                      label: player.hasCustomSpeedOrPitch
-                          ? player.speedPitchModeLabel
-                          : 'Tempo 1.0x',
-                      height: 25,
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      activeColor: accent,
-                      isActive: player.hasCustomSpeedOrPitch,
-                      fontSize: 10.5,
-                      onTap: () =>
-                          _showSpeedPitchStudioSheet(context, player, accent),
-                    ),
-                  ),
-                ),
+                SizedBox(height: 8 * theme.playerSpacingFactor),
 
                 // Song Title, Artist & Quick Actions (Share + Favorite)
                 Row(
@@ -440,7 +421,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
+                              color: theme.textPrimary,
                               fontSize: 20.5,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.4,
@@ -477,7 +458,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: GoogleFonts.plusJakartaSans(
-                                      color: Colors.white.withOpacity(0.72),
+                                      color: theme.textSecondary,
                                       fontSize: 14,
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -486,7 +467,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 const SizedBox(width: 2),
                                 Icon(
                                   Icons.chevron_right_rounded,
-                                  color: Colors.white.withOpacity(0.50),
+                                  color: theme.textMuted,
                                   size: 17,
                                 ),
                               ],
@@ -500,6 +481,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       icon: Icons.ios_share_rounded,
                       size: 38,
                       iconSize: 18,
+                      tooltip: 'Bagikan Lirik / Lagu',
                       onTap: () => _openShareModal(context, player),
                     ),
                     const SizedBox(width: 8),
@@ -511,13 +493,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       iconSize: 19,
                       activeColor: accent,
                       isActive: isFav,
+                      tooltip: 'Sukai Lagu',
                       onTap: () => library.toggleFavorite(song),
                     ),
                   ],
                 ),
                 const SizedBox(height: 10),
 
-                // BitChord `ThinSlider` Capsule Progress Scrubber (Expands on touch)
+                // Capsule Progress Scrubber (Expands on touch)
                 StreamBuilder<Duration>(
                   stream: player.audioPlayer.positionStream,
                   builder: (context, snapshot) {
@@ -576,39 +559,57 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 180),
                                   curve: Curves.easeOutCubic,
-                                  height: _isDraggingSeekSlider ? 11.0 : 6.0,
+                                  height: _isDraggingSeekSlider
+                                      ? 12.0
+                                      : (isBrutal ? 9.0 : 6.0),
                                   width: double.infinity,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.14),
+                                    color: isBrutal
+                                        ? theme.cardBgColor
+                                        : Colors.white.withOpacity(0.14),
                                     borderRadius: BorderRadius.circular(99),
+                                    border: isBrutal
+                                        ? Border.all(
+                                            color: theme.brutalBorderColor,
+                                            width: 1.6,
+                                          )
+                                        : null,
                                   ),
                                   child: Align(
                                     alignment: Alignment.centerLeft,
                                     child: FractionallySizedBox(
                                       widthFactor: progress,
                                       child: Container(
-                                        decoration: BoxDecoration(
-                                          borderRadius:
-                                              BorderRadius.circular(99),
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              accent,
-                                               Colors.white,
-                                            ],
-                                            stops: const [0.7, 1.0],
-                                          ),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: accent.withOpacity(
-                                                _isDraggingSeekSlider
-                                                    ? 0.65
-                                                    : 0.35,
+                                        decoration: isBrutal
+                                            ? BoxDecoration(
+                                                color: accent,
+                                                borderRadius:
+                                                    BorderRadius.circular(99),
+                                              )
+                                            : BoxDecoration(
+                                                borderRadius:
+                                                    BorderRadius.circular(99),
+                                                gradient: LinearGradient(
+                                                  colors: [
+                                                    accent,
+                                                    Colors.white,
+                                                  ],
+                                                  stops: const [0.7, 1.0],
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: accent.withOpacity(
+                                                      _isDraggingSeekSlider
+                                                          ? 0.65
+                                                          : 0.35,
+                                                    ),
+                                                    blurRadius:
+                                                        _isDraggingSeekSlider
+                                                            ? 14
+                                                            : 8,
+                                                  ),
+                                                ],
                                               ),
-                                              blurRadius:
-                                                  _isDraggingSeekSlider ? 14 : 8,
-                                            ),
-                                          ],
-                                        ),
                                       ),
                                     ),
                                   ),
@@ -626,16 +627,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ),
                               style: TextStyle(
                                 color: _isDraggingSeekSlider
-                                    ? Colors.white
-                                    : Colors.white54,
+                                    ? theme.textPrimary
+                                    : theme.textMuted,
                                 fontSize: 11.2,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             Text(
                               _formatDuration(total),
-                              style: const TextStyle(
-                                color: Colors.white54,
+                              style: TextStyle(
+                                color: theme.textMuted,
                                 fontSize: 11.2,
                                 fontWeight: FontWeight.w700,
                               ),
@@ -648,7 +649,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 6),
 
-                // Symmetrical iOS 27.2 Main Transport Controls with Fluid Spring Physics
+                // Main Transport Controls
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -666,13 +667,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       scaleDown: 0.80,
                       borderRadius: 24,
                       onTap: () => player.playPrevious(),
-                      child: const SizedBox(
+                      child: SizedBox(
                         width: 48,
                         height: 48,
                         child: Center(
                           child: Icon(
                             Icons.skip_previous_rounded,
-                            color: Colors.white,
+                            color: theme.textPrimary,
                             size: 36,
                           ),
                         ),
@@ -685,24 +686,40 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       child: Container(
                         width: 66,
                         height: 66,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.white,
-                          boxShadow: [
-                            BoxShadow(
-                              color: accent.withOpacity(0.40),
-                              blurRadius: 26,
-                              spreadRadius: 2,
-                            ),
-                          ],
-                        ),
+                        decoration: isBrutal
+                            ? BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: accent,
+                                border: Border.all(
+                                  color: theme.brutalBorderColor,
+                                  width: 2.6,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: theme.brutalShadowColor,
+                                    blurRadius: 0,
+                                    offset: const Offset(4.0, 4.0),
+                                  ),
+                                ],
+                              )
+                            : BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: accent.withOpacity(0.40),
+                                    blurRadius: 26,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
                         alignment: Alignment.center,
                         child: player.isLoadingTrack
                             ? const SizedBox(
                                 width: 22,
                                 height: 22,
                                 child: CircularProgressIndicator(
-                                  color: Colors.black,
+                                  color: Color(0xFF111111),
                                   strokeWidth: 2.5,
                                 ),
                               )
@@ -715,7 +732,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       ? Icons.pause_rounded
                                       : Icons.play_arrow_rounded,
                                   key: ValueKey<bool>(player.isPlaying),
-                                  color: Colors.black,
+                                  color: const Color(0xFF111111),
                                   size: 38,
                                 ),
                               ),
@@ -725,13 +742,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       scaleDown: 0.80,
                       borderRadius: 24,
                       onTap: () => player.playNext(),
-                      child: const SizedBox(
+                      child: SizedBox(
                         width: 48,
                         height: 48,
                         child: Center(
                           child: Icon(
                             Icons.skip_next_rounded,
-                            color: Colors.white,
+                            color: theme.textPrimary,
                             size: 36,
                           ),
                         ),
@@ -752,7 +769,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // iOS 26 Floating Liquid Glass PlayerDock (5 Equal-Width Columns)
+                // Logical 5-Slot Bottom Utility Dock: [Tempo | Equalizer | Timer | Unduh | Antrean]
                 LiquidGlassBox(
                   borderRadius: 24,
                   padding: const EdgeInsets.symmetric(
@@ -765,28 +782,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     children: [
                       Expanded(
                         child: _dockIcon(
-                          icon: Icons.lyrics_outlined,
-                          label: 'Lirik',
-                          active: _showLyricsView,
+                          icon: Icons.speed_rounded,
+                          label: player.hasCustomSpeedOrPitch
+                              ? player.speedPitchModeLabel
+                              : 'Tempo',
+                          active: player.hasCustomSpeedOrPitch,
+                          theme: theme,
                           accent: accent,
-                          onTap: () {
-                            setState(() {
-                              _showLyricsView = !_showLyricsView;
-                              _userScrollingLyrics = false;
-                              _lastScrolledLyricIdx = -99;
-                            });
-                            if (_showLyricsView) {
-                              WidgetsBinding.instance.addPostFrameCallback((_) {
-                                if (!mounted) return;
-                                _scrollToActiveLyric(
-                                  song.videoId,
-                                  player.activeLyricIndex,
-                                  totalLyricLines,
-                                  force: true,
-                                );
-                              });
-                            }
-                          },
+                          onTap: () => _showSpeedPitchStudioSheet(
+                            context,
+                            player,
+                          ),
                         ),
                       ),
                       Expanded(
@@ -794,6 +800,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           icon: Icons.equalizer_rounded,
                           label: 'Equalizer',
                           active: player.eqEnabled,
+                          theme: theme,
                           accent: accent,
                           onTap: () {
                             showModalBottomSheet(
@@ -810,6 +817,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           icon: Icons.bedtime_outlined,
                           label: 'Timer',
                           active: player.hasActiveSleepTimer,
+                          theme: theme,
                           accent: accent,
                           onTap: () {
                             showModalBottomSheet(
@@ -828,7 +836,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   height: 20,
                                   child: CircularProgressIndicator(
                                     value: downloadProgress,
-                                    color: accent,
+                                    color: theme.accentText,
                                     strokeWidth: 2.2,
                                   ),
                                 ),
@@ -839,12 +847,13 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     : Icons.download_outlined,
                                 label: isDownloaded ? 'Tersimpan' : 'Unduh',
                                 active: isDownloaded,
+                                theme: theme,
                                 accent: accent,
                                 onTap: () {
                                   if (!isDownloaded) {
                                     library.downloadSong(
                                       song,
-                                      highQuality: player.highQualityAudio,
+                                      highQuality: true,
                                     );
                                   }
                                 },
@@ -856,9 +865,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           label: 'Antrean',
                           badgeText: '${player.upcomingCount}',
                           active: false,
+                          theme: theme,
                           accent: accent,
-                          onTap: () =>
-                              _showQueueBottomSheet(context, player, accent),
+                          onTap: () => _showQueueBottomSheet(context, player),
                         ),
                       ),
                     ],
@@ -872,15 +881,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// BitChord Liquid Glass Live Lyrics Preview Card below Artwork
+  /// Live Lyrics Preview Card below Artwork
   Widget _buildLiveLyricsGlassCard(
     PlayerProvider player,
+    ThemeProvider theme,
     Color accent,
     String videoId,
     int totalLyricLines,
   ) {
     final lyrics = player.currentLyrics;
     final isLoading = player.isLoadingLyrics;
+    final isBrutal = theme.isNeoBrutalism;
 
     return LiquidGlassBox(
       borderRadius: 20,
@@ -912,14 +923,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             children: [
               MiniAudioSpectrumBars(
                 isPlaying: player.isPlaying,
-                color: accent,
+                color: theme.accentText,
                 height: 11,
               ),
               const SizedBox(width: 6),
               Text(
                 'LIRIK LANGSUNG',
                 style: TextStyle(
-                  color: accent,
+                  color: theme.accentText,
                   fontSize: 10,
                   fontWeight: FontWeight.w800,
                   letterSpacing: 0.8,
@@ -941,8 +952,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     decoration: BoxDecoration(
                       color: player.showTranslation
                           ? accent
-                          : Colors.white.withOpacity(0.10),
-                      borderRadius: BorderRadius.circular(8),
+                          : theme.subtleFill,
+                      borderRadius: BorderRadius.circular(isBrutal ? 6 : 8),
+                      border: isBrutal
+                          ? Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 1.4,
+                            )
+                          : null,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -950,8 +967,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         Icon(
                           Icons.translate_rounded,
                           color: player.showTranslation
-                              ? Colors.black
-                              : Colors.white70,
+                              ? const Color(0xFF111111)
+                              : theme.textSecondary,
                           size: 10.5,
                         ),
                         const SizedBox(width: 4),
@@ -961,8 +978,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               : 'Terjemahkan',
                           style: TextStyle(
                             color: player.showTranslation
-                                ? Colors.black
-                                : Colors.white70,
+                                ? const Color(0xFF111111)
+                                : theme.textSecondary,
                             fontSize: 9.5,
                             fontWeight: FontWeight.w800,
                           ),
@@ -971,27 +988,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
                   ),
                 ),
-              const Icon(
+              Icon(
                 Icons.open_in_full_rounded,
-                color: Colors.white54,
+                color: theme.textMuted,
                 size: 12,
               ),
             ],
           ),
           const SizedBox(height: 6),
           if (isLoading)
-            const Text(
+            Text(
               'Memuat lirik sinkron...',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.white60, fontSize: 12.5),
+              style: TextStyle(color: theme.textSecondary, fontSize: 12.5),
             )
           else if (lyrics == null || lyrics.lines.isEmpty)
-            const Text(
+            Text(
               '♪ Instrumental / Lirik belum tersedia ♪',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.white54, fontSize: 12.5),
+              style: TextStyle(color: theme.textMuted, fontSize: 12.5),
             )
           else
             Builder(
@@ -1022,7 +1039,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
+                          color: theme.textPrimary,
                           fontWeight: FontWeight.w800,
                           fontSize: 14,
                         ),
@@ -1038,10 +1055,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.dmSans(
-                            color: accent,
+                            color: theme.accentText,
                             fontSize: 12,
                             fontStyle: FontStyle.italic,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ] else if (isIntro) ...[
@@ -1051,7 +1068,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white38,
+                            color: theme.textMuted,
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),
@@ -1064,7 +1081,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: GoogleFonts.plusJakartaSans(
-                            color: Colors.white38,
+                            color: theme.textMuted,
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),
@@ -1080,34 +1097,35 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// BitChord `PlayerLyricsKt` + `LyricFocusKt` Full-Screen Synced Lyrics View
+  /// Full-Screen Synced Lyrics View (Liquid Glass & Neo-Brutalism)
   Widget _buildBitChordLyricsView(
     String videoId,
     PlayerProvider player,
     ThemeProvider theme,
     Color accent,
   ) {
+    final isBrutal = theme.isNeoBrutalism;
     final SyncedLyrics? lyrics = player.currentLyrics;
     if (player.isLoadingLyrics) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircularProgressIndicator(color: accent),
+            CircularProgressIndicator(color: theme.accentText),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Memuat lirik lagu...',
-              style: TextStyle(color: Colors.white70, fontSize: 13.5),
+              style: TextStyle(color: theme.textSecondary, fontSize: 13.5),
             ),
           ],
         ),
       );
     }
     if (lyrics == null || lyrics.lines.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           '♪ Instrumental / Lirik belum tersedia ♪',
-          style: TextStyle(color: Colors.white54, fontSize: 15),
+          style: TextStyle(color: theme.textMuted, fontSize: 15),
         ),
       );
     }
@@ -1115,8 +1133,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       key: const ValueKey('bitchord_lyrics_view'),
       children: [
-        // iOS 26 Uniform 32px Liquid Glass Lyrics Toolbar:
-        // Translate • Provider Switcher • Alignment • Sync Offset (-0.25s / +0.25s)
+        // Uniform 32px Lyrics Toolbar
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: SingleChildScrollView(
@@ -1125,92 +1142,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 if (lyrics.shouldShowTranslation) ...[
-                  LiquidGlassBox(
+                  IosGlassPillButton(
+                    icon: Icons.translate_rounded,
+                    label: player.isTranslatingLyrics
+                        ? 'Proses...'
+                        : 'Terjemahkan',
                     height: 32,
-                    borderRadius: 16,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    tintColor: player.showTranslation ? accent : Colors.white,
-                    tintOpacity: player.showTranslation ? 0.24 : 0.08,
-                    rimIntensity: player.showTranslation ? 0.52 : 0.30,
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                    activeColor: accent,
+                    isActive: player.showTranslation,
+                    fontSize: 11.2,
                     onTap: () => player.toggleTranslationDisplay(),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (player.isTranslatingLyrics) ...[
-                          SizedBox(
-                            width: 11,
-                            height: 11,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: accent,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                        ] else ...[
-                          Icon(
-                            Icons.translate_rounded,
-                            color: player.showTranslation
-                                ? accent
-                                : Colors.white70,
-                            size: 13.5,
-                          ),
-                          const SizedBox(width: 5),
-                        ],
-                        Text(
-                          player.isTranslatingLyrics
-                              ? 'Proses...'
-                              : 'Terjemahkan',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.2,
-                            fontWeight: player.showTranslation
-                                ? FontWeight.w800
-                                : FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   const SizedBox(width: 6),
                 ],
 
-                // "Pilih Penyedia Lirik" Switcher Pill (Height 32)
-                LiquidGlassBox(
+                // Sumber Lirik Switcher Pill
+                IosGlassPillButton(
+                  icon: Icons.cloud_done_rounded,
+                  label: lyrics.sourceName.replaceAll(' Synced', ''),
                   height: 32,
-                  borderRadius: 16,
                   padding: const EdgeInsets.symmetric(horizontal: 11),
-                  tintOpacity: 0.08,
-                  rimIntensity: 0.30,
-                  onTap: () => _showLyricsProviderSheet(context, player, accent),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.cloud_done_rounded,
-                        color: accent,
-                        size: 13.5,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        lyrics.sourceName.replaceAll(' Synced', ''),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11.2,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white70,
-                        size: 14,
-                      ),
-                    ],
-                  ),
+                  activeColor: accent,
+                  fontSize: 11.2,
+                  onTap: () => _showLyricsProviderSheet(context, player),
                 ),
                 const SizedBox(width: 6),
 
-                // 1-Tap Lyric Alignment Toggle (32x32 Circular Glass)
+                // 1-Tap Lyric Alignment Toggle
                 IosGlassIconButton(
                   icon: theme.lyricsCenterAligned
                       ? Icons.format_align_center_rounded
@@ -1224,7 +1183,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(width: 6),
 
-                // Sync Offset Pill (-0.25s / +0.25s, Height 32)
+                // Sync Offset Pill (-0.25s / +0.25s)
                 LiquidGlassBox(
                   height: 32,
                   borderRadius: 16,
@@ -1238,13 +1197,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         scaleDown: 0.84,
                         borderRadius: 10,
                         onTap: () => player.adjustLyricsOffset(-250),
-                        child: const Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 4,
+                          ),
                           child: Text(
                             '-0.25s',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: theme.textSecondary,
                               fontSize: 10.8,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1264,8 +1225,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             '${(player.lyricsOffsetMs / 1000).toStringAsFixed(2)}s',
                             style: TextStyle(
                               color: player.lyricsOffsetMs == 0
-                                  ? Colors.white54
-                                  : accent,
+                                  ? theme.textMuted
+                                  : theme.accentText,
                               fontSize: 10.8,
                               fontWeight: FontWeight.w800,
                             ),
@@ -1276,13 +1237,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         scaleDown: 0.84,
                         borderRadius: 10,
                         onTap: () => player.adjustLyricsOffset(250),
-                        child: const Padding(
-                          padding:
-                              EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 4,
+                          ),
                           child: Text(
                             '+0.25s',
                             style: TextStyle(
-                              color: Colors.white70,
+                              color: theme.textSecondary,
                               fontSize: 10.8,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1297,12 +1260,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           ),
         ),
 
-        // BitChord Floating Synced Lyrics Viewport (Pure typography, never clipped!)
+        // Synced Lyrics Viewport
         Expanded(
           child: LayoutBuilder(
             builder: (context, constraints) {
               _lyricsViewportHeight = constraints.maxHeight;
-              // Top padding = 68px so Line 0 starts cleanly below the top fade!
               const double topSafePad = 68.0;
               final double bottomSafePad =
                   (constraints.maxHeight * 0.58).clamp(140.0, 260.0);
@@ -1348,10 +1310,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             final double itemOpacity = isActive
                                 ? 1.0
                                 : (distance == 1
-                                    ? 0.46
+                                    ? 0.52
                                     : (distance == 2
-                                        ? 0.26
-                                        : (isPassed ? 0.14 : 0.18)));
+                                        ? 0.30
+                                        : (isPassed ? 0.18 : 0.22)));
 
                             final isInterlude = line.originalText.isEmpty ||
                                 line.originalText.contains('•');
@@ -1363,6 +1325,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             final Widget lineBody = isInterlude
                                 ? _buildInterludeIndicator(
                                     isActive: isActive,
+                                    theme: theme,
                                     accent: accent,
                                     centerAligned: theme.lyricsCenterAligned,
                                     lineTimestamp: line.timestamp,
@@ -1375,6 +1338,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             lyrics.shouldShowTranslation)
                                         ? line.translatedIndoText
                                         : null,
+                                    theme: theme,
                                     accent: accent,
                                     centerAligned: theme.lyricsCenterAligned,
                                     fontScale: theme.lyricsFontScale,
@@ -1391,7 +1355,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               },
                               child: IosSpringButton(
                                 scaleDown: 0.96,
-                                borderRadius: 18,
+                                borderRadius: isBrutal ? 13 : 18,
                                 onTap: () {
                                   setState(() => _userScrollingLyrics = false);
                                   player.seekTo(line.timestamp);
@@ -1405,12 +1369,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     vertical: 11,
                                     horizontal: 14,
                                   ),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(18),
-                                    color: isActive
-                                        ? Colors.white.withOpacity(0.06)
-                                        : Colors.transparent,
-                                  ),
+                                  decoration: isBrutal && isActive
+                                      ? BoxDecoration(
+                                          color: Color.lerp(
+                                            theme.cardBgColor,
+                                            accent,
+                                            0.28,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(13),
+                                          border: Border.all(
+                                            color: theme.brutalBorderColor,
+                                            width: 2.0,
+                                          ),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: theme.brutalShadowColor,
+                                              blurRadius: 0,
+                                              offset: const Offset(3.0, 3.0),
+                                            ),
+                                          ],
+                                        )
+                                      : BoxDecoration(
+                                          borderRadius:
+                                              BorderRadius.circular(18),
+                                          color: isActive
+                                              ? Colors.white.withOpacity(0.06)
+                                              : Colors.transparent,
+                                        ),
                                   child: AnimatedScale(
                                     scale: isActive
                                         ? 1.0
@@ -1441,15 +1427,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     Positioned(
                       right: 8,
                       bottom: 12,
-                      child: LiquidGlassBox(
-                        borderRadius: 20,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        tintColor: accent,
-                        tintOpacity: 0.28,
-                        rimIntensity: 0.52,
+                      child: IosGlassPillButton(
+                        icon: Icons.my_location_rounded,
+                        label: 'Ikuti Lirik',
+                        height: 34,
+                        activeColor: accent,
+                        isActive: true,
                         onTap: () {
                           _resumeAutoScrollTimer?.cancel();
                           setState(() {
@@ -1463,25 +1446,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             force: true,
                           );
                         },
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.my_location_rounded,
-                              color: accent,
-                              size: 14,
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Ikuti Lirik',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                     ),
                 ],
@@ -1493,28 +1457,28 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// BitChord "Pilih Penyedia Lirik" Bottom Sheet
+  /// "Sumber Lirik" Bottom Sheet
   void _showLyricsProviderSheet(
     BuildContext context,
     PlayerProvider player,
-    Color accent,
   ) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF0E121D),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Consumer<PlayerProvider>(
           builder: (context, livePlayer, _) {
+            final theme = context.watch<ThemeProvider>();
+            final accent = theme.accentColor;
+            final isBrutal = theme.isNeoBrutalism;
             final options = livePlayer.availableLyricsProviders;
             final currentSource =
                 livePlayer.currentLyrics?.sourceName ?? 'Otomatis';
 
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            return ZunifySheetContainer(
+              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+              child: SafeArea(
+                top: false,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1524,7 +1488,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         width: 40,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white24,
+                          color: theme.dividerColor,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -1532,12 +1496,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Icon(Icons.lyrics_rounded, color: accent, size: 20),
+                        Icon(
+                          Icons.lyrics_rounded,
+                          color: theme.accentText,
+                          size: 20,
+                        ),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Sumber Lirik',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: theme.textPrimary,
                             fontSize: 16.5,
                             fontWeight: FontWeight.w800,
                           ),
@@ -1546,11 +1514,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
                     const SizedBox(height: 12),
                     if (options.isEmpty)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
                         child: Text(
                           'Hanya 1 sumber lirik tersedia.',
-                          style: TextStyle(color: Colors.white60, fontSize: 13),
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontSize: 13,
+                          ),
                         ),
                       )
                     else
@@ -1569,24 +1540,46 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               horizontal: 14,
                               vertical: 11,
                             ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? accent.withOpacity(0.16)
-                                  : Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                color: isSelected
-                                    ? accent.withOpacity(0.55)
-                                    : Colors.white.withOpacity(0.09),
-                              ),
-                            ),
+                            decoration: isBrutal
+                                ? BoxDecoration(
+                                    color: isSelected
+                                        ? accent
+                                        : theme.cardBgColor,
+                                    borderRadius: BorderRadius.circular(11),
+                                    border: Border.all(
+                                      color: theme.brutalBorderColor,
+                                      width: 2.0,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: theme.brutalShadowColor,
+                                        blurRadius: 0,
+                                        offset: const Offset(2.5, 2.5),
+                                      ),
+                                    ],
+                                  )
+                                : BoxDecoration(
+                                    color: isSelected
+                                        ? accent.withOpacity(0.16)
+                                        : Colors.white.withOpacity(0.05),
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: isSelected
+                                          ? accent.withOpacity(0.55)
+                                          : Colors.white.withOpacity(0.09),
+                                    ),
+                                  ),
                             child: Row(
                               children: [
                                 Icon(
                                   hasWordSync
                                       ? Icons.auto_awesome_rounded
                                       : Icons.subtitles_rounded,
-                                  color: isSelected ? accent : Colors.white70,
+                                  color: isSelected
+                                      ? (isBrutal
+                                          ? const Color(0xFF111111)
+                                          : accent)
+                                      : theme.textSecondary,
                                   size: 18,
                                 ),
                                 const SizedBox(width: 12),
@@ -1594,18 +1587,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   child: Text(
                                     '${opt.sourceName} (${opt.lines.length} baris)',
                                     style: TextStyle(
-                                      color: isSelected
-                                          ? Colors.white
-                                          : Colors.white.withOpacity(0.88),
+                                      color: isSelected && isBrutal
+                                          ? const Color(0xFF111111)
+                                          : theme.textPrimary,
                                       fontSize: 13.5,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ),
                                 if (isSelected)
                                   Icon(
                                     Icons.check_circle_rounded,
-                                    color: accent,
+                                    color: isBrutal
+                                        ? const Color(0xFF111111)
+                                        : accent,
                                     size: 19,
                                   ),
                               ],
@@ -1627,6 +1622,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required bool isActive,
     required LyricLine line,
     required String? translatedText,
+    required ThemeProvider theme,
     required Color accent,
     required bool centerAligned,
     required double fontScale,
@@ -1634,9 +1630,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }) {
     final displayText = line.originalText;
     final words = line.words;
+    final fgColor = theme.textPrimary;
+    final unsungColor = fgColor.withOpacity(0.36);
 
     final baseStyle = GoogleFonts.plusJakartaSans(
-      color: Colors.white,
+      color: fgColor,
       fontSize: 23.0 * fontScale,
       fontWeight: FontWeight.w800,
       height: 1.30,
@@ -1669,7 +1667,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               translatedText,
               textAlign: textAlign,
               style: GoogleFonts.dmSans(
-                color: Colors.white70,
+                color: theme.textSecondary,
                 fontSize: 14.2 * fontScale,
                 fontStyle: FontStyle.italic,
                 fontWeight: FontWeight.w600,
@@ -1697,7 +1695,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   final wProg = ((curMs - w.startMs) / span).clamp(0.0, 1.0);
 
                   final activeWordStyle = baseStyle.copyWith(
-                    shadows: wProg > 0.05
+                    shadows: (!theme.isLightCanvas && wProg > 0.05)
                         ? [
                             Shadow(
                               color: accent.withOpacity(0.62 * wProg),
@@ -1713,9 +1711,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   if (wProg <= 0.01) {
                     return Text(
                       w.text,
-                      style: baseStyle.copyWith(
-                        color: Colors.white.withOpacity(0.36),
-                      ),
+                      style: baseStyle.copyWith(color: unsungColor),
                     );
                   }
                   return ShaderMask(
@@ -1723,8 +1719,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
                       colors: [
-                        Colors.white,
-                        Colors.white.withOpacity(0.36),
+                        fgColor,
+                        unsungColor,
                       ],
                       stops: [
                         wProg.clamp(0.0, 1.0),
@@ -1741,12 +1737,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 displayText,
                 textAlign: textAlign,
                 style: baseStyle.copyWith(
-                  shadows: [
-                    Shadow(
-                      color: accent.withOpacity(0.50),
-                      blurRadius: 16,
-                    ),
-                  ],
+                  shadows: !theme.isLightCanvas
+                      ? [
+                          Shadow(
+                            color: accent.withOpacity(0.50),
+                            blurRadius: 16,
+                          ),
+                        ]
+                      : null,
                 ),
               ),
             if (translatedText != null && translatedText.isNotEmpty) ...[
@@ -1755,7 +1753,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 translatedText,
                 textAlign: textAlign,
                 style: GoogleFonts.dmSans(
-                  color: accent,
+                  color: theme.accentText,
                   fontSize: 14.5 * fontScale,
                   fontStyle: FontStyle.italic,
                   fontWeight: FontWeight.w700,
@@ -1769,14 +1767,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// Spotify / Apple Music / BitChord 3 Animated Instrumental Dots (`•  •  •`)
+  /// 3 Animated Instrumental Dots (`•  •  •`)
   Widget _buildInterludeIndicator({
     required bool isActive,
+    required ThemeProvider theme,
     required Color accent,
     required bool centerAligned,
     required Duration lineTimestamp,
     required Duration nextTimestamp,
   }) {
+    final fgColor = theme.textPrimary;
     if (!isActive) {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1791,7 +1791,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               height: 9,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: Colors.white.withOpacity(0.28),
+                color: fgColor.withOpacity(0.28),
               ),
             );
           }),
@@ -1836,11 +1836,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: Color.lerp(
-                        Colors.white.withOpacity(0.32),
-                        Colors.white,
+                        fgColor.withOpacity(0.30),
+                        fgColor,
                         dotFill,
                       ),
-                      boxShadow: dotFill > 0.2
+                      boxShadow: (!theme.isLightCanvas && dotFill > 0.2)
                           ? [
                               BoxShadow(
                                 color: accent.withOpacity(0.65 * dotFill),
@@ -1860,7 +1860,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  /// Modern 3D Floating Album Cover (`PlayerArtworkKt` from BitChord)
+  /// Modern 3D Floating Album Cover (Liquid Glass & Neo-Brutalism)
   Widget _buildModern3DAlbumArtwork({
     required String imageUrl,
     required bool isPlaying,
@@ -1869,32 +1869,52 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required ThemeProvider theme,
     required double size,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
+    final artRadius = isBrutal ? 18.0 : 28.0;
+
     return AnimatedScale(
-      scale: isPlaying ? 1.0 : 0.88,
-      duration: theme.animDuration(380),
+      scale: isPlaying ? 1.0 : 0.90,
+      duration: theme.animDuration(360),
       curve: Curves.easeOutBack,
       child: AnimatedContainer(
-        duration: theme.animDuration(380),
+        duration: theme.animDuration(360),
         width: size,
         height: size,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(28),
-          boxShadow: [
-            BoxShadow(
-              color: ambient.withOpacity(isPlaying ? 0.58 : 0.24),
-              blurRadius: isPlaying ? 42 : 20,
-              spreadRadius: isPlaying ? 4 : 0,
-              offset: Offset(0, isPlaying ? 16 : 8),
-            ),
-            BoxShadow(
-              color: Colors.black.withOpacity(0.58),
-              blurRadius: 26,
-              offset: const Offset(0, 12),
-            ),
-          ],
-        ),
+        decoration: isBrutal
+            ? BoxDecoration(
+                color: theme.cardBgColor,
+                borderRadius: BorderRadius.circular(artRadius),
+                border: Border.all(
+                  color: theme.brutalBorderColor,
+                  width: 2.8,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: theme.brutalShadowColor,
+                    blurRadius: 0,
+                    offset: Offset(isPlaying ? 6.5 : 4.5, isPlaying ? 6.5 : 4.5),
+                  ),
+                ],
+              )
+            : BoxDecoration(
+                borderRadius: BorderRadius.circular(artRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: ambient.withOpacity(isPlaying ? 0.58 : 0.24),
+                    blurRadius: isPlaying ? 42 : 20,
+                    spreadRadius: isPlaying ? 4 : 0,
+                    offset: Offset(0, isPlaying ? 16 : 8),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.58),
+                    blurRadius: 26,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(28),
+          borderRadius:
+              BorderRadius.circular(isBrutal ? artRadius - 2.8 : artRadius),
           child: Stack(
             fit: StackFit.expand,
             children: [
@@ -1903,25 +1923,26 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 fit: BoxFit.cover,
                 fadeInDuration: const Duration(milliseconds: 180),
                 errorWidget: (_, __, ___) => Container(
-                  color: Colors.white10,
+                  color: theme.subtleFill,
                   child: Icon(
                     Icons.music_note_rounded,
-                    color: accent,
+                    color: theme.accentText,
                     size: size * 0.36,
                   ),
                 ),
               ),
-              IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(28),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.20),
-                      width: 1.15,
+              if (!isBrutal)
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(artRadius),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.20),
+                        width: 1.15,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
@@ -1933,7 +1954,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _showSpeedPitchStudioSheet(
     BuildContext context,
     PlayerProvider player,
-    Color accent,
   ) {
     final presets = <Map<String, dynamic>>[
       {'label': 'Normal', 'speed': 1.0, 'pitch': 1.0},
@@ -1945,16 +1965,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Consumer<PlayerProvider>(
           builder: (context, livePlayer, _) {
-            return SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 18),
+            final theme = context.watch<ThemeProvider>();
+            final accent = theme.accentColor;
+
+            return ZunifySheetContainer(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              child: SafeArea(
+                top: false,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1964,7 +1985,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         width: 36,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: Colors.white24,
+                          color: theme.dividerColor,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       ),
@@ -1975,12 +1996,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.speed_rounded, color: accent, size: 20),
+                            Icon(
+                              Icons.speed_rounded,
+                              color: theme.accentText,
+                              size: 20,
+                            ),
                             const SizedBox(width: 8),
-                            const Text(
-                              'Tempo',
+                            Text(
+                              'Tempo & Nada',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: theme.textPrimary,
                                 fontSize: 16.5,
                                 fontWeight: FontWeight.w800,
                               ),
@@ -1988,26 +2013,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           ],
                         ),
                         if (livePlayer.hasCustomSpeedOrPitch)
-                          IosSpringButton(
+                          IosGlassPillButton(
+                            label: 'Reset',
+                            height: 28,
+                            padding: const EdgeInsets.symmetric(horizontal: 11),
+                            activeColor: accent,
+                            isActive: true,
+                            fontSize: 11,
                             onTap: () => livePlayer.resetSpeedPitch(),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: accent.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Text(
-                                'Reset',
-                                style: TextStyle(
-                                  color: accent,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
                           ),
                       ],
                     ),
@@ -2024,31 +2037,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   (livePlayer.playbackPitch - pt).abs() < 0.02;
                           return Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: IosSpringButton(
-                              onTap: () => livePlayer.setSpeedPitchPreset(sp, pt),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 13,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? accent
-                                      : Colors.white.withOpacity(0.07),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: isSelected ? accent : Colors.white12,
-                                  ),
-                                ),
-                                child: Text(
-                                  p['label'] as String,
-                                  style: TextStyle(
-                                    color: isSelected ? Colors.black : Colors.white,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
+                            child: IosGlassPillButton(
+                              label: p['label'] as String,
+                              height: 33,
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 13),
+                              activeColor: accent,
+                              isActive: isSelected,
+                              fontSize: 12,
+                              onTap: () =>
+                                  livePlayer.setSpeedPitchPreset(sp, pt),
                             ),
                           );
                         }).toList(),
@@ -2058,10 +2056,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Kecepatan',
                           style: TextStyle(
-                            color: Colors.white70,
+                            color: theme.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2069,7 +2067,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         Text(
                           '${livePlayer.playbackSpeed.toStringAsFixed(2)}x',
                           style: TextStyle(
-                            color: accent,
+                            color: theme.accentText,
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
@@ -2078,27 +2076,27 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
-                        trackHeight: 3.5,
+                        trackHeight: 4.0,
                         thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 6.5,
+                          enabledThumbRadius: 7.0,
                         ),
                       ),
                       child: Slider(
                         value: livePlayer.playbackSpeed.clamp(0.70, 1.35),
                         min: 0.70,
                         max: 1.35,
-                        activeColor: accent,
-                        inactiveColor: Colors.white12,
+                        activeColor: theme.accentText,
+                        inactiveColor: theme.dividerColor,
                         onChanged: (v) => livePlayer.setPlaybackSpeed(v),
                       ),
                     ),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'Nada',
                           style: TextStyle(
-                            color: Colors.white70,
+                            color: theme.textSecondary,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2106,7 +2104,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                         Text(
                           '${livePlayer.playbackPitch.toStringAsFixed(2)}x',
                           style: TextStyle(
-                            color: accent,
+                            color: theme.accentText,
                             fontSize: 12,
                             fontWeight: FontWeight.w800,
                           ),
@@ -2115,17 +2113,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     ),
                     SliderTheme(
                       data: SliderTheme.of(context).copyWith(
-                        trackHeight: 3.5,
+                        trackHeight: 4.0,
                         thumbShape: const RoundSliderThumbShape(
-                          enabledThumbRadius: 6.5,
+                          enabledThumbRadius: 7.0,
                         ),
                       ),
                       child: Slider(
                         value: livePlayer.playbackPitch.clamp(0.70, 1.35),
                         min: 0.70,
                         max: 1.35,
-                        activeColor: accent,
-                        inactiveColor: Colors.white12,
+                        activeColor: theme.accentText,
+                        inactiveColor: theme.dividerColor,
                         onChanged: (v) => livePlayer.setPlaybackPitch(v),
                       ),
                     ),
@@ -2142,12 +2140,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   Widget _modePillButton({
     required String label,
     required bool selected,
+    required ThemeProvider theme,
     required Color accent,
     required VoidCallback onTap,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     return IosSpringButton(
       scaleDown: 0.88,
-      borderRadius: 16,
+      borderRadius: isBrutal ? 9 : 16,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
@@ -2155,28 +2155,39 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 18),
         alignment: Alignment.center,
-        decoration: BoxDecoration(
-          gradient: selected
-              ? LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    Colors.white.withOpacity(0.24),
-                    accent.withOpacity(0.26),
-                  ],
-                )
-              : null,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color:
-                selected ? Colors.white.withOpacity(0.36) : Colors.transparent,
-            width: 0.95,
-          ),
-        ),
+        decoration: isBrutal
+            ? BoxDecoration(
+                color: selected ? accent : Colors.transparent,
+                borderRadius: BorderRadius.circular(8),
+                border: selected
+                    ? Border.all(color: theme.brutalBorderColor, width: 1.8)
+                    : null,
+              )
+            : BoxDecoration(
+                gradient: selected
+                    ? LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Colors.white.withOpacity(0.24),
+                          accent.withOpacity(0.26),
+                        ],
+                      )
+                    : null,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected
+                      ? Colors.white.withOpacity(0.36)
+                      : Colors.transparent,
+                  width: 0.95,
+                ),
+              ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white60,
+            color: selected
+                ? (isBrutal ? const Color(0xFF111111) : Colors.white)
+                : theme.textSecondary,
             fontSize: 12,
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             height: 1.1,
@@ -2190,16 +2201,19 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required IconData icon,
     required String label,
     required bool active,
+    required ThemeProvider theme,
     required Color accent,
     required VoidCallback onTap,
     String? badgeText,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
+    final activeFg = theme.accentText;
     return IosSpringButton(
       scaleDown: 0.84,
       borderRadius: 16,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -2207,12 +2221,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
               clipBehavior: Clip.none,
               children: [
                 AnimatedScale(
-                  scale: active ? 1.10 : 1.0,
+                  scale: active ? 1.08 : 1.0,
                   duration: const Duration(milliseconds: 220),
                   curve: Curves.easeOutBack,
                   child: Icon(
                     icon,
-                    color: active ? accent : Colors.white70,
+                    color: active ? activeFg : theme.textSecondary,
                     size: 20,
                   ),
                 ),
@@ -2222,17 +2236,23 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                     top: -4,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 4,
+                        horizontal: 4.5,
                         vertical: 1,
                       ),
                       decoration: BoxDecoration(
                         color: accent,
                         borderRadius: BorderRadius.circular(8),
+                        border: isBrutal
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 1.2,
+                              )
+                            : null,
                       ),
                       child: Text(
                         badgeText,
                         style: const TextStyle(
-                          color: Colors.black,
+                          color: Color(0xFF111111),
                           fontSize: 8.5,
                           fontWeight: FontWeight.w900,
                         ),
@@ -2244,10 +2264,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             const SizedBox(height: 3),
             Text(
               label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: active ? accent : Colors.white60,
+                color: active ? activeFg : theme.textMuted,
                 fontSize: 10,
-                fontWeight: FontWeight.w700,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w700,
               ),
             ),
           ],
@@ -2259,15 +2281,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   void _showQueueBottomSheet(
     BuildContext context,
     PlayerProvider player,
-    Color accent,
   ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF0C101B),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) {
         return DraggableScrollableSheet(
           expand: false,
@@ -2277,6 +2295,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           builder: (ctx, scrollCtrl) {
             return Consumer<PlayerProvider>(
               builder: (context, livePlayer, _) {
+                final theme = context.watch<ThemeProvider>();
+                final accent = theme.accentColor;
+                final isBrutal = theme.isNeoBrutalism;
                 final currentSong = livePlayer.currentSong;
                 final curIdx = livePlayer.currentIndex;
                 final total = livePlayer.queue.length;
@@ -2290,7 +2311,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                   }
                 }
 
-                return Padding(
+                return ZunifySheetContainer(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2300,7 +2321,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                           width: 40,
                           height: 4,
                           decoration: BoxDecoration(
-                            color: Colors.white24,
+                            color: theme.dividerColor,
                             borderRadius: BorderRadius.circular(4),
                           ),
                         ),
@@ -2309,112 +2330,82 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Antrean Pemutaran',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18.5,
-                                  fontWeight: FontWeight.w900,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Antrean Pemutaran',
+                                  style: TextStyle(
+                                    color: theme.textPrimary,
+                                    fontSize: 18.5,
+                                    fontWeight: FontWeight.w900,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                livePlayer.contextName.isNotEmpty
-                                    ? 'Dari: ${livePlayer.contextName}'
-                                    : 'Tahan & geser ≡ untuk ubah urutan',
-                                style: const TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 11.5,
+                                const SizedBox(height: 2),
+                                Text(
+                                  livePlayer.contextName.isNotEmpty
+                                      ? 'Dari: ${livePlayer.contextName}'
+                                      : 'Geser ikon garis untuk ubah urutan',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: theme.textMuted,
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                           Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              GestureDetector(
+                              IosGlassPillButton(
+                                icon: Icons.auto_awesome_rounded,
+                                label: 'Autoplay',
+                                height: 30,
+                                padding:
+                                    const EdgeInsets.symmetric(horizontal: 10),
+                                activeColor: accent,
+                                isActive: livePlayer.autoplayEnabled,
+                                fontSize: 11,
                                 onTap: () => livePlayer.setAutoplayEnabled(
                                   !livePlayer.autoplayEnabled,
                                 ),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: livePlayer.autoplayEnabled
-                                        ? accent.withOpacity(0.18)
-                                        : Colors.white.withOpacity(0.07),
-                                    borderRadius: BorderRadius.circular(14),
-                                    border: Border.all(
-                                      color: livePlayer.autoplayEnabled
-                                          ? accent.withOpacity(0.45)
-                                          : Colors.white12,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.auto_awesome_rounded,
-                                        size: 13,
-                                        color: livePlayer.autoplayEnabled
-                                            ? accent
-                                            : Colors.white54,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        'Autoplay',
-                                        style: TextStyle(
-                                          color: livePlayer.autoplayEnabled
-                                              ? accent
-                                              : Colors.white54,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
                               ),
-                              const SizedBox(width: 4),
-                              IconButton(
-                                visualDensity: VisualDensity.compact,
+                              const SizedBox(width: 6),
+                              IosGlassIconButton(
+                                icon: Icons.shuffle_rounded,
+                                size: 32,
+                                iconSize: 16,
+                                activeColor: accent,
+                                isActive: livePlayer.shuffleEnabled,
                                 tooltip: 'Acak Antrean',
-                                icon: Icon(
-                                  Icons.shuffle_rounded,
-                                  color: livePlayer.shuffleEnabled
-                                      ? accent
-                                      : Colors.white60,
-                                  size: 20,
-                                ),
-                                onPressed: () => livePlayer.toggleShuffle(),
+                                onTap: () => livePlayer.toggleShuffle(),
                               ),
                             ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 12),
                       if (currentSong != null) ...[
                         Text(
                           'SEDANG DIPUTAR',
                           style: TextStyle(
-                            color: accent,
+                            color: theme.accentText,
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 0.8,
                           ),
                         ),
                         const SizedBox(height: 6),
-                        Container(
+                        LiquidGlassBox(
+                          borderRadius: 16,
                           padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: accent.withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(color: accent.withOpacity(0.35)),
-                          ),
+                          tintColor: accent,
+                          tintOpacity: 0.16,
+                          rimIntensity: 0.42,
                           child: Row(
                             children: [
                               ClipRRect(
@@ -2438,8 +2429,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       currentSong.title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: theme.textPrimary,
                                         fontWeight: FontWeight.w800,
                                         fontSize: 14,
                                       ),
@@ -2448,8 +2439,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       currentSong.artist,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: Colors.white60,
+                                      style: TextStyle(
+                                        color: theme.textSecondary,
                                         fontSize: 12,
                                       ),
                                     ),
@@ -2458,7 +2449,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ),
                               MiniAudioSpectrumBars(
                                 isPlaying: livePlayer.isPlaying,
-                                color: accent,
+                                color: theme.accentText,
                                 height: 14,
                               ),
                               const SizedBox(width: 6),
@@ -2474,7 +2465,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   livePlayer.isFetchingAutoplay
                                       ? 'Menyiapkan rekomendasi lagu serupa...'
                                       : 'Antrean berikutnya kosong.',
-                                  style: const TextStyle(color: Colors.white54),
+                                  style: TextStyle(color: theme.textMuted),
                                 ),
                               )
                             : ReorderableListView.builder(
@@ -2482,7 +2473,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                 buildDefaultDragHandles: false,
                                 proxyDecorator: (child, index, animation) {
                                   return Material(
-                                    color: const Color(0xFF181D2C),
+                                    color: theme.cardBgColor,
                                     borderRadius: BorderRadius.circular(14),
                                     elevation: 8,
                                     child: child,
@@ -2515,12 +2506,11 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                       case QueueSource.context:
                                         sectionTitle = livePlayer
                                                 .contextName.isNotEmpty
-                                            ? 'BERIKUTNYA DARI: ${livePlayer.contextName.toUpperCase()}'
-                                            : 'BERIKUTNYA DARI DAFTAR PUTAR';
+                                            ? 'DARI: ${livePlayer.contextName.toUpperCase()}'
+                                            : 'DAFTAR PUTAR';
                                         break;
                                       case QueueSource.autoplay:
-                                        sectionTitle =
-                                            'REKOMENDASI OTOMATIS (AUTOPLAY)';
+                                        sectionTitle = 'AUTOPLAY';
                                         break;
                                     }
                                   }
@@ -2553,8 +2543,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                   style: TextStyle(
                                                     color: source ==
                                                             QueueSource.user
-                                                        ? accent
-                                                        : Colors.white54,
+                                                        ? theme.accentText
+                                                        : theme.textMuted,
                                                     fontSize: 10.5,
                                                     fontWeight: FontWeight.w800,
                                                     letterSpacing: 0.7,
@@ -2569,10 +2559,10 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                                   child: Text(
                                                     'Bersihkan',
                                                     style: TextStyle(
-                                                      color: accent,
+                                                      color: theme.accentText,
                                                       fontSize: 11.5,
                                                       fontWeight:
-                                                          FontWeight.w700,
+                                                          FontWeight.w800,
                                                     ),
                                                   ),
                                                 ),
@@ -2581,13 +2571,24 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                         ),
                                       Container(
                                         margin: const EdgeInsets.symmetric(
-                                          vertical: 2.5,
+                                          vertical: 3,
                                         ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withOpacity(0.04),
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
+                                        decoration: isBrutal
+                                            ? BoxDecoration(
+                                                color: theme.cardBgColor,
+                                                borderRadius:
+                                                    BorderRadius.circular(11),
+                                                border: Border.all(
+                                                  color:
+                                                      theme.brutalBorderColor,
+                                                  width: 1.8,
+                                                ),
+                                              )
+                                            : BoxDecoration(
+                                                color: theme.subtleFill,
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
+                                              ),
                                         child: ListTile(
                                           dense: true,
                                           contentPadding:
@@ -2613,9 +2614,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             item.title,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w600,
+                                            style: TextStyle(
+                                              color: theme.textPrimary,
+                                              fontWeight: FontWeight.w700,
                                               fontSize: 13.5,
                                             ),
                                           ),
@@ -2623,8 +2624,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             item.artist,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                              color: Colors.white54,
+                                            style: TextStyle(
+                                              color: theme.textSecondary,
                                               fontSize: 11.5,
                                             ),
                                           ),
@@ -2634,9 +2635,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                               IconButton(
                                                 visualDensity:
                                                     VisualDensity.compact,
-                                                icon: const Icon(
+                                                icon: Icon(
                                                   Icons.close_rounded,
-                                                  color: Colors.white38,
+                                                  color: theme.textMuted,
                                                   size: 18,
                                                 ),
                                                 onPressed: () => livePlayer
@@ -2644,14 +2645,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                               ),
                                               ReorderableDragStartListener(
                                                 index: relIdx,
-                                                child: const Padding(
-                                                  padding: EdgeInsets.symmetric(
+                                                child: Padding(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
                                                     horizontal: 8,
                                                     vertical: 8,
                                                   ),
                                                   child: Icon(
                                                     Icons.drag_handle_rounded,
-                                                    color: Colors.white54,
+                                                    color: theme.textMuted,
                                                     size: 20,
                                                   ),
                                                 ),
@@ -2685,8 +2687,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
   }
 }
 
-/// Measures each rendered lyric line's height after layout so `_scrollToActiveLyric`
-/// can compute deterministic scroll offsets without `localToGlobal` coordinate bugs.
 class _MeasuredLyricItem extends StatefulWidget {
   final int index;
   final void Function(int index, double height) onHeightMeasured;

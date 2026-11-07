@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
@@ -7,7 +6,6 @@ import '../widgets/liquid_background_widget.dart';
 import '../widgets/vinyl_disc_widget.dart';
 
 /// First-Time Welcome & Local Account Login Screen
-/// Shown when the user opens Zunify for the first time to enter their name.
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -34,6 +32,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBgColor,
@@ -50,21 +49,36 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 132,
-                    height: 132,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(34),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withOpacity(0.42),
-                          blurRadius: 34,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 12),
-                        ),
-                      ],
-                    ),
+                    width: 128,
+                    height: 128,
+                    decoration: isBrutal
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 2.6,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.brutalShadowColor,
+                                blurRadius: 0,
+                                offset: const Offset(5.0, 5.0),
+                              ),
+                            ],
+                          )
+                        : BoxDecoration(
+                            borderRadius: BorderRadius.circular(34),
+                            boxShadow: [
+                              BoxShadow(
+                                color: accent.withOpacity(0.42),
+                                blurRadius: 34,
+                                spreadRadius: 2,
+                                offset: const Offset(0, 12),
+                              ),
+                            ],
+                          ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(34),
+                      borderRadius: BorderRadius.circular(isBrutal ? 21.4 : 34),
                       child: Image.asset(
                         'assets/images/zunify_logo.png',
                         fit: BoxFit.cover,
@@ -72,25 +86,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           imageUrl: '',
                           isPlaying: true,
                           accentColor: accent,
-                          size: 132,
+                          size: 128,
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  const Text(
+                  Text(
                     'Zunify',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 36,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
+                      letterSpacing: -0.6,
                     ),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 28),
 
-                  // iOS 27.2 Liquid Glass Login Box
                   LiquidGlassBox(
                     borderRadius: 28,
                     padding: const EdgeInsets.all(24),
@@ -101,12 +114,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        Text(
                           'Siapa nama panggilanmu?',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: theme.textPrimary,
                             fontSize: 16,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -114,56 +127,90 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           controller: _nameController,
                           autofocus: true,
                           textCapitalization: TextCapitalization.words,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                           ),
                           onSubmitted: (_) => _submitName(),
                           decoration: InputDecoration(
                             hintText: 'Ketik nama kamu...',
-                            hintStyle: const TextStyle(color: Colors.white38),
+                            hintStyle: TextStyle(color: theme.textMuted),
                             filled: true,
-                            fillColor: Colors.black.withOpacity(0.35),
-                            prefixIcon: Icon(Icons.person_rounded, color: accent),
+                            fillColor: isBrutal
+                                ? theme.scaffoldBgColor
+                                : Colors.black.withOpacity(0.35),
+                            prefixIcon: Icon(
+                              Icons.person_rounded,
+                              color: theme.accentText,
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 18,
                               vertical: 16,
                             ),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide.none,
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(
+                                isBrutal ? 12 : 18,
+                              ),
+                              borderSide: isBrutal
+                                  ? BorderSide(
+                                      color: theme.brutalBorderColor,
+                                      width: 2.0,
+                                    )
+                                  : BorderSide.none,
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(18),
-                              borderSide: BorderSide(color: accent, width: 1.5),
+                              borderRadius: BorderRadius.circular(
+                                isBrutal ? 12 : 18,
+                              ),
+                              borderSide: BorderSide(
+                                color:
+                                    isBrutal ? theme.brutalBorderColor : accent,
+                                width: isBrutal ? 2.4 : 1.5,
+                              ),
                             ),
                           ),
                         ),
                         const SizedBox(height: 20),
                         IosSpringButton(
                           scaleDown: 0.93,
-                          borderRadius: 18,
+                          borderRadius: isBrutal ? 12 : 18,
                           onTap: _submitName,
                           child: Container(
                             width: double.infinity,
-                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            padding: const EdgeInsets.symmetric(vertical: 15),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
                               color: accent,
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: accent.withOpacity(0.36),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
+                              borderRadius: BorderRadius.circular(
+                                isBrutal ? 12 : 18,
+                              ),
+                              border: isBrutal
+                                  ? Border.all(
+                                      color: theme.brutalBorderColor,
+                                      width: 2.2,
+                                    )
+                                  : null,
+                              boxShadow: isBrutal
+                                  ? [
+                                      BoxShadow(
+                                        color: theme.brutalShadowColor,
+                                        blurRadius: 0,
+                                        offset: const Offset(3.5, 3.5),
+                                      ),
+                                    ]
+                                  : [
+                                      BoxShadow(
+                                        color: accent.withOpacity(0.36),
+                                        blurRadius: 18,
+                                        offset: const Offset(0, 6),
+                                      ),
+                                    ],
                             ),
                             child: const Text(
                               'Masuk',
                               style: TextStyle(
-                                color: Colors.black,
+                                color: Color(0xFF111111),
                                 fontSize: 16,
                                 fontWeight: FontWeight.w800,
                               ),

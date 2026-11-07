@@ -15,37 +15,75 @@ class SettingsScreen extends StatelessWidget {
   void _showEditProfileDialog(
     BuildContext context,
     LibraryProvider library,
+    ThemeProvider theme,
     Color accent,
   ) {
     final nameCtrl = TextEditingController(text: library.profile.username);
+    final isBrutal = theme.isNeoBrutalism;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF121622),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: const Text(
+        backgroundColor: theme.sheetBgColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(isBrutal ? 15 : 22),
+          side: isBrutal
+              ? BorderSide(color: theme.brutalBorderColor, width: 2.4)
+              : BorderSide(color: Colors.white.withOpacity(0.10)),
+        ),
+        title: Text(
           'Ubah Nama',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: theme.textPrimary,
+            fontWeight: FontWeight.w800,
+          ),
         ),
         content: TextField(
           controller: nameCtrl,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
+          style: TextStyle(color: theme.textPrimary),
+          decoration: InputDecoration(
             hintText: 'Nama kamu...',
-            hintStyle: TextStyle(color: Colors.white38),
+            hintStyle: TextStyle(color: theme.textMuted),
+            filled: true,
+            fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+              borderSide: isBrutal
+                  ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
+                  : BorderSide(color: theme.dividerColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+              borderSide: BorderSide(
+                color: isBrutal ? theme.brutalBorderColor : accent,
+                width: isBrutal ? 2.2 : 1.4,
+              ),
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Batal', style: TextStyle(color: Colors.white54)),
+            child: Text(
+              'Batal',
+              style: TextStyle(
+                color: theme.textMuted,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: accent,
-              foregroundColor: Colors.black,
+              foregroundColor: const Color(0xFF111111),
+              elevation: 0,
+              side: isBrutal
+                  ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
+                  : BorderSide.none,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+              ),
             ),
             onPressed: () {
               library.updateUserProfile(username: nameCtrl.text.trim());
@@ -53,7 +91,7 @@ class SettingsScreen extends StatelessWidget {
             },
             child: const Text(
               'Simpan',
-              style: TextStyle(fontWeight: FontWeight.bold),
+              style: TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -67,6 +105,7 @@ class SettingsScreen extends StatelessWidget {
     final library = context.watch<LibraryProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -80,7 +119,7 @@ class SettingsScreen extends StatelessWidget {
             Text(
               'Pengaturan',
               style: GoogleFonts.plusJakartaSans(
-                color: Colors.white,
+                color: theme.textPrimary,
                 fontSize: 26,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.6,
@@ -94,27 +133,37 @@ class SettingsScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               tintOpacity: 0.08,
               rimIntensity: 0.36,
-              onTap: () => _showEditProfileDialog(context, library, accent),
+              onTap: () =>
+                  _showEditProfileDialog(context, library, theme, accent),
               child: Row(
                 children: [
                   Container(
                     width: 44,
                     height: 44,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accent.withOpacity(0.22),
-                      border: Border.all(
-                        color: accent.withOpacity(0.55),
-                        width: 1.2,
-                      ),
-                    ),
+                    decoration: isBrutal
+                        ? BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(11),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 2.0,
+                            ),
+                          )
+                        : BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: accent.withOpacity(0.22),
+                            border: Border.all(
+                              color: accent.withOpacity(0.55),
+                              width: 1.2,
+                            ),
+                          ),
                     alignment: Alignment.center,
                     child: Text(
                       library.profile.username.isNotEmpty
                           ? library.profile.username[0].toUpperCase()
                           : 'Z',
                       style: TextStyle(
-                        color: accent,
+                        color: isBrutal ? const Color(0xFF111111) : accent,
                         fontSize: 19,
                         fontWeight: FontWeight.w900,
                       ),
@@ -129,17 +178,17 @@ class SettingsScreen extends StatelessWidget {
                           library.profile.username,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.textPrimary,
                             fontSize: 16,
                             fontWeight: FontWeight.w800,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        const Text(
+                        Text(
                           'Ketuk untuk ubah nama',
                           style: TextStyle(
-                            color: Colors.white54,
+                            color: theme.textMuted,
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -147,40 +196,33 @@ class SettingsScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Icon(Icons.edit_rounded, color: accent, size: 19),
+                  Icon(
+                    Icons.edit_rounded,
+                    color: theme.accentText,
+                    size: 19,
+                  ),
                 ],
               ),
             ),
             const SizedBox(height: 18),
 
-            // 2. 2-Theme Selector: Liquid Glass vs Saweria
-            _sectionLabel('Tema Aplikasi'),
+            // 2. 2-Theme Selector: Liquid Glass vs Neo-Brutalism
+            _sectionLabel('Tema Aplikasi', theme),
             const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
-                  child: _buildThemeCard(
-                    title: 'Liquid Glass',
-                    subtitle: 'Transparan & Blur',
-                    icon: Icons.blur_on_rounded,
-                    selected: !theme.isSaweriaTheme,
+                  child: _buildLiquidGlassThemePreviewCard(
+                    selected: !theme.isNeoBrutalism,
                     accent: accent,
-                    isSaweriaPreview: false,
                     onTap: () => theme.setUiThemeMode('liquid_glass'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 12),
                 Expanded(
-                  child: _buildThemeCard(
-                    title: 'Saweria',
-                    subtitle: 'Tegas & Kontras',
-                    icon: Icons.bolt_rounded,
-                    selected: theme.isSaweriaTheme,
-                    accent: const Color(0xFFFAA61A),
-                    isSaweriaPreview: true,
-                    onTap: () {
-                      theme.setUiThemeMode('saweria');
-                    },
+                  child: _buildNeoBrutalismThemePreviewCard(
+                    selected: theme.isNeoBrutalism,
+                    onTap: () => theme.setUiThemeMode('neo_brutalism'),
                   ),
                 ),
               ],
@@ -188,7 +230,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 18),
 
             // 3. Direct Audio Quality Selector (Rendah, Standar, Tinggi)
-            _sectionLabel('Kualitas Audio'),
+            _sectionLabel('Kualitas Audio', theme),
             const SizedBox(height: 8),
             LiquidGlassBox(
               borderRadius: 22,
@@ -204,6 +246,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Rendah',
                         sub: 'Hemat Data',
                         selected: player.audioQualityTier == 'low',
+                        theme: theme,
                         accent: accent,
                         onTap: () => player.setAudioQualityTier('low'),
                       ),
@@ -212,6 +255,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Standar',
                         sub: 'Seimbang',
                         selected: player.audioQualityTier == 'standard',
+                        theme: theme,
                         accent: accent,
                         onTap: () => player.setAudioQualityTier('standard'),
                       ),
@@ -220,6 +264,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Tinggi',
                         sub: 'Jernih',
                         selected: player.audioQualityTier == 'high',
+                        theme: theme,
                         accent: accent,
                         onTap: () => player.setAudioQualityTier('high'),
                       ),
@@ -230,15 +275,15 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.download_done_rounded,
-                        color: accent,
+                        color: theme.accentText,
                         size: 15,
                       ),
                       const SizedBox(width: 6),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Unduh lagu otomatis memakai Kualitas Tinggi',
                           style: TextStyle(
-                            color: Colors.white60,
+                            color: theme.textSecondary,
                             fontSize: 11.5,
                             fontWeight: FontWeight.w600,
                           ),
@@ -252,7 +297,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 18),
 
             // 4. Clean Categorized Menu List
-            _sectionLabel('Menu'),
+            _sectionLabel('Menu', theme),
             const SizedBox(height: 8),
             LiquidGlassBox(
               borderRadius: 22,
@@ -268,10 +313,10 @@ class SettingsScreen extends StatelessWidget {
                     valueText: theme.dynamicFullAccentEnabled
                         ? 'Ikuti Sampul'
                         : 'Manual',
-                    accent: accent,
+                    theme: theme,
                     onTap: () => _openColorMenuSheet(context),
                   ),
-                  _menuDivider(),
+                  _menuDivider(theme),
                   _menuTile(
                     icon: Icons.album_rounded,
                     iconBg: const Color(0xFF8B5CF6),
@@ -279,19 +324,19 @@ class SettingsScreen extends StatelessWidget {
                     valueText: theme.playerCoverStyle == 'vinyl'
                         ? 'Vinyl'
                         : 'Sampul 3D',
-                    accent: accent,
+                    theme: theme,
                     onTap: () => _openPlayerLyricsMenuSheet(context),
                   ),
-                  _menuDivider(),
+                  _menuDivider(theme),
                   _menuTile(
                     icon: Icons.speed_rounded,
                     iconBg: const Color(0xFF06B6D4),
                     title: 'Animasi & Layar',
                     valueText: '90/120Hz',
-                    accent: accent,
+                    theme: theme,
                     onTap: () => _openDisplayAnimationMenuSheet(context),
                   ),
-                  _menuDivider(),
+                  _menuDivider(theme),
                   _menuTile(
                     icon: Icons.swap_horiz_rounded,
                     iconBg: const Color(0xFF10B981),
@@ -299,10 +344,10 @@ class SettingsScreen extends StatelessWidget {
                     valueText: player.crossfadeSeconds == 0
                         ? 'Normal'
                         : 'Crossfade ${player.crossfadeSeconds}s',
-                    accent: accent,
+                    theme: theme,
                     onTap: () => _openPlaybackMenuSheet(context),
                   ),
-                  _menuDivider(),
+                  _menuDivider(theme),
                   _menuTile(
                     icon: Icons.equalizer_rounded,
                     iconBg: const Color(0xFFF59E0B),
@@ -310,7 +355,7 @@ class SettingsScreen extends StatelessWidget {
                     valueText: player.eqEnabled
                         ? player.selectedEqPresetName
                         : 'Off',
-                    accent: accent,
+                    theme: theme,
                     onTap: () {
                       showModalBottomSheet(
                         context: context,
@@ -320,13 +365,13 @@ class SettingsScreen extends StatelessWidget {
                       );
                     },
                   ),
-                  _menuDivider(),
+                  _menuDivider(theme),
                   _menuTile(
                     icon: Icons.system_update_rounded,
                     iconBg: const Color(0xFF3B82F6),
                     title: 'Cek Update',
                     valueText: 'v$kAppVersion',
-                    accent: accent,
+                    theme: theme,
                     onTap: () => runManualUpdateCheck(context),
                   ),
                 ],
@@ -334,7 +379,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // 5. Minimalist Creator Footer (Only place with Crafted by Fannz)
+            // 5. Creator Footer (Only place with Crafted with ❤️ by Fannz)
             LiquidGlassBox(
               borderRadius: 22,
               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
@@ -342,14 +387,25 @@ class SettingsScreen extends StatelessWidget {
               rimIntensity: 0.32,
               child: Row(
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: Image.asset(
-                      'assets/images/zunify_logo.png',
-                      width: 48,
-                      height: 48,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  Container(
+                    decoration: isBrutal
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 1.8,
+                            ),
+                          )
+                        : null,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(isBrutal ? 10.2 : 14),
+                      child: Image.asset(
+                        'assets/images/zunify_logo.png',
+                        width: 48,
+                        height: 48,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -359,10 +415,10 @@ class SettingsScreen extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Text(
+                            Text(
                               'Zunify',
                               style: TextStyle(
-                                color: Colors.white,
+                                color: theme.textPrimary,
                                 fontSize: 17,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.3,
@@ -375,13 +431,23 @@ class SettingsScreen extends StatelessWidget {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: accent.withOpacity(0.18),
+                                color: isBrutal
+                                    ? accent
+                                    : accent.withOpacity(0.18),
                                 borderRadius: BorderRadius.circular(6),
+                                border: isBrutal
+                                    ? Border.all(
+                                        color: theme.brutalBorderColor,
+                                        width: 1.4,
+                                      )
+                                    : null,
                               ),
                               child: Text(
                                 'v$kAppVersion',
                                 style: TextStyle(
-                                  color: accent,
+                                  color: isBrutal
+                                      ? const Color(0xFF111111)
+                                      : accent,
                                   fontSize: 10.5,
                                   fontWeight: FontWeight.w800,
                                 ),
@@ -393,8 +459,8 @@ class SettingsScreen extends StatelessWidget {
                         Text(
                           'Crafted with ❤️ by Fannz',
                           style: TextStyle(
-                            color: accent,
-                            fontWeight: FontWeight.w700,
+                            color: theme.accentText,
+                            fontWeight: FontWeight.w800,
                             fontSize: 12.5,
                           ),
                         ),
@@ -410,51 +476,44 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildThemeCard({
-    required String title,
-    required String subtitle,
-    required IconData icon,
+  /// Visual Preview Card for iOS Liquid Glass Theme
+  Widget _buildLiquidGlassThemePreviewCard({
     required bool selected,
     required Color accent,
-    required bool isSaweriaPreview,
     required VoidCallback onTap,
   }) {
+    const glassAccent = Color(0xFF5EEAD4);
     return IosSpringButton(
       onTap: onTap,
+      borderRadius: 20,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
+        duration: const Duration(milliseconds: 220),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSaweriaPreview
-              ? (selected ? const Color(0xFF231F16) : const Color(0xFF171A24))
-              : (selected
-                  ? Colors.white.withOpacity(0.13)
-                  : Colors.white.withOpacity(0.06)),
-          borderRadius: BorderRadius.circular(isSaweriaPreview ? 16 : 20),
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Color(0xFF1A2238),
+              Color(0xFF0D111E),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: selected
-                ? accent
-                : Colors.white.withOpacity(isSaweriaPreview ? 0.28 : 0.14),
-            width: isSaweriaPreview ? 2.0 : 1.3,
+                ? glassAccent
+                : Colors.white.withOpacity(0.22),
+            width: selected ? 2.0 : 1.2,
           ),
-          boxShadow: isSaweriaPreview
-              ? [
-                  BoxShadow(
-                    color: selected
-                        ? accent.withOpacity(0.85)
-                        : const Color(0xFF05070B),
-                    blurRadius: 0,
-                    offset: const Offset(3.5, 3.5),
-                  ),
-                ]
-              : [
-                  if (selected)
-                    BoxShadow(
-                      color: accent.withOpacity(0.22),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    ),
-                ],
+          boxShadow: [
+            BoxShadow(
+              color: selected
+                  ? glassAccent.withOpacity(0.26)
+                  : Colors.black.withOpacity(0.18),
+              blurRadius: selected ? 18 : 10,
+              offset: const Offset(0, 6),
+            ),
+          ],
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,25 +525,35 @@ class SettingsScreen extends StatelessWidget {
                   width: 34,
                   height: 34,
                   decoration: BoxDecoration(
-                    color: selected
-                        ? accent
-                        : Colors.white.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(10),
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withOpacity(0.24),
+                        glassAccent.withOpacity(0.28),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.35),
+                    ),
                   ),
-                  child: Icon(
-                    icon,
-                    size: 18,
-                    color: selected ? Colors.black : Colors.white,
+                  child: const Icon(
+                    Icons.blur_on_rounded,
+                    size: 19,
+                    color: Colors.white,
                   ),
                 ),
                 if (selected)
-                  Icon(Icons.check_circle_rounded, color: accent, size: 19),
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: glassAccent,
+                    size: 20,
+                  ),
               ],
             ),
-            const SizedBox(height: 10),
-            Text(
-              title,
-              style: const TextStyle(
+            const SizedBox(height: 12),
+            const Text(
+              'Liquid Glass',
+              style: TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.w800,
                 fontSize: 14.5,
@@ -492,11 +561,106 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              subtitle,
+              'Transparan & Blur',
               style: TextStyle(
-                color: selected ? accent : Colors.white54,
+                color: selected ? glassAccent : Colors.white60,
                 fontWeight: FontWeight.w600,
-                fontSize: 11.5,
+                fontSize: 11.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Authentic Visual Preview Card for Neo-Brutalism Theme (Cream Paper + Mustard + Solid Black Border & Hard Shadow)
+  Widget _buildNeoBrutalismThemePreviewCard({
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    const brutalCream = Color(0xFFFAF4E6);
+    const brutalMustard = Color(0xFFFAAE2B);
+    const brutalInk = Color(0xFF111111);
+
+    return IosSpringButton(
+      onTap: onTap,
+      borderRadius: 13,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: brutalCream,
+          borderRadius: BorderRadius.circular(13),
+          border: Border.all(
+            color: brutalInk,
+            width: selected ? 2.6 : 2.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: brutalInk,
+              blurRadius: 0,
+              offset: Offset(selected ? 4.5 : 3.2, selected ? 4.5 : 3.2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: brutalMustard,
+                    borderRadius: BorderRadius.circular(9),
+                    border: Border.all(color: brutalInk, width: 1.8),
+                  ),
+                  child: const Icon(
+                    Icons.bolt_rounded,
+                    size: 19,
+                    color: brutalInk,
+                  ),
+                ),
+                if (selected)
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: BoxDecoration(
+                      color: brutalMustard,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: brutalInk, width: 1.6),
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: brutalInk,
+                      size: 13,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Neo-Brutalism',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: brutalInk,
+                fontWeight: FontWeight.w900,
+                fontSize: 14.5,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Krem & Garis Tegas',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: brutalInk.withOpacity(0.72),
+                fontWeight: FontWeight.w700,
+                fontSize: 11.2,
               ),
             ),
           ],
@@ -509,29 +673,52 @@ class SettingsScreen extends StatelessWidget {
     required String label,
     required String sub,
     required bool selected,
+    required ThemeProvider theme,
     required Color accent,
     required VoidCallback onTap,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     return Expanded(
       child: IosSpringButton(
         onTap: onTap,
+        borderRadius: isBrutal ? 10 : 14,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-          decoration: BoxDecoration(
-            color: selected ? accent : Colors.white.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: selected ? accent : Colors.white12,
-              width: 1.2,
-            ),
-          ),
+          decoration: isBrutal
+              ? BoxDecoration(
+                  color: selected ? accent : theme.cardBgColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.brutalBorderColor,
+                    width: selected ? 2.2 : 1.7,
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: theme.brutalShadowColor,
+                            blurRadius: 0,
+                            offset: const Offset(2.5, 2.5),
+                          ),
+                        ]
+                      : null,
+                )
+              : BoxDecoration(
+                  color: selected ? accent : Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: selected ? accent : Colors.white12,
+                    width: 1.2,
+                  ),
+                ),
           child: Column(
             children: [
               Text(
                 label,
                 style: TextStyle(
-                  color: selected ? Colors.black : Colors.white,
+                  color: selected
+                      ? const Color(0xFF111111)
+                      : theme.textPrimary,
                   fontWeight: FontWeight.w800,
                   fontSize: 13,
                 ),
@@ -543,9 +730,9 @@ class SettingsScreen extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: selected
-                      ? Colors.black.withOpacity(0.72)
-                      : Colors.white54,
-                  fontWeight: FontWeight.w600,
+                      ? const Color(0xFF111111).withOpacity(0.74)
+                      : theme.textMuted,
+                  fontWeight: FontWeight.w700,
                   fontSize: 10,
                 ),
               ),
@@ -561,9 +748,10 @@ class SettingsScreen extends StatelessWidget {
     required Color iconBg,
     required String title,
     required String valueText,
-    required Color accent,
+    required ThemeProvider theme,
     required VoidCallback onTap,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     return IosSpringButton(
       onTap: onTap,
       child: Padding(
@@ -574,17 +762,24 @@ class SettingsScreen extends StatelessWidget {
               width: 34,
               height: 34,
               decoration: BoxDecoration(
-                color: iconBg.withOpacity(0.20),
-                borderRadius: BorderRadius.circular(10),
+                color: isBrutal ? iconBg : iconBg.withOpacity(0.20),
+                borderRadius: BorderRadius.circular(isBrutal ? 9 : 10),
+                border: isBrutal
+                    ? Border.all(color: theme.brutalBorderColor, width: 1.6)
+                    : null,
               ),
-              child: Icon(icon, color: iconBg, size: 18),
+              child: Icon(
+                icon,
+                color: isBrutal ? Colors.white : iconBg,
+                size: 18,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textPrimary,
                   fontSize: 14.5,
                   fontWeight: FontWeight.w700,
                 ),
@@ -592,16 +787,16 @@ class SettingsScreen extends StatelessWidget {
             ),
             Text(
               valueText,
-              style: const TextStyle(
-                color: Colors.white54,
+              style: TextStyle(
+                color: theme.textMuted,
                 fontSize: 12.5,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w700,
               ),
             ),
             const SizedBox(width: 4),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: Colors.white38,
+              color: theme.textMuted,
               size: 20,
             ),
           ],
@@ -610,9 +805,9 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _menuDivider() {
+  Widget _menuDivider(ThemeProvider theme) {
     return Divider(
-      color: Colors.white.withOpacity(0.08),
+      color: theme.dividerColor,
       height: 1,
       indent: 46,
     );
@@ -622,26 +817,25 @@ class SettingsScreen extends StatelessWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) => Consumer<ThemeProvider>(
         builder: (context, theme, _) {
           final accent = theme.accentColor;
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          final isBrutal = theme.isNeoBrutalism;
+          return ZunifySheetContainer(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            child: SafeArea(
+              top: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _sheetHandle(),
+                  _sheetHandle(theme),
                   const SizedBox(height: 14),
-                  const Text(
+                  Text(
                     'Warna & Aksen',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
@@ -649,51 +843,51 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
+                    title: Text(
                       'Ikuti Warna Sampul Lagu',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     value: theme.dynamicFullAccentEnabled,
-                    activeColor: accent,
+                    activeColor: theme.accentText,
                     onChanged: (v) => theme.setDynamicFullAccentEnabled(v),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
+                    title: Text(
                       'Cahaya Latar Sampul',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     value: theme.dynamicAlbumColorEnabled,
-                    activeColor: accent,
+                    activeColor: theme.accentText,
                     onChanged: (v) => theme.setDynamicAlbumColorEnabled(v),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Hitam Pekat OLED',
+                    title: Text(
+                      isBrutal ? 'Mode Gelap Neo-Brutalism' : 'Hitam Pekat OLED',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     value: theme.oledPureBlack,
-                    activeColor: accent,
+                    activeColor: theme.accentText,
                     onChanged: (v) => theme.setOledPureBlack(v),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Pilihan Warna',
+                  Text(
+                    'Pilihan Warna Manual',
                     style: TextStyle(
-                      color: Colors.white70,
+                      color: theme.textSecondary,
                       fontSize: 12.5,
                       fontWeight: FontWeight.w700,
                     ),
@@ -723,15 +917,41 @@ class SettingsScreen extends StatelessWidget {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10),
-                          decoration: BoxDecoration(
-                            color: selected
-                                ? preset.primary.withOpacity(0.22)
-                                : Colors.white.withOpacity(0.06),
-                            borderRadius: BorderRadius.circular(14),
-                            border: Border.all(
-                              color: selected ? preset.primary : Colors.white12,
-                            ),
-                          ),
+                          decoration: isBrutal
+                              ? BoxDecoration(
+                                  color: selected
+                                      ? Color.lerp(
+                                          theme.cardBgColor,
+                                          preset.primary,
+                                          0.35,
+                                        )
+                                      : theme.cardBgColor,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: theme.brutalBorderColor,
+                                    width: selected ? 2.2 : 1.7,
+                                  ),
+                                  boxShadow: selected
+                                      ? [
+                                          BoxShadow(
+                                            color: theme.brutalShadowColor,
+                                            blurRadius: 0,
+                                            offset: const Offset(2.5, 2.5),
+                                          ),
+                                        ]
+                                      : null,
+                                )
+                              : BoxDecoration(
+                                  color: selected
+                                      ? preset.primary.withOpacity(0.22)
+                                      : Colors.white.withOpacity(0.06),
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: Border.all(
+                                    color: selected
+                                        ? preset.primary
+                                        : accent.withOpacity(0.08),
+                                  ),
+                                ),
                           child: Row(
                             children: [
                               Container(
@@ -742,12 +962,18 @@ class SettingsScreen extends StatelessWidget {
                                   gradient: LinearGradient(
                                     colors: [preset.primary, preset.secondary],
                                   ),
+                                  border: isBrutal
+                                      ? Border.all(
+                                          color: theme.brutalBorderColor,
+                                          width: 1.5,
+                                        )
+                                      : null,
                                 ),
                                 child: selected
                                     ? const Icon(
                                         Icons.check_rounded,
                                         size: 13,
-                                        color: Colors.black,
+                                        color: Color(0xFF111111),
                                       )
                                     : null,
                               ),
@@ -757,10 +983,10 @@ class SettingsScreen extends StatelessWidget {
                                   preset.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: Colors.white,
+                                  style: TextStyle(
+                                    color: theme.textPrimary,
                                     fontSize: 12,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                               ),
@@ -782,32 +1008,30 @@ class SettingsScreen extends StatelessWidget {
   void _openPlayerLyricsMenuSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) => Consumer<ThemeProvider>(
         builder: (context, theme, _) {
           final accent = theme.accentColor;
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          return ZunifySheetContainer(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            child: SafeArea(
+              top: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _sheetHandle(),
+                  _sheetHandle(theme),
                   const SizedBox(height: 14),
-                  const Text(
+                  Text(
                     'Pemutar & Lirik',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 14),
-                  _sheetSubLabel('Gaya Sampul'),
+                  _sheetSubLabel('Gaya Sampul', theme),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -815,6 +1039,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Sampul 3D',
                         icon: Icons.album_rounded,
                         selected: theme.playerCoverStyle != 'vinyl',
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setPlayerCoverStyle('artwork'),
                       ),
@@ -823,19 +1048,21 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Vinyl',
                         icon: Icons.radio_button_checked_rounded,
                         selected: theme.playerCoverStyle == 'vinyl',
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setPlayerCoverStyle('vinyl'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 14),
-                  _sheetSubLabel('Tata Letak Pemutar'),
+                  _sheetSubLabel('Tata Letak Pemutar', theme),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       _optionSegmentButton(
                         label: 'Kompak',
                         selected: theme.playerSpacingMode == 'compact',
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setPlayerSpacingMode('compact'),
                       ),
@@ -843,6 +1070,7 @@ class SettingsScreen extends StatelessWidget {
                       _optionSegmentButton(
                         label: 'Seimbang',
                         selected: theme.playerSpacingMode == 'balanced',
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setPlayerSpacingMode('balanced'),
                       ),
@@ -850,13 +1078,14 @@ class SettingsScreen extends StatelessWidget {
                       _optionSegmentButton(
                         label: 'Lega',
                         selected: theme.playerSpacingMode == 'spacious',
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setPlayerSpacingMode('spacious'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 14),
-                  _sheetSubLabel('Posisi & Ukuran Lirik'),
+                  _sheetSubLabel('Posisi & Ukuran Lirik', theme),
                   const SizedBox(height: 8),
                   Row(
                     children: [
@@ -864,6 +1093,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Rata Kiri',
                         icon: Icons.format_align_left_rounded,
                         selected: !theme.lyricsCenterAligned,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setLyricsCenterAligned(false),
                       ),
@@ -872,6 +1102,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Rata Tengah',
                         icon: Icons.format_align_center_rounded,
                         selected: theme.lyricsCenterAligned,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setLyricsCenterAligned(true),
                       ),
@@ -883,6 +1114,7 @@ class SettingsScreen extends StatelessWidget {
                       _optionSegmentButton(
                         label: 'Kecil',
                         selected: theme.lyricsFontScale < 0.95,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setLyricsFontScale(0.90),
                       ),
@@ -891,6 +1123,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Normal',
                         selected: theme.lyricsFontScale >= 0.95 &&
                             theme.lyricsFontScale <= 1.07,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setLyricsFontScale(1.0),
                       ),
@@ -898,6 +1131,7 @@ class SettingsScreen extends StatelessWidget {
                       _optionSegmentButton(
                         label: 'Besar',
                         selected: theme.lyricsFontScale > 1.07,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setLyricsFontScale(1.14),
                       ),
@@ -915,29 +1149,28 @@ class SettingsScreen extends StatelessWidget {
   void _openDisplayAnimationMenuSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) => Consumer<ThemeProvider>(
         builder: (context, theme, _) {
           final accent = theme.accentColor;
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          final isBrutal = theme.isNeoBrutalism;
+          return ZunifySheetContainer(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            child: SafeArea(
+              top: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _sheetHandle(),
+                  _sheetHandle(theme),
                   const SizedBox(height: 14),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'Animasi & Layar',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: theme.textPrimary,
                           fontSize: 17,
                           fontWeight: FontWeight.w800,
                         ),
@@ -948,13 +1181,19 @@ class SettingsScreen extends StatelessWidget {
                           vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: accent.withOpacity(0.16),
-                          borderRadius: BorderRadius.circular(10),
+                          color: isBrutal ? accent : accent.withOpacity(0.16),
+                          borderRadius: BorderRadius.circular(isBrutal ? 7 : 10),
+                          border: isBrutal
+                              ? Border.all(
+                                  color: theme.brutalBorderColor,
+                                  width: 1.5,
+                                )
+                              : null,
                         ),
                         child: Text(
                           '90 / 120Hz Aktif',
                           style: TextStyle(
-                            color: accent,
+                            color: isBrutal ? const Color(0xFF111111) : accent,
                             fontSize: 11,
                             fontWeight: FontWeight.w800,
                           ),
@@ -963,13 +1202,14 @@ class SettingsScreen extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  _sheetSubLabel('Kecepatan Gerakan Animasi'),
+                  _sheetSubLabel('Kecepatan Gerakan Animasi', theme),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       _optionSegmentButton(
                         label: 'Cepat',
                         selected: theme.animationSpeedMultiplier < 0.82,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setAnimationSpeedMultiplier(0.72),
                       ),
@@ -978,6 +1218,7 @@ class SettingsScreen extends StatelessWidget {
                         label: 'Responsif',
                         selected: theme.animationSpeedMultiplier >= 0.82 &&
                             theme.animationSpeedMultiplier <= 1.05,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setAnimationSpeedMultiplier(0.88),
                       ),
@@ -985,20 +1226,22 @@ class SettingsScreen extends StatelessWidget {
                       _optionSegmentButton(
                         label: 'Halus',
                         selected: theme.animationSpeedMultiplier > 1.05,
+                        theme: theme,
                         accent: accent,
                         onTap: () => theme.setAnimationSpeedMultiplier(1.20),
                       ),
                     ],
                   ),
-                  if (!theme.isSaweriaTheme) ...[
+                  if (!theme.isNeoBrutalism) ...[
                     const SizedBox(height: 16),
-                    _sheetSubLabel('Intensitas Blur Kaca'),
+                    _sheetSubLabel('Intensitas Blur Kaca', theme),
                     const SizedBox(height: 8),
                     Row(
                       children: [
                         _optionSegmentButton(
                           label: 'Ringan',
                           selected: theme.blurIntensity <= 0.50,
+                          theme: theme,
                           accent: accent,
                           onTap: () => theme.setBlurIntensity(0.40),
                         ),
@@ -1007,13 +1250,15 @@ class SettingsScreen extends StatelessWidget {
                           label: 'Seimbang',
                           selected: theme.blurIntensity > 0.50 &&
                               theme.blurIntensity < 0.90,
+                          theme: theme,
                           accent: accent,
-                          onTap: () => theme.setBlurIntensity(0.75),
+                          onTap: () => theme.setBlurIntensity(0.80),
                         ),
                         const SizedBox(width: 8),
                         _optionSegmentButton(
                           label: 'Maksimal',
                           selected: theme.blurIntensity >= 0.90,
+                          theme: theme,
                           accent: accent,
                           onTap: () => theme.setBlurIntensity(1.0),
                         ),
@@ -1032,32 +1277,30 @@ class SettingsScreen extends StatelessWidget {
   void _openPlaybackMenuSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF101420),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (_) => Consumer2<PlayerProvider, ThemeProvider>(
         builder: (context, player, theme, _) {
           final accent = theme.accentColor;
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+          return ZunifySheetContainer(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 22),
+            child: SafeArea(
+              top: false,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _sheetHandle(),
+                  _sheetHandle(theme),
                   const SizedBox(height: 14),
-                  const Text(
+                  Text(
                     'Pemutaran & Transisi',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 17,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   const SizedBox(height: 14),
-                  _sheetSubLabel('Crossfade Pergantian Lagu'),
+                  _sheetSubLabel('Crossfade Pergantian Lagu', theme),
                   const SizedBox(height: 8),
                   Row(
                     children: [0, 3, 4, 6, 8].map((sec) {
@@ -1065,6 +1308,7 @@ class SettingsScreen extends StatelessWidget {
                       return _optionSegmentButton(
                         label: sec == 0 ? 'Off' : '${sec}s',
                         selected: selected,
+                        theme: theme,
                         accent: accent,
                         onTap: () => player.setCrossfadeSeconds(sec),
                       );
@@ -1074,16 +1318,16 @@ class SettingsScreen extends StatelessWidget {
                   const SizedBox(height: 10),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text(
+                    title: Text(
                       'Putar Otomatis Saat Antrean Habis',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: theme.textPrimary,
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     value: player.autoplayEnabled,
-                    activeColor: accent,
+                    activeColor: theme.accentText,
                     onChanged: (v) => player.setAutoplayEnabled(v),
                   ),
                 ],
@@ -1095,24 +1339,24 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _sheetHandle() {
+  Widget _sheetHandle(ThemeProvider theme) {
     return Center(
       child: Container(
         width: 38,
         height: 4,
         decoration: BoxDecoration(
-          color: Colors.white24,
+          color: theme.dividerColor,
           borderRadius: BorderRadius.circular(4),
         ),
       ),
     );
   }
 
-  Widget _sheetSubLabel(String text) {
+  Widget _sheetSubLabel(String text, ThemeProvider theme) {
     return Text(
       text,
-      style: const TextStyle(
-        color: Colors.white70,
+      style: TextStyle(
+        color: theme.textSecondary,
         fontSize: 12.5,
         fontWeight: FontWeight.w700,
       ),
@@ -1122,23 +1366,44 @@ class SettingsScreen extends StatelessWidget {
   Widget _optionSegmentButton({
     required String label,
     required bool selected,
+    required ThemeProvider theme,
     required Color accent,
     required VoidCallback onTap,
     IconData? icon,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     return Expanded(
       child: IosSpringButton(
         onTap: onTap,
+        borderRadius: isBrutal ? 10 : 13,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 6),
-          decoration: BoxDecoration(
-            color: selected ? accent : Colors.white.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(13),
-            border: Border.all(
-              color: selected ? accent : Colors.white12,
-            ),
-          ),
+          decoration: isBrutal
+              ? BoxDecoration(
+                  color: selected ? accent : theme.cardBgColor,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: theme.brutalBorderColor,
+                    width: selected ? 2.0 : 1.6,
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: theme.brutalShadowColor,
+                            blurRadius: 0,
+                            offset: const Offset(2.2, 2.2),
+                          ),
+                        ]
+                      : null,
+                )
+              : BoxDecoration(
+                  color: selected ? accent : Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: selected ? accent : Colors.white12,
+                  ),
+                ),
           alignment: Alignment.center,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -1148,7 +1413,9 @@ class SettingsScreen extends StatelessWidget {
                 Icon(
                   icon,
                   size: 14,
-                  color: selected ? Colors.black : Colors.white70,
+                  color: selected
+                      ? const Color(0xFF111111)
+                      : theme.textSecondary,
                 ),
                 const SizedBox(width: 5),
               ],
@@ -1158,7 +1425,9 @@ class SettingsScreen extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: selected ? Colors.black : Colors.white70,
+                    color: selected
+                        ? const Color(0xFF111111)
+                        : theme.textPrimary,
                     fontWeight: FontWeight.w800,
                     fontSize: 11.8,
                   ),
@@ -1171,13 +1440,13 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _sectionLabel(String title) {
+  Widget _sectionLabel(String title, ThemeProvider theme) {
     return Text(
       title,
-      style: const TextStyle(
-        color: Colors.white70,
+      style: TextStyle(
+        color: theme.textSecondary,
         fontSize: 13,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w800,
       ),
     );
   }

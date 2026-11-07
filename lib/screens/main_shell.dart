@@ -91,32 +91,44 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   void _showBroadcastDialog(BuildContext context, BroadcastAnnouncement item) {
-    final accent = context.read<ThemeProvider>().accentColor;
+    final theme = context.read<ThemeProvider>();
+    final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
     final player = context.read<PlayerProvider>();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF101420),
+        backgroundColor: theme.sheetBgColor,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: accent.withOpacity(0.35)),
+          borderRadius: BorderRadius.circular(isBrutal ? 16 : 24),
+          side: BorderSide(
+            color: isBrutal ? theme.brutalBorderColor : accent.withOpacity(0.35),
+            width: isBrutal ? 2.4 : 1.0,
+          ),
         ),
         title: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: accent.withOpacity(0.16),
+                color: accent.withOpacity(isBrutal ? 0.28 : 0.16),
                 shape: BoxShape.circle,
+                border: isBrutal
+                    ? Border.all(color: theme.brutalBorderColor, width: 1.6)
+                    : null,
               ),
-              child: Icon(Icons.campaign_rounded, color: accent, size: 22),
+              child: Icon(
+                Icons.campaign_rounded,
+                color: isBrutal ? const Color(0xFF111111) : accent,
+                size: 22,
+              ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 item.title,
-                style: const TextStyle(
-                  color: Colors.white,
+                style: TextStyle(
+                  color: theme.textPrimary,
                   fontSize: 16.5,
                   fontWeight: FontWeight.w900,
                 ),
@@ -131,7 +143,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             children: [
               if (item.imageUrl.isNotEmpty) ...[
                 ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(isBrutal ? 12 : 16),
                   child: CachedNetworkImage(
                     imageUrl: item.imageUrl,
                     width: double.infinity,
@@ -143,8 +155,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ],
               Text(
                 item.message,
-                style: const TextStyle(
-                  color: Colors.white70,
+                style: TextStyle(
+                  color: theme.textSecondary,
                   fontSize: 13.8,
                   height: 1.45,
                 ),
@@ -153,7 +165,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               Text(
                 '— ${item.sender}',
                 style: TextStyle(
-                  color: accent,
+                  color: theme.accentText,
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
                 ),
@@ -164,10 +176,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: accent,
-                      side: BorderSide(color: accent.withOpacity(0.5)),
+                      foregroundColor: theme.accentText,
+                      side: BorderSide(
+                        color: isBrutal
+                            ? theme.brutalBorderColor
+                            : accent.withOpacity(0.5),
+                        width: isBrutal ? 1.8 : 1.0,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
                       ),
                     ),
                     onPressed: () async {
@@ -200,10 +217,15 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      side: const BorderSide(color: Colors.white24),
+                      foregroundColor: theme.textPrimary,
+                      side: BorderSide(
+                        color: isBrutal
+                            ? theme.brutalBorderColor
+                            : theme.dividerColor,
+                        width: isBrutal ? 1.8 : 1.0,
+                      ),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
                       ),
                     ),
                     onPressed: () {
@@ -225,9 +247,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: accent,
-              foregroundColor: Colors.black,
+              foregroundColor: const Color(0xFF111111),
+              elevation: 0,
+              side: isBrutal
+                  ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
+                  : BorderSide.none,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
               ),
             ),
             onPressed: () => Navigator.pop(ctx),
@@ -341,8 +367,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  /// iOS 27.2 Floating Liquid Glass Tab Bar with Fluid Sliding Capsule & Spring Physics
+  /// Floating Tab Bar (Liquid Glass Capsule & Authentic Neo-Brutalist Sticker Bar)
   Widget _buildBitChordFloatingTabBar(ThemeProvider theme, Color accent) {
+    final isBrutal = theme.isNeoBrutalism;
     const items = [
       {'icon': Icons.home_rounded, 'label': 'Beranda'},
       {'icon': Icons.search_rounded, 'label': 'Cari'},
@@ -351,7 +378,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
 
     return LiquidGlassBox(
-      borderRadius: 34,
+      borderRadius: isBrutal ? 14 : 34,
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
       tintOpacity: 0.16,
       rimIntensity: 0.50,
@@ -363,37 +390,46 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           return Stack(
             alignment: Alignment.centerLeft,
             children: [
-              // Fluid Sliding iOS 27.2 Liquid Glass Pill Indicator
+              // Fluid Sliding Active Tab Indicator
               AnimatedPositioned(
-                duration: theme.animDuration(320),
+                duration: theme.animDuration(290),
                 curve: Curves.easeOutBack,
                 left: _selectedIndex * tabWidth,
                 top: 0,
                 bottom: 0,
                 width: tabWidth,
                 child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(28),
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        Colors.white.withOpacity(0.22),
-                        accent.withOpacity(0.28),
-                      ],
-                    ),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.38),
-                      width: 1.0,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: accent.withOpacity(0.22),
-                        blurRadius: 12,
-                        spreadRadius: -2,
-                      ),
-                    ],
-                  ),
+                  decoration: isBrutal
+                      ? BoxDecoration(
+                          color: accent,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: theme.brutalBorderColor,
+                            width: 2.0,
+                          ),
+                        )
+                      : BoxDecoration(
+                          borderRadius: BorderRadius.circular(28),
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Colors.white.withOpacity(0.22),
+                              accent.withOpacity(0.28),
+                            ],
+                          ),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.38),
+                            width: 1.0,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: accent.withOpacity(0.22),
+                              blurRadius: 12,
+                              spreadRadius: -2,
+                            ),
+                          ],
+                        ),
                 ),
               ),
               Row(
@@ -402,10 +438,19 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   final icon = items[idx]['icon'] as IconData;
                   final label = items[idx]['label'] as String;
 
+                  final Color activeFg =
+                      isBrutal ? const Color(0xFF111111) : accent;
+                  final Color activeLabelFg =
+                      isBrutal ? const Color(0xFF111111) : Colors.white;
+                  final Color inactiveIconFg =
+                      isBrutal ? theme.textSecondary : Colors.white60;
+                  final Color inactiveLabelFg =
+                      isBrutal ? theme.textMuted : Colors.white54;
+
                   return Expanded(
                     child: IosSpringButton(
-                      scaleDown: 0.86,
-                      borderRadius: 28,
+                      scaleDown: 0.88,
+                      borderRadius: isBrutal ? 10 : 28,
                       onTap: () => setState(() => _selectedIndex = idx),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 7),
@@ -414,12 +459,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             AnimatedScale(
-                              scale: selected ? 1.10 : 1.0,
-                              duration: theme.animDuration(240),
+                              scale: selected ? 1.08 : 1.0,
+                              duration: theme.animDuration(220),
                               curve: Curves.easeOutBack,
                               child: Icon(
                                 icon,
-                                color: selected ? accent : Colors.white60,
+                                color: selected ? activeFg : inactiveIconFg,
                                 size: 20,
                               ),
                             ),
@@ -429,7 +474,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: selected ? Colors.white : Colors.white54,
+                                color: selected
+                                    ? activeLabelFg
+                                    : inactiveLabelFg,
                                 fontSize: 10.5,
                                 fontWeight: selected
                                     ? FontWeight.w800
@@ -460,6 +507,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   ) {
     final song = player.currentSong!;
     final isFav = library.isFavorite(song.videoId);
+    final isBrutal = theme.isNeoBrutalism;
 
     return GestureDetector(
       onHorizontalDragEnd: (details) {
@@ -471,8 +519,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
         }
       },
       child: LiquidGlassBox(
-        borderRadius: 26,
-        tintColor: theme.playerAmbientColor,
+        borderRadius: isBrutal ? 14 : 26,
+        tintColor: isBrutal ? Colors.white : theme.playerAmbientColor,
         tintOpacity: 0.18,
         rimIntensity: 0.50,
         enableBlur: true,
@@ -506,23 +554,34 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(13),
-                    child: CachedNetworkImage(
-                      imageUrl: song.highResArtUrl,
-                      width: 44,
-                      height: 44,
-                      memCacheWidth: 130,
-                      fadeInDuration: const Duration(milliseconds: 120),
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
+                  Container(
+                    decoration: isBrutal
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 1.8,
+                            ),
+                          )
+                        : null,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(isBrutal ? 8.2 : 13),
+                      child: CachedNetworkImage(
+                        imageUrl: song.highResArtUrl,
                         width: 44,
                         height: 44,
-                        color: Colors.black38,
-                        child: Icon(
-                          Icons.music_note_rounded,
-                          color: accent,
-                          size: 20,
+                        memCacheWidth: 130,
+                        fadeInDuration: const Duration(milliseconds: 120),
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 44,
+                          height: 44,
+                          color: theme.subtleFill,
+                          child: Icon(
+                            Icons.music_note_rounded,
+                            color: theme.accentText,
+                            size: 20,
+                          ),
                         ),
                       ),
                     ),
@@ -537,7 +596,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           children: [
                             MiniAudioSpectrumBars(
                               isPlaying: player.isPlaying,
-                              color: accent,
+                              color: theme.accentText,
                               height: 11,
                             ),
                             const SizedBox(width: 6),
@@ -546,8 +605,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                                 song.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: theme.textPrimary,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 13.5,
                                   letterSpacing: -0.2,
@@ -562,7 +621,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.65),
+                            color: theme.textSecondary,
                             fontSize: 11.8,
                             fontWeight: FontWeight.w600,
                           ),
@@ -572,7 +631,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 6),
                   IosSpringButton(
-                    scaleDown: 0.80,
+                    scaleDown: 0.82,
                     borderRadius: 18,
                     onTap: () => library.toggleFavorite(song),
                     child: SizedBox(
@@ -583,7 +642,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           isFav
                               ? Icons.favorite_rounded
                               : Icons.favorite_border_rounded,
-                          color: isFav ? accent : Colors.white60,
+                          color: isFav
+                              ? (isBrutal
+                                  ? const Color(0xFFE11D48)
+                                  : accent)
+                              : theme.textMuted,
                           size: 20,
                         ),
                       ),
@@ -599,7 +662,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                            color: accent,
+                            color: theme.accentText,
                             strokeWidth: 2.2,
                           ),
                         ),
@@ -607,49 +670,67 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                     )
                   else
                     IosSpringButton(
-                      scaleDown: 0.82,
-                      borderRadius: 18,
+                      scaleDown: 0.84,
+                      borderRadius: isBrutal ? 10 : 18,
                       onTap: () => player.togglePlayPause(),
                       child: Container(
                         width: 36,
                         height: 36,
                         alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.white.withOpacity(0.24),
-                              Colors.white.withOpacity(0.10),
-                            ],
-                          ),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.36),
-                            width: 1.0,
-                          ),
-                        ),
+                        decoration: isBrutal
+                            ? BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: theme.brutalBorderColor,
+                                  width: 2.0,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: theme.brutalShadowColor,
+                                    blurRadius: 0,
+                                    offset: const Offset(2.0, 2.0),
+                                  ),
+                                ],
+                              )
+                            : BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.white.withOpacity(0.24),
+                                    Colors.white.withOpacity(0.10),
+                                  ],
+                                ),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.36),
+                                  width: 1.0,
+                                ),
+                              ),
                         child: Icon(
                           player.isPlaying
                               ? Icons.pause_rounded
                               : Icons.play_arrow_rounded,
-                          color: Colors.white,
+                          color: isBrutal
+                              ? const Color(0xFF111111)
+                              : Colors.white,
                           size: 22,
                         ),
                       ),
                     ),
                   const SizedBox(width: 4),
                   IosSpringButton(
-                    scaleDown: 0.82,
+                    scaleDown: 0.84,
                     borderRadius: 18,
                     onTap: () => player.playNext(),
-                    child: const SizedBox(
+                    child: SizedBox(
                       width: 34,
                       height: 36,
                       child: Center(
                         child: Icon(
                           Icons.skip_next_rounded,
-                          color: Colors.white70,
+                          color: theme.textSecondary,
                           size: 23,
                         ),
                       ),
@@ -670,9 +751,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                       : 0.0;
                   return LinearProgressIndicator(
                     value: progress,
-                    minHeight: 2.0,
-                    backgroundColor: Colors.white.withOpacity(0.08),
-                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                    minHeight: isBrutal ? 3.0 : 2.0,
+                    backgroundColor: theme.dividerColor,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isBrutal ? theme.accentText : accent,
+                    ),
                   );
                 },
               ),

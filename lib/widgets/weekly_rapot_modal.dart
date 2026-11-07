@@ -156,6 +156,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     final theme = context.watch<ThemeProvider>();
     final library = context.watch<LibraryProvider>();
     final player = context.watch<PlayerProvider>();
+    final isBrutal = theme.isNeoBrutalism;
+    final topRadius = isBrutal ? 18.0 : 32.0;
     final primaryAccent = _getPrimaryAccent(theme.accentColor);
     final secondaryAccent = _getSecondaryAccent(theme.secondaryAccentColor);
     final gradientColors = _getGradientColors(theme.accentColor);
@@ -167,16 +169,29 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     return Container(
       height: MediaQuery.of(context).size.height * 0.92,
       decoration: BoxDecoration(
-        color: const Color(0xFF070A12),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-        border: Border.all(color: Colors.white.withOpacity(0.12)),
+        color: theme.scaffoldBgColor,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
+        border: Border(
+          top: BorderSide(
+            color: isBrutal
+                ? theme.brutalBorderColor
+                : Colors.white.withOpacity(0.14),
+            width: isBrutal ? 2.8 : 1.0,
+          ),
+          left: isBrutal
+              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+              : BorderSide.none,
+          right: isBrutal
+              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+              : BorderSide.none,
+        ),
       ),
       child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
         child: LiquidBackgroundWidget(
           primaryColor: primaryAccent,
           secondaryColor: secondaryAccent,
-          baseColor: const Color(0xFF070A12),
+          baseColor: theme.scaffoldBgColor,
           imageUrl: topCoverUrl,
           intensity: 0.56,
           child: SafeArea(
@@ -190,13 +205,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.white24,
+                      color: theme.textMuted.withOpacity(0.38),
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
                   const SizedBox(height: 12),
 
-                  // iOS 26 Top Header + Segmented Mode Switcher ("Statistik" | "Poster HD")
+                  // Top Header + Segmented Mode Switcher ("Statistik" | "Poster HD")
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
@@ -207,7 +222,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             Text(
                               'Zunify Wrapped',
                               style: GoogleFonts.plusJakartaSans(
-                                color: Colors.white,
+                                color: theme.textPrimary,
                                 fontSize: 20,
                                 fontWeight: FontWeight.w800,
                                 letterSpacing: -0.4,
@@ -215,8 +230,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             ),
                             Text(
                               'Replay Mingguan • ${rapot.weekId}',
-                              style: const TextStyle(
-                                color: Colors.white54,
+                              style: TextStyle(
+                                color: theme.textMuted,
                                 fontSize: 11.2,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -226,7 +241,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       ),
                       LiquidGlassBox(
                         height: 36,
-                        borderRadius: 18,
+                        borderRadius: isBrutal ? 11 : 18,
                         padding: const EdgeInsets.all(3),
                         tintOpacity: 0.10,
                         rimIntensity: 0.38,
@@ -234,12 +249,14 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             _topModePill(
+                              theme: theme,
                               label: 'Statistik',
                               selected: _viewMode == 0,
                               accent: primaryAccent,
                               onTap: () => setState(() => _viewMode = 0),
                             ),
                             _topModePill(
+                              theme: theme,
                               label: 'Poster HD',
                               selected: _viewMode == 1,
                               accent: primaryAccent,
@@ -259,12 +276,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   ),
                   const SizedBox(height: 12),
 
-                  // Body: Either Interactive BitChord Replay Dashboard OR Story/Poster Studio
+                  // Body: Interactive Replay Dashboard OR Story/Poster Studio
                   Expanded(
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 240),
                       child: _viewMode == 0
                           ? _buildReplayDashboard(
+                              theme: theme,
                               username: library.profile.username,
                               rapot: rapot,
                               player: player,
@@ -272,6 +290,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                               secondaryAccent: secondaryAccent,
                             )
                           : _buildPosterStudio(
+                              theme: theme,
                               username: library.profile.username,
                               rapot: rapot,
                               primaryAccent: primaryAccent,
@@ -290,14 +309,16 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
   }
 
   Widget _topModePill({
+    required ThemeProvider theme,
     required String label,
     required bool selected,
     required Color accent,
     required VoidCallback onTap,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     return IosSpringButton(
       scaleDown: 0.88,
-      borderRadius: 15,
+      borderRadius: isBrutal ? 8 : 15,
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
@@ -305,7 +326,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         padding: const EdgeInsets.symmetric(horizontal: 13),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          gradient: selected
+          color: isBrutal && selected ? accent : null,
+          gradient: (!isBrutal && selected)
               ? LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
@@ -315,17 +337,22 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   ],
                 )
               : null,
-          borderRadius: BorderRadius.circular(15),
+          borderRadius: BorderRadius.circular(isBrutal ? 8 : 15),
           border: Border.all(
-            color:
-                selected ? Colors.white.withOpacity(0.36) : Colors.transparent,
-            width: 0.9,
+            color: selected
+                ? (isBrutal
+                    ? theme.brutalBorderColor
+                    : Colors.white.withOpacity(0.36))
+                : Colors.transparent,
+            width: isBrutal ? 1.8 : 0.9,
           ),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white60,
+            color: isBrutal
+                ? (selected ? const Color(0xFF111111) : theme.textSecondary)
+                : (selected ? Colors.white : Colors.white60),
             fontSize: 11.2,
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             height: 1.1,
@@ -335,15 +362,27 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     );
   }
 
-  /// BitChord `ReplayScreen` Interactive Dashboard
+  /// Interactive Replay Dashboard (Adapts to Liquid Glass & Neo-Brutalism)
   Widget _buildReplayDashboard({
+    required ThemeProvider theme,
     required String username,
     required WeeklyRapot rapot,
     required PlayerProvider player,
     required Color primaryAccent,
     required Color secondaryAccent,
   }) {
-    final weekdayLabels = const ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+    final isBrutal = theme.isNeoBrutalism;
+    final accentReadable =
+        theme.isLightCanvas ? theme.accentText : primaryAccent;
+    final weekdayLabels = const [
+      'Sen',
+      'Sel',
+      'Rab',
+      'Kam',
+      'Jum',
+      'Sab',
+      'Min',
+    ];
     int maxDayMins = 1;
     for (final v in rapot.minutesPerWeekday.values) {
       if (v > maxDayMins) maxDayMins = v;
@@ -353,7 +392,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
       key: const ValueKey('replay_dashboard_view'),
       physics: const BouncingScrollPhysics(),
       children: [
-        // 1. Hero Liquid Glass Replay Summary Card
+        // 1. Hero Replay Summary Card
         LiquidGlassBox(
           borderRadius: 26,
           padding: const EdgeInsets.all(18),
@@ -371,14 +410,23 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       vertical: 4,
                     ),
                     decoration: BoxDecoration(
-                      color: primaryAccent.withOpacity(0.20),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: primaryAccent.withOpacity(0.45)),
+                      color: isBrutal
+                          ? primaryAccent
+                          : primaryAccent.withOpacity(0.20),
+                      borderRadius: BorderRadius.circular(isBrutal ? 8 : 12),
+                      border: Border.all(
+                        color: isBrutal
+                            ? theme.brutalBorderColor
+                            : primaryAccent.withOpacity(0.45),
+                        width: isBrutal ? 1.8 : 1.0,
+                      ),
                     ),
                     child: Text(
                       'REPLAY MINGGUAN • $username',
                       style: TextStyle(
-                        color: primaryAccent,
+                        color: isBrutal
+                            ? const Color(0xFF111111)
+                            : primaryAccent,
                         fontSize: 10,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.7,
@@ -388,7 +436,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   const Spacer(),
                   Icon(
                     Icons.graphic_eq_rounded,
-                    color: primaryAccent,
+                    color: accentReadable,
                     size: 20,
                   ),
                 ],
@@ -400,7 +448,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   Text(
                     '${rapot.totalMinutes}',
                     style: GoogleFonts.plusJakartaSans(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 42,
                       fontWeight: FontWeight.w900,
                       height: 1.0,
@@ -408,14 +456,18 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 5),
-                    child: Text(
-                      'menit waktu dengar (${rapot.formattedListenTime})',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.76),
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 5),
+                      child: Text(
+                        'menit waktu dengar (${rapot.formattedListenTime})',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: theme.textSecondary,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ),
@@ -428,25 +480,29 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                 children: [
                   Expanded(
                     child: _miniStatPill(
+                      theme: theme,
                       label: 'Total Putar',
                       value: '${rapot.totalTracksPlayed}x',
-                      accent: primaryAccent,
+                      valueColor: accentReadable,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _miniStatPill(
+                      theme: theme,
                       label: 'Lagu Teratas',
                       value: '${rapot.topSongs.length} Lagu',
-                      accent: secondaryAccent,
+                      valueColor:
+                          theme.isLightCanvas ? theme.textPrimary : secondaryAccent,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: _miniStatPill(
+                      theme: theme,
                       label: 'Artis',
                       value: '${rapot.topArtists.length} Artis',
-                      accent: Colors.white,
+                      valueColor: theme.textPrimary,
                     ),
                   ),
                 ],
@@ -459,15 +515,19 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.26),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withOpacity(0.08)),
+                  color: theme.subtleFill,
+                  borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
+                  border: Border.all(
+                    color:
+                        isBrutal ? theme.brutalBorderColor : theme.dividerColor,
+                    width: isBrutal ? 1.8 : 1.0,
+                  ),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       Icons.auto_awesome_rounded,
-                      color: primaryAccent,
+                      color: accentReadable,
                       size: 18,
                     ),
                     const SizedBox(width: 10),
@@ -477,8 +537,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         children: [
                           Text(
                             rapot.vibePersonaTitle,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: theme.textPrimary,
                               fontSize: 13,
                               fontWeight: FontWeight.w800,
                             ),
@@ -487,8 +547,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             rapot.vibePersonaSubtitle,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: theme.textSecondary,
                               fontSize: 11,
                             ),
                           ),
@@ -515,10 +575,10 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Aktivitas Hari ke Hari',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: theme.textPrimary,
                       fontSize: 14.5,
                       fontWeight: FontWeight.w800,
                     ),
@@ -526,7 +586,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   Text(
                     'Menit / Hari',
                     style: TextStyle(
-                      color: primaryAccent,
+                      color: accentReadable,
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                     ),
@@ -542,14 +602,16 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   children: List.generate(7, (idx) {
                     final dayNum = idx + 1;
                     final mins = rapot.minutesPerWeekday[dayNum] ?? 0;
-                    final ratio = (mins / maxDayMins).clamp(0.08, 1.0);
+                    final ratio = (mins / maxDayMins).clamp(0.10, 1.0);
                     return Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         Text(
                           mins > 0 ? '${mins}m' : '-',
                           style: TextStyle(
-                            color: mins > 0 ? Colors.white70 : Colors.white24,
+                            color: mins > 0
+                                ? theme.textSecondary
+                                : theme.textMuted.withOpacity(0.55),
                             fontSize: 9.5,
                             fontWeight: FontWeight.w700,
                           ),
@@ -559,24 +621,36 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                           width: 22,
                           height: 52 * ratio,
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(8),
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: mins > 0
-                                  ? [primaryAccent, secondaryAccent]
-                                  : [
-                                      Colors.white.withOpacity(0.10),
-                                      Colors.white.withOpacity(0.05),
-                                    ],
-                            ),
+                            borderRadius:
+                                BorderRadius.circular(isBrutal ? 6 : 8),
+                            color: isBrutal
+                                ? (mins > 0 ? primaryAccent : theme.subtleFill)
+                                : null,
+                            border: isBrutal
+                                ? Border.all(
+                                    color: theme.brutalBorderColor,
+                                    width: 1.6,
+                                  )
+                                : null,
+                            gradient: isBrutal
+                                ? null
+                                : LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: mins > 0
+                                        ? [primaryAccent, secondaryAccent]
+                                        : [
+                                            Colors.white.withOpacity(0.10),
+                                            Colors.white.withOpacity(0.05),
+                                          ],
+                                  ),
                           ),
                         ),
                         const SizedBox(height: 5),
                         Text(
                           weekdayLabels[idx],
-                          style: const TextStyle(
-                            color: Colors.white54,
+                          style: TextStyle(
+                            color: theme.textMuted,
                             fontSize: 10.5,
                             fontWeight: FontWeight.w700,
                           ),
@@ -593,19 +667,19 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
 
         // 3. Top Artists Carousel
         if (rapot.topArtists.isNotEmpty) ...[
-          const Padding(
-            padding: EdgeInsets.only(left: 4, bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 8),
             child: Text(
               'Artis Teratas Minggu Ini',
               style: TextStyle(
-                color: Colors.white,
+                color: theme.textPrimary,
                 fontSize: 15.5,
                 fontWeight: FontWeight.w900,
               ),
             ),
           ),
           SizedBox(
-            height: 122,
+            height: 124,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
@@ -615,7 +689,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                 final artist = rapot.topArtists[idx];
                 return LiquidGlassBox(
                   borderRadius: 20,
-                  width: 112,
+                  width: 114,
                   padding: const EdgeInsets.all(10),
                   tintOpacity: idx == 0 ? 0.14 : 0.07,
                   rimIntensity: idx == 0 ? 0.44 : 0.30,
@@ -623,15 +697,26 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      ClipOval(
-                        child: CachedNetworkImage(
-                          imageUrl: artist.sampleThumbnailUrl,
-                          width: 48,
-                          height: 48,
-                          memCacheWidth: 140,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) =>
-                              _fallbackThumb(48, primaryAccent),
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: isBrutal
+                              ? Border.all(
+                                  color: theme.brutalBorderColor,
+                                  width: 1.8,
+                                )
+                              : null,
+                        ),
+                        child: ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: artist.sampleThumbnailUrl,
+                            width: 48,
+                            height: 48,
+                            memCacheWidth: 140,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                _fallbackThumb(48, primaryAccent),
+                          ),
                         ),
                       ),
                       const SizedBox(height: 7),
@@ -639,8 +724,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         '#${idx + 1} ${artist.artistName}',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
+                        style: TextStyle(
+                          color: theme.textPrimary,
                           fontSize: 11.5,
                           fontWeight: FontWeight.w800,
                         ),
@@ -650,7 +735,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          color: idx == 0 ? primaryAccent : Colors.white54,
+                          color: idx == 0 ? accentReadable : theme.textMuted,
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -669,12 +754,12 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Padding(
-              padding: EdgeInsets.only(left: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
               child: Text(
                 'Lagu Paling Sering Diputar',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: theme.textPrimary,
                   fontSize: 15.5,
                   fontWeight: FontWeight.w800,
                 ),
@@ -706,10 +791,10 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           LiquidGlassBox(
             borderRadius: 20,
             padding: const EdgeInsets.all(20),
-            child: const Text(
-              'Belum ada riwayat pemutaran minggu ini. Putar lagu favoritmu untuk mengisi Replay Anda!',
+            child: Text(
+              'Belum ada riwayat pemutaran minggu ini. Putar lagu favoritmu untuk mengisi Replay!',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white60, fontSize: 12.5),
+              style: TextStyle(color: theme.textSecondary, fontSize: 12.5),
             ),
           )
         else
@@ -741,22 +826,34 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       child: Text(
                         '#${i + 1}',
                         style: TextStyle(
-                          color: i == 0 ? primaryAccent : Colors.white70,
+                          color:
+                              i == 0 ? accentReadable : theme.textSecondary,
                           fontWeight: FontWeight.w900,
                           fontSize: 14,
                         ),
                       ),
                     ),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: item.song.thumbnailUrl,
-                        width: 44,
-                        height: 44,
-                        memCacheWidth: 132,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            _fallbackThumb(44, primaryAccent),
+                    Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: isBrutal
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 1.6,
+                              )
+                            : null,
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8.5),
+                        child: CachedNetworkImage(
+                          imageUrl: item.song.thumbnailUrl,
+                          width: 44,
+                          height: 44,
+                          memCacheWidth: 132,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) =>
+                              _fallbackThumb(44, primaryAccent),
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -768,8 +865,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             item.song.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: theme.textPrimary,
                               fontWeight: FontWeight.w800,
                               fontSize: 13.5,
                             ),
@@ -778,8 +875,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             item.song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white60,
+                            style: TextStyle(
+                              color: theme.textSecondary,
                               fontSize: 11.5,
                             ),
                           ),
@@ -792,13 +889,23 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: primaryAccent.withOpacity(0.16),
-                        borderRadius: BorderRadius.circular(10),
+                        color: isBrutal
+                            ? primaryAccent
+                            : primaryAccent.withOpacity(0.16),
+                        borderRadius: BorderRadius.circular(isBrutal ? 8 : 10),
+                        border: isBrutal
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 1.5,
+                              )
+                            : null,
                       ),
                       child: Text(
                         '${item.playCount}x',
                         style: TextStyle(
-                          color: primaryAccent,
+                          color: isBrutal
+                              ? const Color(0xFF111111)
+                              : primaryAccent,
                           fontWeight: FontWeight.w900,
                           fontSize: 11.5,
                         ),
@@ -812,23 +919,51 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         const SizedBox(height: 12),
 
         // CTA to open Poster Studio
-        SizedBox(
-          width: double.infinity,
-          height: 46,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryAccent,
-              foregroundColor: Colors.black,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(23),
-              ),
+        IosSpringButton(
+          borderRadius: isBrutal ? 12 : 23,
+          onTap: () => setState(() => _viewMode = 1),
+          child: Container(
+            width: double.infinity,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: primaryAccent,
+              borderRadius: BorderRadius.circular(isBrutal ? 12 : 23),
+              border: isBrutal
+                  ? Border.all(color: theme.brutalBorderColor, width: 2.2)
+                  : null,
+              boxShadow: [
+                isBrutal
+                    ? BoxShadow(
+                        color: theme.brutalShadowColor,
+                        blurRadius: 0,
+                        offset: const Offset(3.5, 3.5),
+                      )
+                    : BoxShadow(
+                        color: primaryAccent.withOpacity(0.32),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+              ],
             ),
-            onPressed: () => setState(() => _viewMode = 1),
-            icon: const Icon(Icons.auto_awesome_motion_rounded, size: 18),
-            label: const Text(
-              'Buat Poster & Kartu Story Wrapped HD',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.2),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.auto_awesome_motion_rounded,
+                  size: 18,
+                  color: Color(0xFF111111),
+                ),
+                SizedBox(width: 8),
+                Text(
+                  'Buat Poster & Kartu Story Wrapped HD',
+                  style: TextStyle(
+                    color: Color(0xFF111111),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13.2,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -837,16 +972,21 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
   }
 
   Widget _miniStatPill({
+    required ThemeProvider theme,
     required String label,
     required String value,
-    required Color accent,
+    required Color valueColor,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.09)),
+        color: theme.subtleFill,
+        borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
+        border: Border.all(
+          color: isBrutal ? theme.brutalBorderColor : theme.dividerColor,
+          width: isBrutal ? 1.6 : 1.0,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -855,8 +995,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white54,
+            style: TextStyle(
+              color: theme.textMuted,
               fontSize: 10,
               fontWeight: FontWeight.w700,
             ),
@@ -867,7 +1007,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: accent,
+              color: valueColor,
               fontSize: 13.5,
               fontWeight: FontWeight.w900,
             ),
@@ -877,16 +1017,18 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     );
   }
 
-  /// Zunify Wrapped 3-Slide Poster Studio with 5 Aesthetic iOS 26 Themes
+  /// Zunify Wrapped 3-Slide Poster Studio
   Widget _buildPosterStudio({
+    required ThemeProvider theme,
     required String username,
     required WeeklyRapot rapot,
     required Color primaryAccent,
     required Color secondaryAccent,
     required List<Color> gradientColors,
   }) {
+    final isBrutal = theme.isNeoBrutalism;
     const themeLabels = [
-      '💧 iOS Liquid Glass',
+      '💧 Liquid Glass',
       '🌸 Rose Quartz',
       '🔮 Lavender Dream',
       '🍃 Matcha Sage',
@@ -896,7 +1038,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     return Column(
       key: const ValueKey('poster_studio_view'),
       children: [
-        // Slide selector pills + Theme selector pills
+        // Slide selector pills
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           physics: const BouncingScrollPhysics(),
@@ -1035,52 +1177,78 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _dot(_currentSlide == 0, primaryAccent),
+            _dot(_currentSlide == 0, primaryAccent, theme.dividerColor),
             const SizedBox(width: 6),
-            _dot(_currentSlide == 1, primaryAccent),
+            _dot(_currentSlide == 1, primaryAccent, theme.dividerColor),
             const SizedBox(width: 6),
-            _dot(_currentSlide == 2, primaryAccent),
+            _dot(_currentSlide == 2, primaryAccent, theme.dividerColor),
             const SizedBox(width: 10),
-            const Text(
+            Text(
               'Geser kiri/kanan untuk pindah poster',
-              style: TextStyle(color: Colors.white38, fontSize: 11),
+              style: TextStyle(color: theme.textMuted, fontSize: 11),
             ),
           ],
         ),
         const SizedBox(height: 10),
 
         // Share Active Slide Button
-        SizedBox(
-          width: double.infinity,
-          height: 46,
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primaryAccent,
-              foregroundColor: Colors.black,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(23),
-              ),
+        IosSpringButton(
+          borderRadius: isBrutal ? 12 : 23,
+          onTap: _isSharing ? null : _shareActiveSlide,
+          child: Container(
+            width: double.infinity,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: primaryAccent,
+              borderRadius: BorderRadius.circular(isBrutal ? 12 : 23),
+              border: isBrutal
+                  ? Border.all(color: theme.brutalBorderColor, width: 2.2)
+                  : null,
+              boxShadow: [
+                isBrutal
+                    ? BoxShadow(
+                        color: theme.brutalShadowColor,
+                        blurRadius: 0,
+                        offset: const Offset(3.5, 3.5),
+                      )
+                    : BoxShadow(
+                        color: primaryAccent.withOpacity(0.32),
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+              ],
             ),
-            onPressed: _isSharing ? null : _shareActiveSlide,
-            icon: _isSharing
-                ? const SizedBox(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (_isSharing)
+                  const SizedBox(
                     width: 18,
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2.2,
-                      color: Colors.black,
+                      color: Color(0xFF111111),
                     ),
                   )
-                : const Icon(Icons.ios_share_rounded, size: 18),
-            label: Text(
-              _isSharing
-                  ? 'Menyiapkan Poster HD...'
-                  : 'Bagikan Poster ${_currentSlide + 1} ke IG Story / WA',
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 13.2,
-              ),
+                else
+                  const Icon(
+                    Icons.ios_share_rounded,
+                    size: 18,
+                    color: Color(0xFF111111),
+                  ),
+                const SizedBox(width: 8),
+                Text(
+                  _isSharing
+                      ? 'Menyiapkan Poster HD...'
+                      : 'Bagikan Poster ${_currentSlide + 1} ke IG Story / WA',
+                  style: const TextStyle(
+                    color: Color(0xFF111111),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13.2,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -1088,13 +1256,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     );
   }
 
-  Widget _dot(bool active, Color accent) {
+  Widget _dot(bool active, Color accent, Color inactiveColor) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: active ? 18 : 6,
       height: 6,
       decoration: BoxDecoration(
-        color: active ? accent : Colors.white24,
+        color: active ? accent : inactiveColor,
         borderRadius: BorderRadius.circular(4),
       ),
     );

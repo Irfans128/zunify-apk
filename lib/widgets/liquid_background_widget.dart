@@ -7,12 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/theme_provider.dart';
 
-/// High-Refresh-Rate (90/120Hz) Fluid Spring & Saweria Neo-Brutalist Button Wrapper.
-///
-/// - In **Liquid Glass** mode: instant `0ms` touch-down squish (`90ms` min hold) +
-///   radial specular bloom + under-damped iOS 27.2 spring bounce.
-/// - In **Saweria** mode: tactile neo-brutalist press that shifts `+2.5px, +2.5px`
-///   into its hard offset shadow + snappy spring release.
+/// High-Refresh-Rate (90/120Hz) Interactive Button Wrapper.
+/// - **Liquid Glass**: Fluid iOS spring squish + specular radial bloom.
+/// - **Neo-Brutalism**: Physical `+3px, +3px` snap-into-shadow translation.
 class IosSpringButton extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
@@ -72,7 +69,7 @@ class _IosSpringButtonState extends State<IosSpringButton> {
     final elapsed = _pressDownTime != null
         ? DateTime.now().difference(_pressDownTime!).inMilliseconds
         : 100;
-    const minPressMs = 85;
+    const minPressMs = 80;
     if (elapsed < minPressMs) {
       _releaseTimer?.cancel();
       _releaseTimer = Timer(Duration(milliseconds: minPressMs - elapsed), () {
@@ -121,58 +118,59 @@ class _IosSpringButtonState extends State<IosSpringButton> {
   Widget build(BuildContext context) {
     if (!_isInteractive) return widget.child;
 
-    final isSaweria =
-        context.select<ThemeProvider, bool>((t) => t.isSaweriaTheme);
+    final isBrutal =
+        context.select<ThemeProvider, bool>((t) => t.isNeoBrutalism);
 
-    Widget animatedBody = AnimatedScale(
-      scale: _pressed ? (isSaweria ? 0.97 : widget.scaleDown) : 1.0,
-      duration: Duration(milliseconds: _pressed ? 80 : 320),
-      curve: _pressed ? Curves.easeOutCubic : const _Ios27SpringCurve(),
-      child: widget.enableBloom && !isSaweria
-          ? Stack(
-              alignment: Alignment.center,
-              children: [
-                widget.child,
-                Positioned.fill(
-                  child: IgnorePointer(
-                    child: AnimatedOpacity(
-                      opacity: _pressed ? 1.0 : 0.0,
-                      duration: Duration(milliseconds: _pressed ? 65 : 220),
-                      curve: Curves.easeOut,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius:
-                              BorderRadius.circular(widget.borderRadius),
-                          gradient: RadialGradient(
-                            center: const Alignment(-0.25, -0.35),
-                            radius: 1.15,
-                            colors: [
-                              Colors.white.withOpacity(0.18),
-                              Colors.white.withOpacity(0.05),
-                              Colors.transparent,
-                            ],
-                            stops: const [0.0, 0.55, 1.0],
+    Widget animatedBody;
+    if (isBrutal) {
+      animatedBody = AnimatedContainer(
+        duration: Duration(milliseconds: _pressed ? 55 : 150),
+        curve: Curves.easeOutCubic,
+        transform: Matrix4.translationValues(
+          _pressed ? 3.0 : 0.0,
+          _pressed ? 3.0 : 0.0,
+          0.0,
+        ),
+        child: widget.child,
+      );
+    } else {
+      animatedBody = AnimatedScale(
+        scale: _pressed ? widget.scaleDown : 1.0,
+        duration: Duration(milliseconds: _pressed ? 75 : 310),
+        curve: _pressed ? Curves.easeOutCubic : const _Ios27SpringCurve(),
+        child: widget.enableBloom
+            ? Stack(
+                alignment: Alignment.center,
+                children: [
+                  widget.child,
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedOpacity(
+                        opacity: _pressed ? 1.0 : 0.0,
+                        duration: Duration(milliseconds: _pressed ? 60 : 210),
+                        curve: Curves.easeOut,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius:
+                                BorderRadius.circular(widget.borderRadius),
+                            gradient: RadialGradient(
+                              center: const Alignment(-0.25, -0.35),
+                              radius: 1.15,
+                              colors: [
+                                Colors.white.withOpacity(0.18),
+                                Colors.white.withOpacity(0.05),
+                                Colors.transparent,
+                              ],
+                              stops: const [0.0, 0.55, 1.0],
+                            ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            )
-          : widget.child,
-    );
-
-    if (isSaweria) {
-      animatedBody = AnimatedContainer(
-        duration: Duration(milliseconds: _pressed ? 70 : 180),
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(
-          _pressed ? 2.5 : 0.0,
-          _pressed ? 2.5 : 0.0,
-          0.0,
-        ),
-        child: animatedBody,
+                ],
+              )
+            : widget.child,
       );
     }
 
@@ -192,7 +190,7 @@ class _IosSpringButtonState extends State<IosSpringButton> {
   }
 }
 
-/// Custom 90/120Hz iOS 27.2 Fluid Spring Curve with subtle elastic overshoot
+/// Custom 90/120Hz Fluid Spring Curve with subtle elastic overshoot
 class _Ios27SpringCurve extends Curve {
   const _Ios27SpringCurve();
 
@@ -203,9 +201,9 @@ class _Ios27SpringCurve extends Curve {
   }
 }
 
-/// Dual-Theme Container:
+/// Dual-Theme Surface Container:
 /// - **Liquid Glass**: 3D optical lens refraction + `-135°` specular rim.
-/// - **Saweria**: Neo-Brutalist solid surface + crisp `2px` border + hard offset shadow.
+/// - **Neo-Brutalism**: Warm cream/white solid surface + `2.4px` pitch-black border + `4px` hard black zero-blur shadow.
 class LiquidGlassBox extends StatelessWidget {
   final Widget child;
   final double borderRadius;
@@ -248,25 +246,35 @@ class LiquidGlassBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSaweria =
-        context.select<ThemeProvider, bool>((t) => t.isSaweriaTheme);
-    final accent =
-        context.select<ThemeProvider, Color>((t) => t.accentColor);
+    final theme = context.watch<ThemeProvider>();
+    final isBrutal = theme.isNeoBrutalism;
     final baseTint = tintColor ?? Colors.white;
     final effectiveAlignment = alignment ??
         ((width != null || height != null) ? Alignment.center : null);
 
-    if (isSaweria) {
-      // Saweria Neo-Brutalist Box (Crisp border + hard offset shadow)
+    if (isBrutal) {
       final hasCustomTint = tintColor != null && tintColor != Colors.white;
+      final baseCard = theme.cardBgColor;
       final fillBg = hasCustomTint
-          ? Color.lerp(const Color(0xFF1C1E26), baseTint, (tintOpacity * 1.45).clamp(0.14, 0.38))!
-          : const Color(0xFF1C1E26);
-      final borderColor = hasCustomTint
-          ? Color.lerp(Colors.black, baseTint, 0.65)!
-          : Colors.white.withOpacity(0.82);
+          ? Color.lerp(
+              baseCard,
+              baseTint,
+              theme.isLightCanvas
+                  ? (tintOpacity * 1.55).clamp(0.16, 0.44)
+                  : (tintOpacity * 1.35).clamp(0.14, 0.36),
+            )!
+          : baseCard;
 
-      Widget saweriaCard = Container(
+      final brutalRadius = (width != null &&
+              height != null &&
+              (width! - height!).abs() < 2.0 &&
+              borderRadius >= width! * 0.45)
+          ? 12.0
+          : borderRadius.clamp(10.0, 14.0);
+
+      final shadowOffset = enableShadow ? 4.5 : 3.5;
+
+      Widget brutalCard = Container(
         width: width,
         height: height,
         margin: margin,
@@ -274,24 +282,22 @@ class LiquidGlassBox extends StatelessWidget {
         padding: padding ?? EdgeInsets.zero,
         decoration: BoxDecoration(
           color: fillBg,
-          borderRadius: BorderRadius.circular(borderRadius),
+          borderRadius: BorderRadius.circular(brutalRadius),
           border: Border.all(
-            color: borderColor,
-            width: 1.8,
+            color: theme.brutalBorderColor,
+            width: 2.2,
           ),
           boxShadow: boxShadow ??
               [
                 BoxShadow(
-                  color: hasCustomTint
-                      ? baseTint.withOpacity(0.55)
-                      : accent.withOpacity(enableShadow ? 0.65 : 0.38),
+                  color: theme.brutalShadowColor,
                   blurRadius: 0,
-                  offset: Offset(enableShadow ? 4.0 : 3.0, enableShadow ? 4.0 : 3.0),
+                  offset: Offset(shadowOffset, shadowOffset),
                 ),
               ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(math.max(0, borderRadius - 2)),
+          borderRadius: BorderRadius.circular(math.max(0, brutalRadius - 2.2)),
           child: child,
         ),
       );
@@ -300,17 +306,17 @@ class LiquidGlassBox extends StatelessWidget {
         return IosSpringButton(
           onTap: onTap,
           scaleDown: scaleDown,
-          borderRadius: borderRadius,
-          child: saweriaCard,
+          borderRadius: brutalRadius,
+          child: brutalCard,
         );
       } else if (onTap != null) {
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: onTap,
-          child: saweriaCard,
+          child: brutalCard,
         );
       }
-      return saweriaCard;
+      return brutalCard;
     }
 
     // Liquid Glass Mode
@@ -346,8 +352,7 @@ class LiquidGlassBox extends StatelessWidget {
     );
 
     if (enableBlur) {
-      final sigma = blurSigma ??
-          context.select<ThemeProvider, double>((t) => t.glassBlurSigma);
+      final sigma = blurSigma ?? theme.glassBlurSigma;
       innerSurface = ClipRRect(
         borderRadius: BorderRadius.circular(borderRadius),
         child: BackdropFilter(
@@ -413,7 +418,7 @@ class LiquidGlassBox extends StatelessWidget {
   }
 }
 
-/// Reusable Circular Icon Button (Adapts to Liquid Glass & Saweria themes)
+/// Reusable Icon Button (Adapts to Liquid Glass & Neo-Brutalism)
 class IosGlassIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
@@ -438,9 +443,43 @@ class IosGlassIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = isActive ? (activeColor ?? Colors.white) : Colors.white;
+    final theme = context.watch<ThemeProvider>();
+    final accent = activeColor ?? theme.accentColor;
+
+    if (theme.isNeoBrutalism) {
+      final fill = isActive ? accent : theme.cardBgColor;
+      final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
+      Widget btn = IosSpringButton(
+        onTap: onTap,
+        borderRadius: 11,
+        child: Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: theme.brutalBorderColor, width: 2.0),
+            boxShadow: [
+              BoxShadow(
+                color: theme.brutalShadowColor,
+                blurRadius: 0,
+                offset: const Offset(2.8, 2.8),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: iconSize, color: fg),
+        ),
+      );
+      if (tooltip != null) {
+        return Tooltip(message: tooltip!, child: btn);
+      }
+      return btn;
+    }
+
+    final tint = isActive ? accent : Colors.white;
     final fgColor = isActive
-        ? (activeColor ?? Colors.white)
+        ? accent
         : (iconColor ?? Colors.white.withOpacity(0.94));
 
     Widget button = IosSpringButton(
@@ -471,7 +510,7 @@ class IosGlassIconButton extends StatelessWidget {
   }
 }
 
-/// Reusable Capsule Pill Button (Adapts to Liquid Glass & Saweria themes)
+/// Reusable Pill / Sticker Button (Adapts to Liquid Glass & Neo-Brutalism)
 class IosGlassPillButton extends StatelessWidget {
   final IconData? icon;
   final String label;
@@ -496,7 +535,55 @@ class IosGlassPillButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = activeColor ?? Colors.white;
+    final theme = context.watch<ThemeProvider>();
+    final accent = activeColor ?? theme.accentColor;
+
+    if (theme.isNeoBrutalism) {
+      final fill = isActive ? accent : theme.cardBgColor;
+      final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
+      return IosSpringButton(
+        onTap: onTap,
+        borderRadius: 10,
+        child: Container(
+          height: height,
+          padding: padding,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: theme.brutalBorderColor, width: 2.0),
+            boxShadow: [
+              BoxShadow(
+                color: theme.brutalShadowColor,
+                blurRadius: 0,
+                offset: const Offset(2.8, 2.8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: fontSize + 2.5, color: fg),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.1,
+                  height: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final fgColor = isActive ? Colors.white : Colors.white.withOpacity(0.88);
 
     return IosSpringButton(
@@ -541,6 +628,54 @@ class IosGlassPillButton extends StatelessWidget {
   }
 }
 
+/// Theme-Aware Modal Bottom Sheet Container (Liquid Glass & Neo-Brutalism)
+class ZunifySheetContainer extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry padding;
+  final double? height;
+  final BoxConstraints? constraints;
+
+  const ZunifySheetContainer({
+    super.key,
+    required this.child,
+    this.padding = const EdgeInsets.fromLTRB(20, 12, 20, 22),
+    this.height,
+    this.constraints,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeProvider>();
+    final isBrutal = theme.isNeoBrutalism;
+    final topRadius = isBrutal ? 18.0 : 28.0;
+
+    return Container(
+      height: height,
+      constraints: constraints,
+      padding: padding,
+      decoration: BoxDecoration(
+        color: theme.sheetBgColor,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(topRadius)),
+        border: Border(
+          top: BorderSide(
+            color: isBrutal
+                ? theme.brutalBorderColor
+                : Colors.white.withOpacity(0.12),
+            width: isBrutal ? 2.8 : 1.0,
+          ),
+          left: isBrutal
+              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+              : BorderSide.none,
+          right: isBrutal
+              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+              : BorderSide.none,
+        ),
+      ),
+      child: child,
+    );
+  }
+}
+
 /// Optical `-135°` Dual-Layer Specular Rim + 3D Convex Lens Refraction Painter
 class _LiquidGlassRimPainter extends CustomPainter {
   final double borderRadius;
@@ -567,7 +702,6 @@ class _LiquidGlassRimPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rrect);
 
-    // 1. Top Convex Lens Specular Cushion
     final cushionRect = Rect.fromLTWH(0, 0, size.width, size.height * 0.44);
     final cushionPaint = Paint()
       ..shader = LinearGradient(
@@ -582,7 +716,6 @@ class _LiquidGlassRimPainter extends CustomPainter {
       ).createShader(cushionRect);
     canvas.drawRect(cushionRect, cushionPaint);
 
-    // 2. Bottom Internal Caustic Reflection
     final causticHeight = (size.height * 0.24).clamp(6.0, 28.0);
     final causticRect = Rect.fromLTWH(
       0,
@@ -604,7 +737,6 @@ class _LiquidGlassRimPainter extends CustomPainter {
 
     canvas.restore();
 
-    // 3. Inner 3D Thickness Sub-Rim
     if (size.width > 16 && size.height > 16) {
       final innerRadius = math.max(0.0, radius - 1.2);
       final innerRRect = RRect.fromRectAndRadius(
@@ -627,7 +759,6 @@ class _LiquidGlassRimPainter extends CustomPainter {
       canvas.drawRRect(innerRRect, innerRimPaint);
     }
 
-    // 4. Primary Crisp -135° Specular Rim
     final rimPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.1
@@ -699,8 +830,10 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
 
   @override
   Widget build(BuildContext context) {
-    final isSaweria =
-        context.select<ThemeProvider, bool>((t) => t.isSaweriaTheme);
+    final isBrutal =
+        context.select<ThemeProvider, bool>((t) => t.isNeoBrutalism);
+    final isLight =
+        context.select<ThemeProvider, bool>((t) => t.isLightCanvas);
     final blurMult =
         context.select<ThemeProvider, double>((t) => t.blurIntensity);
     final animSpeed = context
@@ -710,16 +843,16 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
     final blurSigma = (44.0 * blurMult).clamp(20.0, 54.0);
     final speedFactor = (1.0 / animSpeed).clamp(0.55, 1.45);
 
-    if (isSaweria) {
-      // Saweria Neo-Brutalist Clean Grid / Dot-Matrix Backdrop
+    if (isBrutal) {
       return Stack(
         fit: StackFit.expand,
         children: [
           RepaintBoundary(
             child: CustomPaint(
-              painter: _SaweriaBackdropPainter(
+              painter: _NeoBrutalistBackdropPainter(
                 baseColor: widget.baseColor,
                 accentColor: widget.primaryColor,
+                isLightCanvas: isLight,
               ),
             ),
           ),
@@ -800,13 +933,15 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
   }
 }
 
-class _SaweriaBackdropPainter extends CustomPainter {
+class _NeoBrutalistBackdropPainter extends CustomPainter {
   final Color baseColor;
   final Color accentColor;
+  final bool isLightCanvas;
 
-  const _SaweriaBackdropPainter({
+  const _NeoBrutalistBackdropPainter({
     required this.baseColor,
     required this.accentColor,
+    required this.isLightCanvas,
   });
 
   @override
@@ -814,33 +949,37 @@ class _SaweriaBackdropPainter extends CustomPainter {
     final rect = Offset.zero & size;
     canvas.drawRect(rect, Paint()..color = baseColor);
 
-    // Subtle top accent glow + Saweria dot-grid texture
-    final glowPaint = Paint()
+    // Subtle top-right warm tint wash
+    final washPaint = Paint()
       ..shader = RadialGradient(
-        center: const Alignment(0.75, -0.75),
-        radius: 1.1,
+        center: const Alignment(0.85, -0.82),
+        radius: 0.95,
         colors: [
-          accentColor.withOpacity(0.14),
+          accentColor.withOpacity(isLightCanvas ? 0.16 : 0.12),
           Colors.transparent,
         ],
       ).createShader(rect);
-    canvas.drawRect(rect, glowPaint);
+    canvas.drawRect(rect, washPaint);
 
+    // Crisp Neo-Brutalist architectural dot-grid pattern
     final dotPaint = Paint()
-      ..color = Colors.white.withOpacity(0.055)
+      ..color = isLightCanvas
+          ? const Color(0xFF111111).withOpacity(0.11)
+          : Colors.white.withOpacity(0.06)
       ..style = PaintingStyle.fill;
-    const step = 24.0;
-    for (double y = 12; y < size.height; y += step) {
-      for (double x = 12; x < size.width; x += step) {
+    const step = 22.0;
+    for (double y = 14; y < size.height; y += step) {
+      for (double x = 14; x < size.width; x += step) {
         canvas.drawCircle(Offset(x, y), 1.15, dotPaint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant _SaweriaBackdropPainter oldDelegate) =>
+  bool shouldRepaint(covariant _NeoBrutalistBackdropPainter oldDelegate) =>
       oldDelegate.baseColor != baseColor ||
-      oldDelegate.accentColor != accentColor;
+      oldDelegate.accentColor != accentColor ||
+      oldDelegate.isLightCanvas != isLightCanvas;
 }
 
 class _LiquidOrbsPainter extends CustomPainter {

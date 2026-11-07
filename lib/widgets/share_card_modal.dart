@@ -53,12 +53,15 @@ class _ShareCardModalState extends State<ShareCardModal> {
       MethodChannel('com.fannz.zunify/equalizer');
 
   static const List<String> _templateNames = [
-    '💧 iOS Liquid Glass',
+    '💧 Liquid Glass',
     '🎵 Apple Music',
     '💿 Vinyl Studio',
     '📸 Polaroid Matte',
     '🌸 Pastel Aurora',
+    '⚡ Neo-Brutalism',
   ];
+
+  bool _didInitThemeTemplate = false;
 
   @override
   void initState() {
@@ -72,6 +75,17 @@ class _ShareCardModalState extends State<ShareCardModal> {
       _selectedIndices.add(first);
       if (first + 1 < lines.length && lines.length > 1) {
         _selectedIndices.add(first + 1);
+      }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didInitThemeTemplate) {
+      _didInitThemeTemplate = true;
+      if (context.read<ThemeProvider>().isNeoBrutalism) {
+        _selectedTemplate = 5;
       }
     }
   }
@@ -237,8 +251,10 @@ class _ShareCardModalState extends State<ShareCardModal> {
     }
 
     final canTranslate = liveLyrics?.shouldShowTranslation == true;
+    final isBrutal = theme.isNeoBrutalism;
+    final accentReadable = theme.isLightCanvas ? theme.accentText : accent;
 
-    return Container(
+    return ZunifySheetContainer(
       constraints: BoxConstraints(
         maxHeight: MediaQuery.of(context).size.height * 0.92,
       ),
@@ -247,11 +263,6 @@ class _ShareCardModalState extends State<ShareCardModal> {
         12,
         18,
         MediaQuery.of(context).padding.bottom + 18,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A0D16),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        border: Border.all(color: Colors.white.withOpacity(0.14)),
       ),
       child: SingleChildScrollView(
         physics: const BouncingScrollPhysics(),
@@ -264,7 +275,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 width: 40,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: theme.textMuted.withOpacity(0.38),
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -281,7 +292,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       Text(
                         'Bagikan Lirik',
                         style: GoogleFonts.plusJakartaSans(
-                          color: Colors.white,
+                          color: theme.textPrimary,
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -0.4,
@@ -289,9 +300,9 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'Pilih hingga 5 baris lirik & gaya kartu estetik',
+                        'Pilih hingga 5 baris lirik & gaya kartu',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.56),
+                          color: theme.textSecondary,
                           fontSize: 11.8,
                           fontWeight: FontWeight.w600,
                         ),
@@ -299,17 +310,24 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     ],
                   ),
                 ),
-                LiquidGlassBox(
+                Container(
                   height: 30,
-                  borderRadius: 15,
                   padding: const EdgeInsets.symmetric(horizontal: 11),
-                  tintColor: accent,
-                  tintOpacity: 0.20,
-                  rimIntensity: 0.42,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: isBrutal ? accent : accent.withOpacity(0.18),
+                    borderRadius: BorderRadius.circular(isBrutal ? 9 : 15),
+                    border: Border.all(
+                      color: isBrutal
+                          ? theme.brutalBorderColor
+                          : accent.withOpacity(0.45),
+                      width: isBrutal ? 1.8 : 1.0,
+                    ),
+                  ),
                   child: Text(
                     '${chosenLines.length}/5 Baris',
                     style: TextStyle(
-                      color: accent,
+                      color: isBrutal ? const Color(0xFF111111) : accent,
                       fontSize: 11.2,
                       fontWeight: FontWeight.w800,
                     ),
@@ -318,7 +336,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 const SizedBox(width: 8),
                 IosGlassIconButton(
                   icon: Icons.close_rounded,
-                  size: 32,
+                  size: 34,
                   iconSize: 17,
                   onTap: () => Navigator.pop(context),
                 ),
@@ -328,7 +346,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
 
             // Template Style Selector Pills
             SizedBox(
-              height: 35,
+              height: 36,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 physics: const BouncingScrollPhysics(),
@@ -358,7 +376,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       ? Icons.format_align_center_rounded
                       : Icons.format_align_left_rounded,
                   label: _centerAlignLyrics ? 'Rata Tengah' : 'Rata Kiri',
-                  height: 30,
+                  height: 31,
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   activeColor: accent,
                   isActive: _centerAlignLyrics,
@@ -373,7 +391,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     label: player.isTranslatingLyrics
                         ? 'Menerjemahkan...'
                         : 'Terjemahan Indo',
-                    height: 30,
+                    height: 31,
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     activeColor: accent,
                     isActive: _includeIndoTranslation,
@@ -407,9 +425,9 @@ class _ShareCardModalState extends State<ShareCardModal> {
             // Multi-Line Lyric Selector List
             if (lines.length > 1) ...[
               Text(
-                'Ketuk Baris Lirik untuk Memilih (Maks 5 Baris):',
+                'Ketuk Baris Lirik (Maks 5 Baris):',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.75),
+                  color: theme.textSecondary,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -441,14 +459,17 @@ class _ShareCardModalState extends State<ShareCardModal> {
                         ),
                         decoration: BoxDecoration(
                           color: selected
-                              ? accent.withOpacity(0.20)
+                              ? accent.withOpacity(isBrutal ? 0.34 : 0.20)
                               : Colors.transparent,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius:
+                              BorderRadius.circular(isBrutal ? 9 : 12),
                           border: Border.all(
                             color: selected
-                                ? accent.withOpacity(0.52)
+                                ? (isBrutal
+                                    ? theme.brutalBorderColor
+                                    : accent.withOpacity(0.52))
                                 : Colors.transparent,
-                            width: 0.9,
+                            width: isBrutal ? 1.6 : 0.9,
                           ),
                         ),
                         child: Row(
@@ -457,7 +478,8 @@ class _ShareCardModalState extends State<ShareCardModal> {
                               selected
                                   ? Icons.check_circle_rounded
                                   : Icons.radio_button_unchecked_rounded,
-                              color: selected ? accent : Colors.white38,
+                              color:
+                                  selected ? accentReadable : theme.textMuted,
                               size: 17,
                             ),
                             const SizedBox(width: 9),
@@ -467,11 +489,12 @@ class _ShareCardModalState extends State<ShareCardModal> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color:
-                                      selected ? Colors.white : Colors.white70,
+                                  color: selected
+                                      ? theme.textPrimary
+                                      : theme.textSecondary,
                                   fontWeight: selected
                                       ? FontWeight.w800
-                                      : FontWeight.w500,
+                                      : FontWeight.w600,
                                   fontSize: 12.5,
                                 ),
                               ),
@@ -497,7 +520,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: accent,
+                        color: accentReadable,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -505,7 +528,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       child: Text(
                         _statusMessage,
                         style: TextStyle(
-                          color: accent,
+                          color: accentReadable,
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
@@ -523,7 +546,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                   flex: 6,
                   child: IosSpringButton(
                     scaleDown: 0.92,
-                    borderRadius: 23,
+                    borderRadius: isBrutal ? 12 : 23,
                     onTap: (_isSharing || _isCreatingVideo)
                         ? null
                         : () => _exportAndShareVideoWithAudio(
@@ -535,13 +558,26 @@ class _ShareCardModalState extends State<ShareCardModal> {
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
                         color: accent,
-                        borderRadius: BorderRadius.circular(23),
+                        borderRadius:
+                            BorderRadius.circular(isBrutal ? 12 : 23),
+                        border: isBrutal
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 2.2,
+                              )
+                            : null,
                         boxShadow: [
-                          BoxShadow(
-                            color: accent.withOpacity(0.36),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
+                          isBrutal
+                              ? BoxShadow(
+                                  color: theme.brutalShadowColor,
+                                  blurRadius: 0,
+                                  offset: const Offset(3.5, 3.5),
+                                )
+                              : BoxShadow(
+                                  color: accent.withOpacity(0.36),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 6),
+                                ),
                         ],
                       ),
                       child: const Row(
@@ -549,14 +585,14 @@ class _ShareCardModalState extends State<ShareCardModal> {
                         children: [
                           Icon(
                             Icons.movie_creation_rounded,
-                            color: Colors.black,
+                            color: Color(0xFF111111),
                             size: 18,
                           ),
                           SizedBox(width: 7),
                           Text(
                             'Story + Lagu (.mp4)',
                             style: TextStyle(
-                              color: Colors.black,
+                              color: Color(0xFF111111),
                               fontWeight: FontWeight.w800,
                               fontSize: 13,
                             ),
@@ -571,25 +607,25 @@ class _ShareCardModalState extends State<ShareCardModal> {
                   flex: 4,
                   child: LiquidGlassBox(
                     height: 46,
-                    borderRadius: 23,
+                    borderRadius: isBrutal ? 12 : 23,
                     tintOpacity: 0.12,
                     rimIntensity: 0.42,
                     onTap: (_isSharing || _isCreatingVideo)
                         ? null
                         : _exportAndShareCard,
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.image_rounded,
-                          color: Colors.white,
+                          color: theme.textPrimary,
                           size: 17,
                         ),
-                        SizedBox(width: 6),
+                        const SizedBox(width: 6),
                         Text(
                           'Gambar HD',
                           style: TextStyle(
-                            color: Colors.white,
+                            color: theme.textPrimary,
                             fontWeight: FontWeight.w800,
                             fontSize: 12.8,
                           ),
@@ -614,6 +650,257 @@ class _ShareCardModalState extends State<ShareCardModal> {
     required bool showIndo,
   }) {
     final song = widget.song;
+
+    // Template 5: Authentic Neo-Brutalism (Warm Cream Paper + Hard Ink Shadow)
+    if (_selectedTemplate == 5) {
+      final align = _centerAlignLyrics ? TextAlign.center : TextAlign.left;
+      final crossAlign = _centerAlignLyrics
+          ? CrossAxisAlignment.center
+          : CrossAxisAlignment.start;
+      final brutalAccent = accent.computeLuminance() < 0.18
+          ? const Color(0xFFFAAE2B)
+          : accent;
+
+      return Padding(
+        padding: const EdgeInsets.only(right: 5, bottom: 5),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFAF4E6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFF111111), width: 2.8),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0xFF111111),
+                blurRadius: 0,
+                offset: Offset(5, 5),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: crossAlign,
+            children: [
+              // Neo-Brutalist Song Header
+              Row(
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF111111),
+                        width: 2.2,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0xFF111111),
+                          blurRadius: 0,
+                          offset: Offset(2.5, 2.5),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: song.highResArtUrl,
+                        width: 52,
+                        height: 52,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 52,
+                          height: 52,
+                          color: brutalAccent,
+                          child: const Icon(
+                            Icons.music_note_rounded,
+                            color: Color(0xFF111111),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.plusJakartaSans(
+                            color: const Color(0xFF111111),
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF3A3A44),
+                            fontSize: 12.2,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: brutalAccent,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: const Color(0xFF111111),
+                        width: 2.0,
+                      ),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0xFF111111),
+                          blurRadius: 0,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.graphic_eq_rounded,
+                      color: Color(0xFF111111),
+                      size: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // Framed Paper Lyric Card
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFFDF8),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFF111111),
+                    width: 2.2,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0xFF111111),
+                      blurRadius: 0,
+                      offset: Offset(3.5, 3.5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: crossAlign,
+                  children: chosenLines.map((line) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: crossAlign,
+                        children: [
+                          Text(
+                            line.originalText,
+                            textAlign: align,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: const Color(0xFF111111),
+                              fontSize: chosenLines.length <= 2 ? 19.5 : 17.5,
+                              fontWeight: FontWeight.w900,
+                              height: 1.28,
+                              letterSpacing: -0.35,
+                            ),
+                          ),
+                          if (showIndo &&
+                              line.translatedIndoText != null &&
+                              line.translatedIndoText!.isNotEmpty) ...[
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: brutalAccent.withOpacity(0.38),
+                                borderRadius: BorderRadius.circular(5),
+                              ),
+                              child: Text(
+                                line.translatedIndoText!,
+                                textAlign: align,
+                                style: GoogleFonts.dmSans(
+                                  color: const Color(0xFF111111),
+                                  fontSize: 12.6,
+                                  fontStyle: FontStyle.italic,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Neo-Brutalist Footer Sticker
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF111111),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Z',
+                          style: TextStyle(
+                            color: brutalAccent,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        const Text(
+                          'ZUNIFY MUSIC',
+                          style: TextStyle(
+                            color: Color(0xFFFAF4E6),
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.9,
+                            fontSize: 10.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Text(
+                    'Zunify Lyric Studio',
+                    style: TextStyle(
+                      color: Color(0xFF3A3A44),
+                      fontSize: 10.8,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     // Template 1: Apple Music Minimal Editorial Card
     if (_selectedTemplate == 1) {

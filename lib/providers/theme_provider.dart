@@ -40,43 +40,43 @@ class ThemeProvider extends ChangeNotifier {
       secondary: Color(0xFFC084FC),
     ),
     ZunifyAccentPreset(
-      id: 'saweria_amber',
-      name: 'Saweria Gold',
-      subtitle: 'Kuning khas Saweria',
+      id: 'brutal_amber',
+      name: 'Mustard Amber',
+      subtitle: 'Kuning tegas',
       primary: Color(0xFFFAAE2B),
       secondary: Color(0xFFFFD166),
     ),
     ZunifyAccentPreset(
       id: 'crimson_z',
       name: 'Crimson Red',
-      subtitle: 'Merah tegas',
-      primary: Color(0xFFFF3358),
+      subtitle: 'Merah berani',
+      primary: Color(0xFFFF4D6D),
       secondary: Color(0xFFFF758F),
     ),
     ZunifyAccentPreset(
       id: 'rose_quartz',
-      name: 'Rose Pink',
-      subtitle: 'Pink lembut',
+      name: 'Coral Pink',
+      subtitle: 'Pink cerah',
       primary: Color(0xFFF472B6),
       secondary: Color(0xFFFB7185),
     ),
     ZunifyAccentPreset(
       id: 'lavender',
-      name: 'Lavender',
-      subtitle: 'Ungu pastel',
+      name: 'Electric Violet',
+      subtitle: 'Ungu kontras',
       primary: Color(0xFFA78BFA),
       secondary: Color(0xFFF472B6),
     ),
     ZunifyAccentPreset(
       id: 'matcha',
-      name: 'Matcha Mint',
+      name: 'Mint Green',
       subtitle: 'Hijau segar',
       primary: Color(0xFF34D399),
       secondary: Color(0xFF6EE7B7),
     ),
   ];
 
-  /// 2 Core Visual Themes: 'liquid_glass' | 'saweria'
+  /// 2 Core Visual Themes: 'liquid_glass' | 'neo_brutalism'
   String _uiThemeMode = 'liquid_glass';
   String _selectedPresetId = 'ios_liquid';
   bool _oledPureBlack = false;
@@ -84,12 +84,12 @@ class ThemeProvider extends ChangeNotifier {
   bool _dynamicFullAccentEnabled = true;
 
   // Appearance & UI Control Settings
-  double _animationSpeedMultiplier = 0.88; // Tuned for snappy 90/120fps feel
+  double _animationSpeedMultiplier = 0.88; // Snappy 90/120Hz feel
   String _playerSpacingMode = 'balanced'; // 'compact' | 'balanced' | 'spacious'
   double _blurIntensity = 0.80; // 0.40 = Ringan, 0.80 = Seimbang, 1.0 = Ultra
   String _playerCoverStyle = 'artwork'; // 'artwork' | 'vinyl'
   bool _lyricsCenterAligned = false; // false = Rata Kiri, true = Rata Tengah
-  double _lyricsFontScale = 1.0; // 0.90 = Kompak, 1.0 = Normal, 1.14 = Besar
+  double _lyricsFontScale = 1.0; // 0.90 = Kecil, 1.0 = Normal, 1.14 = Besar
 
   Color? _dynamicAlbumColor;
   Color? _dynamicVibrantAccent;
@@ -97,7 +97,10 @@ class ThemeProvider extends ChangeNotifier {
   final Map<Object, _CachedPalettePair> _paletteCache = {};
 
   String get uiThemeMode => _uiThemeMode;
-  bool get isSaweriaTheme => _uiThemeMode == 'saweria';
+  bool get isNeoBrutalism => _uiThemeMode == 'neo_brutalism';
+  bool get isSaweriaTheme => isNeoBrutalism; // Compatibility alias
+  bool get isLightCanvas => isNeoBrutalism && !_oledPureBlack;
+
   String get selectedPresetId => _selectedPresetId;
   bool get oledPureBlack => _oledPureBlack;
   bool get dynamicAlbumColorEnabled => _dynamicAlbumColorEnabled;
@@ -110,23 +113,20 @@ class ThemeProvider extends ChangeNotifier {
   bool get lyricsCenterAligned => _lyricsCenterAligned;
   double get lyricsFontScale => _lyricsFontScale;
 
-  /// Scales any base animation duration (ms) by the user's chosen animation speed
   Duration animDuration(int baseMs) {
-    final scaled = (baseMs * _animationSpeedMultiplier).round().clamp(65, 900);
+    final scaled = (baseMs * _animationSpeedMultiplier).round().clamp(60, 850);
     return Duration(milliseconds: scaled);
   }
 
-  /// Dynamic blur sigma for floating Liquid Glass bars
   double get glassBlurSigma =>
-      isSaweriaTheme ? 0.0 : (24.0 * _blurIntensity).clamp(10.0, 30.0);
+      isNeoBrutalism ? 0.0 : (24.0 * _blurIntensity).clamp(10.0, 30.0);
 
-  /// Vertical spacing multiplier for NowPlayingScreen based on playerSpacingMode
   double get playerSpacingFactor {
     switch (_playerSpacingMode) {
       case 'compact':
-        return 0.75;
+        return 0.78;
       case 'spacious':
-        return 1.28;
+        return 1.24;
       default:
         return 1.0;
     }
@@ -137,7 +137,7 @@ class ThemeProvider extends ChangeNotifier {
       case 'compact':
         return const EdgeInsets.fromLTRB(18, 4, 18, 8);
       case 'spacious':
-        return const EdgeInsets.fromLTRB(24, 8, 24, 12);
+        return const EdgeInsets.fromLTRB(22, 8, 22, 12);
       default:
         return const EdgeInsets.fromLTRB(20, 6, 20, 10);
     }
@@ -157,6 +157,20 @@ class ThemeProvider extends ChangeNotifier {
     return activePreset.primary;
   }
 
+  /// High-legibility version of accentColor when used as bare text/icon on cream paper
+  Color get accentText {
+    final c = accentColor;
+    if (!isLightCanvas) return c;
+    final hsl = HSLColor.fromColor(c);
+    if (hsl.lightness > 0.36) {
+      return hsl
+          .withSaturation((hsl.saturation + 0.12).clamp(0.55, 0.95))
+          .withLightness(0.32)
+          .toColor();
+    }
+    return c;
+  }
+
   Color get secondaryAccentColor {
     if (_dynamicAlbumColorEnabled &&
         _dynamicFullAccentEnabled &&
@@ -171,20 +185,64 @@ class ThemeProvider extends ChangeNotifier {
           ? _dynamicAlbumColor!
           : activePreset.primary;
 
+  // --- Semantic Theme Tokens ---
   Color get scaffoldBgColor {
-    if (_oledPureBlack) return const Color(0xFF000000);
-    return isSaweriaTheme ? const Color(0xFF111217) : const Color(0xFF07090F);
+    if (isNeoBrutalism) {
+      return _oledPureBlack
+          ? const Color(0xFF16171D)
+          : const Color(0xFFFAF4E6); // Warm cream paper canvas
+    }
+    return _oledPureBlack ? const Color(0xFF000000) : const Color(0xFF07090F);
   }
 
   Color get cardBgColor {
-    if (_oledPureBlack) return const Color(0xFF0B0D13);
-    return isSaweriaTheme ? const Color(0xFF1B1D26) : const Color(0xFF121622);
+    if (isLightCanvas) return const Color(0xFFFFFDF8);
+    if (isNeoBrutalism) return const Color(0xFF232530);
+    return _oledPureBlack ? const Color(0xFF0B0D13) : const Color(0xFF121622);
   }
+
+  Color get sheetBgColor {
+    if (isLightCanvas) return const Color(0xFFFAF4E6);
+    if (isNeoBrutalism) return const Color(0xFF1D1F29);
+    return _oledPureBlack ? const Color(0xFF0B0D14) : const Color(0xFF101420);
+  }
+
+  Color get textPrimary =>
+      isLightCanvas ? const Color(0xFF111111) : Colors.white;
+
+  Color get textSecondary => isLightCanvas
+      ? const Color(0xFF3A3A44)
+      : Colors.white.withOpacity(0.74);
+
+  Color get textMuted => isLightCanvas
+      ? const Color(0xFF6B6B76)
+      : Colors.white.withOpacity(0.54);
+
+  Color get subtleFill => isLightCanvas
+      ? const Color(0xFF111111).withOpacity(0.06)
+      : Colors.white.withOpacity(0.07);
+
+  Color get dividerColor => isLightCanvas
+      ? const Color(0xFF111111).withOpacity(0.14)
+      : Colors.white.withOpacity(0.09);
+
+  Color get brutalBorderColor => isLightCanvas
+      ? const Color(0xFF111111)
+      : Colors.white.withOpacity(0.88);
+
+  Color get brutalShadowColor =>
+      isLightCanvas ? const Color(0xFF111111) : const Color(0xFF050608);
 
   Future<void> loadPreferences() async {
     final prefs = await SharedPreferences.getInstance();
-    _uiThemeMode = prefs.getString('ui_theme_mode_v2') ?? 'liquid_glass';
-    _selectedPresetId = prefs.getString('theme_preset_id_v2') ?? 'ios_liquid';
+    var rawMode = prefs.getString('ui_theme_mode_v2') ?? 'liquid_glass';
+    if (rawMode == 'saweria') rawMode = 'neo_brutalism';
+    _uiThemeMode = rawMode;
+
+    var rawPreset = prefs.getString('theme_preset_id_v2') ?? 'ios_liquid';
+    if (rawPreset == 'saweria_amber') rawPreset = 'brutal_amber';
+    _selectedPresetId = rawPreset;
+
     _oledPureBlack = prefs.getBool('oled_pure_black') ?? false;
     _dynamicAlbumColorEnabled = prefs.getBool('dynamic_album_color') ?? true;
     _dynamicFullAccentEnabled =
@@ -203,16 +261,25 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Future<void> setUiThemeMode(String mode) async {
-    _uiThemeMode = mode;
-    if (mode == 'saweria' && _selectedPresetId == 'ios_liquid') {
-      _selectedPresetId = 'saweria_amber';
-    } else if (mode == 'liquid_glass' && _selectedPresetId == 'saweria_amber') {
+    final normalized = mode == 'saweria' ? 'neo_brutalism' : mode;
+    _uiThemeMode = normalized;
+    if (normalized == 'neo_brutalism') {
+      // Ensure Neo-Brutalism defaults to authentic warm cream + punchy amber
+      if (_oledPureBlack) {
+        _oledPureBlack = false;
+      }
+      if (_selectedPresetId == 'ios_liquid') {
+        _selectedPresetId = 'brutal_amber';
+      }
+    } else if (normalized == 'liquid_glass' &&
+        _selectedPresetId == 'brutal_amber') {
       _selectedPresetId = 'ios_liquid';
     }
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('ui_theme_mode_v2', mode);
+    await prefs.setString('ui_theme_mode_v2', normalized);
     await prefs.setString('theme_preset_id_v2', _selectedPresetId);
+    await prefs.setBool('oled_pure_black', _oledPureBlack);
   }
 
   Future<void> setAccentPreset(String presetId) async {
@@ -293,12 +360,12 @@ class ThemeProvider extends ChangeNotifier {
     await prefs.setDouble('lyrics_font_scale_v2', _lyricsFontScale);
   }
 
-  Color _boostForAestheticDarkUi(Color raw) {
+  Color _boostForAestheticUi(Color raw) {
     final hsl = HSLColor.fromColor(raw);
     final sat = hsl.saturation < 0.45
-        ? (hsl.saturation + 0.32).clamp(0.52, 0.88)
-        : hsl.saturation.clamp(0.52, 0.90);
-    final light = hsl.lightness.clamp(0.64, 0.76);
+        ? (hsl.saturation + 0.34).clamp(0.55, 0.90)
+        : hsl.saturation.clamp(0.55, 0.92);
+    final light = hsl.lightness.clamp(0.62, 0.74);
     return hsl.withSaturation(sat).withLightness(light).toColor();
   }
 
@@ -329,9 +396,9 @@ class ThemeProvider extends ChangeNotifier {
           palette.mutedColor?.color ??
           rawPrimary;
       if (rawPrimary != null) {
-        final boostedPrimary = _boostForAestheticDarkUi(rawPrimary);
+        final boostedPrimary = _boostForAestheticUi(rawPrimary);
         final boostedSecondary =
-            _boostForAestheticDarkUi(rawSecondary ?? rawPrimary);
+            _boostForAestheticUi(rawSecondary ?? rawPrimary);
         final entry = _CachedPalettePair(
           ambient: rawPrimary,
           vibrantAccent: boostedPrimary,

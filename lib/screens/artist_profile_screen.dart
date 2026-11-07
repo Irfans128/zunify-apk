@@ -4,9 +4,10 @@ import 'package:provider/provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
+import '../widgets/liquid_background_widget.dart';
 import '../widgets/song_tile_widget.dart';
 
-/// Fitur #1: Halaman Profil Artis Lengkap (Lagu Terpopuler, Album & Single, Bio, Artis Serupa)
+/// Halaman Profil Artis Lengkap (Lagu Terpopuler, Album & Single, Bio, Artis Serupa)
 class ArtistProfileScreen extends StatefulWidget {
   final String artistName;
   final String? browseId;
@@ -51,6 +52,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
     final theme = context.watch<ThemeProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
     final profile = _profile;
 
     return Scaffold(
@@ -60,11 +62,11 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  CircularProgressIndicator(color: accent),
+                  CircularProgressIndicator(color: theme.accentText),
                   const SizedBox(height: 14),
                   Text(
                     'Memuat profil ${widget.artistName}...',
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    style: TextStyle(color: theme.textSecondary, fontSize: 13),
                   ),
                 ],
               ),
@@ -74,34 +76,30 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
               slivers: [
                 // Immersive Artist Banner AppBar
                 SliverAppBar(
-                  expandedHeight: 280,
+                  expandedHeight: 276,
                   pinned: true,
                   backgroundColor: theme.scaffoldBgColor,
-                  leading: IconButton(
-                    icon: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.45),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back_ios_new_rounded,
-                        color: Colors.white,
-                        size: 18,
+                  leading: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Center(
+                      child: IosGlassIconButton(
+                        icon: Icons.arrow_back_ios_new_rounded,
+                        size: 36,
+                        iconSize: 17,
+                        onTap: () => Navigator.pop(context),
                       ),
                     ),
-                    onPressed: () => Navigator.pop(context),
                   ),
                   flexibleSpace: FlexibleSpaceBar(
-                    titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+                    titlePadding: const EdgeInsets.fromLTRB(56, 0, 20, 14),
                     title: Text(
                       profile.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: theme.textPrimary,
                         fontWeight: FontWeight.w900,
-                        fontSize: 22,
+                        fontSize: 21,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -113,7 +111,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                             imageUrl: profile.bannerUrl,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => Container(
-                              color: Colors.white10,
+                              color: theme.subtleFill,
                             ),
                           )
                         else
@@ -124,12 +122,12 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               colors: [
-                                Colors.black.withOpacity(0.25),
+                                Colors.black.withOpacity(0.18),
                                 Colors.transparent,
-                                theme.scaffoldBgColor.withOpacity(0.85),
+                                theme.scaffoldBgColor.withOpacity(0.88),
                                 theme.scaffoldBgColor,
                               ],
-                              stops: const [0.0, 0.35, 0.82, 1.0],
+                              stops: const [0.0, 0.34, 0.78, 1.0],
                             ),
                           ),
                         ),
@@ -144,78 +142,98 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Action Buttons: Putar Semua Populer & Radio Artis
+                        // Action Buttons: Putar Populer & Radio Artis
                         if (profile.topSongs.isNotEmpty)
                           Row(
                             children: [
                               Expanded(
-                                child: ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: accent,
-                                    foregroundColor: Colors.black,
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 13,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  icon: const Icon(
-                                    Icons.play_arrow_rounded,
-                                    size: 22,
-                                  ),
-                                  label: const Text(
-                                    'Putar Populer',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 13.5,
-                                    ),
-                                  ),
-                                  onPressed: () {
+                                child: IosSpringButton(
+                                  onTap: () {
                                     player.playSong(
                                       profile.topSongs.first,
                                       customQueue: profile.topSongs,
                                       contextName: profile.name,
                                     );
                                   },
+                                  child: Container(
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: accent,
+                                      borderRadius: BorderRadius.circular(
+                                        isBrutal ? 11 : 16,
+                                      ),
+                                      border: isBrutal
+                                          ? Border.all(
+                                              color: theme.brutalBorderColor,
+                                              width: 2.2,
+                                            )
+                                          : null,
+                                      boxShadow: isBrutal
+                                          ? [
+                                              BoxShadow(
+                                                color: theme.brutalShadowColor,
+                                                blurRadius: 0,
+                                                offset: const Offset(3.2, 3.2),
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                    child: const Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.play_arrow_rounded,
+                                          color: Color(0xFF111111),
+                                          size: 22,
+                                        ),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          'Putar Populer',
+                                          style: TextStyle(
+                                            color: Color(0xFF111111),
+                                            fontWeight: FontWeight.w800,
+                                            fontSize: 13.5,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: OutlinedButton.icon(
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: BorderSide(
-                                      color: Colors.white.withOpacity(0.18),
-                                    ),
-                                    backgroundColor:
-                                        Colors.white.withOpacity(0.06),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 13,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                  icon: Icon(
-                                    Icons.sensors_rounded,
-                                    color: accent,
-                                    size: 19,
-                                  ),
-                                  label: const Text(
-                                    'Radio Artis',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 13.5,
-                                    ),
-                                  ),
-                                  onPressed: () {
+                                child: LiquidGlassBox(
+                                  height: 44,
+                                  borderRadius: 16,
+                                  tintOpacity: 0.09,
+                                  rimIntensity: 0.35,
+                                  onTap: () {
                                     player.playSong(
                                       profile.topSongs.first,
                                       customQueue: const [],
                                       contextName: 'Radio ${profile.name}',
                                     );
                                   },
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.sensors_rounded,
+                                        color: theme.accentText,
+                                        size: 19,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'Radio Artis',
+                                        style: TextStyle(
+                                          color: theme.textPrimary,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13.5,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ],
@@ -227,10 +245,10 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
+                              Text(
                                 'Lagu Terpopuler',
                                 style: TextStyle(
-                                  color: Colors.white,
+                                  color: theme.textPrimary,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: -0.3,
@@ -246,9 +264,9 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                         ? 'Tampilkan Sedikit'
                                         : 'Lihat Semua (${profile.topSongs.length})',
                                     style: TextStyle(
-                                      color: accent,
+                                      color: theme.accentText,
                                       fontSize: 12.5,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ),
@@ -273,10 +291,10 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
 
                         // Album & Single Carousel
                         if (profile.albums.isNotEmpty) ...[
-                          const Text(
+                          Text(
                             'Album & Single',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: theme.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.3,
@@ -284,7 +302,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                           ),
                           const SizedBox(height: 12),
                           SizedBox(
-                            height: 196,
+                            height: 200,
                             child: ListView.separated(
                               scrollDirection: Axis.horizontal,
                               physics: const BouncingScrollPhysics(),
@@ -293,7 +311,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                   const SizedBox(width: 14),
                               itemBuilder: (context, idx) {
                                 final alb = profile.albums[idx];
-                                return GestureDetector(
+                                return IosSpringButton(
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -309,23 +327,48 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(14),
-                                          child: CachedNetworkImage(
-                                            imageUrl: alb.coverUrl,
-                                            width: 138,
-                                            height: 138,
-                                            fit: BoxFit.cover,
-                                            errorWidget: (_, __, ___) =>
-                                                Container(
+                                        Container(
+                                          decoration: isBrutal
+                                              ? BoxDecoration(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                  border: Border.all(
+                                                    color:
+                                                        theme.brutalBorderColor,
+                                                    width: 2.0,
+                                                  ),
+                                                  boxShadow: [
+                                                    BoxShadow(
+                                                      color: theme
+                                                          .brutalShadowColor,
+                                                      blurRadius: 0,
+                                                      offset: const Offset(
+                                                        3.2,
+                                                        3.2,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                )
+                                              : null,
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              isBrutal ? 10 : 14,
+                                            ),
+                                            child: CachedNetworkImage(
+                                              imageUrl: alb.coverUrl,
                                               width: 138,
                                               height: 138,
-                                              color: Colors.white10,
-                                              child: Icon(
-                                                Icons.album_rounded,
-                                                color: accent,
-                                                size: 36,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (_, __, ___) =>
+                                                  Container(
+                                                width: 138,
+                                                height: 138,
+                                                color: theme.subtleFill,
+                                                child: Icon(
+                                                  Icons.album_rounded,
+                                                  color: theme.accentText,
+                                                  size: 36,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -335,9 +378,9 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                           alb.title,
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.w700,
+                                          style: TextStyle(
+                                            color: theme.textPrimary,
+                                            fontWeight: FontWeight.w800,
                                             fontSize: 13,
                                           ),
                                         ),
@@ -349,9 +392,9 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           style: TextStyle(
-                                            color:
-                                                Colors.white.withOpacity(0.55),
+                                            color: theme.textMuted,
                                             fontSize: 11.2,
+                                            fontWeight: FontWeight.w600,
                                           ),
                                         ),
                                       ],
@@ -364,12 +407,12 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                           const SizedBox(height: 24),
                         ],
 
-                        // Artis Serupa (Mirip)
+                        // Artis Serupa
                         if (profile.similarArtists.isNotEmpty) ...[
-                          const Text(
-                            'Penggemar Juga Menyukai',
+                          Text(
+                            'Artis Serupa',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: theme.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.3,
@@ -386,7 +429,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                   const SizedBox(width: 14),
                               itemBuilder: (context, idx) {
                                 final sim = profile.similarArtists[idx];
-                                return GestureDetector(
+                                return IosSpringButton(
                                   onTap: () {
                                     Navigator.push(
                                       context,
@@ -402,21 +445,33 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                     width: 102,
                                     child: Column(
                                       children: [
-                                        ClipOval(
-                                          child: CachedNetworkImage(
-                                            imageUrl: sim.avatarUrl,
-                                            width: 92,
-                                            height: 92,
-                                            fit: BoxFit.cover,
-                                            errorWidget: (_, __, ___) =>
-                                                Container(
+                                        Container(
+                                          decoration: isBrutal
+                                              ? BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  border: Border.all(
+                                                    color:
+                                                        theme.brutalBorderColor,
+                                                    width: 2.0,
+                                                  ),
+                                                )
+                                              : null,
+                                          child: ClipOval(
+                                            child: CachedNetworkImage(
+                                              imageUrl: sim.avatarUrl,
                                               width: 92,
                                               height: 92,
-                                              color: Colors.white10,
-                                              child: Icon(
-                                                Icons.person_rounded,
-                                                color: accent,
-                                                size: 34,
+                                              fit: BoxFit.cover,
+                                              errorWidget: (_, __, ___) =>
+                                                  Container(
+                                                width: 92,
+                                                height: 92,
+                                                color: theme.subtleFill,
+                                                child: Icon(
+                                                  Icons.person_rounded,
+                                                  color: theme.accentText,
+                                                  size: 34,
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -427,8 +482,8 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                           maxLines: 1,
                                           overflow: TextOverflow.ellipsis,
                                           textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: Colors.white,
+                                          style: TextStyle(
+                                            color: theme.textPrimary,
                                             fontWeight: FontWeight.w700,
                                             fontSize: 12.2,
                                           ),
@@ -445,54 +500,48 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
 
                         // Tentang Artis (Bio)
                         if (profile.description.trim().isNotEmpty) ...[
-                          const Text(
+                          Text(
                             'Tentang Artis',
                             style: TextStyle(
-                              color: Colors.white,
+                              color: theme.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w800,
                               letterSpacing: -0.3,
                             ),
                           ),
                           const SizedBox(height: 10),
-                          GestureDetector(
+                          LiquidGlassBox(
+                            borderRadius: 18,
+                            padding: const EdgeInsets.all(16),
+                            tintOpacity: 0.07,
+                            rimIntensity: 0.32,
                             onTap: () =>
                                 setState(() => _bioExpanded = !_bioExpanded),
-                            child: Container(
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.06),
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(
-                                  color: Colors.white.withOpacity(0.08),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  profile.description.trim(),
+                                  maxLines: _bioExpanded ? 40 : 4,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: theme.textSecondary,
+                                    fontSize: 13,
+                                    height: 1.45,
+                                  ),
                                 ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    profile.description.trim(),
-                                    maxLines: _bioExpanded ? 40 : 4,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.80),
-                                      fontSize: 13,
-                                      height: 1.45,
-                                    ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  _bioExpanded
+                                      ? 'Tutup'
+                                      : 'Baca selengkapnya...',
+                                  style: TextStyle(
+                                    color: theme.accentText,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _bioExpanded
-                                        ? 'Tutup'
-                                        : 'Baca selengkapnya...',
-                                    style: TextStyle(
-                                      color: accent,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -541,6 +590,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
     final theme = context.watch<ThemeProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
     final tracks = _detail?.tracks ?? const [];
 
     return Scaffold(
@@ -549,9 +599,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(
+          icon: Icon(
             Icons.arrow_back_ios_new_rounded,
-            color: Colors.white,
+            color: theme.textPrimary,
             size: 19,
           ),
           onPressed: () => Navigator.pop(context),
@@ -560,35 +610,53 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
           widget.album.title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            color: Colors.white,
+          style: TextStyle(
+            color: theme.textPrimary,
             fontSize: 16,
             fontWeight: FontWeight.w800,
           ),
         ),
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator(color: accent))
+          ? Center(child: CircularProgressIndicator(color: theme.accentText))
           : ListView(
               physics: const BouncingScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(18, 8, 18, 110),
               children: [
                 Center(
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: CachedNetworkImage(
-                      imageUrl: widget.album.coverUrl,
-                      width: 200,
-                      height: 200,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
+                  child: Container(
+                    decoration: isBrutal
+                        ? BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 2.4,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: theme.brutalShadowColor,
+                                blurRadius: 0,
+                                offset: const Offset(4.5, 4.5),
+                              ),
+                            ],
+                          )
+                        : null,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(isBrutal ? 13.6 : 20),
+                      child: CachedNetworkImage(
+                        imageUrl: widget.album.coverUrl,
                         width: 200,
                         height: 200,
-                        color: Colors.white10,
-                        child: Icon(
-                          Icons.album_rounded,
-                          color: accent,
-                          size: 56,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 200,
+                          height: 200,
+                          color: theme.subtleFill,
+                          child: Icon(
+                            Icons.album_rounded,
+                            color: theme.accentText,
+                            size: 56,
+                          ),
                         ),
                       ),
                     ),
@@ -598,8 +666,8 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                 Text(
                   widget.album.title,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: Colors.white,
+                  style: TextStyle(
+                    color: theme.textPrimary,
                     fontSize: 21,
                     fontWeight: FontWeight.w900,
                     letterSpacing: -0.4,
@@ -621,9 +689,9 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                     '${widget.album.artist} • ${widget.album.yearOrSubtitle.isNotEmpty ? widget.album.yearOrSubtitle : "${tracks.length} lagu"}',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: accent,
+                      color: theme.accentText,
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
                 ),
@@ -632,55 +700,67 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: accent,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          icon: const Icon(Icons.play_arrow_rounded, size: 22),
-                          label: const Text(
-                            'Putar Album',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          onPressed: () {
+                        child: IosSpringButton(
+                          onTap: () {
                             player.playSong(
                               tracks.first,
                               customQueue: tracks,
                               contextName: widget.album.title,
                             );
                           },
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: accent,
+                              borderRadius: BorderRadius.circular(
+                                isBrutal ? 11 : 16,
+                              ),
+                              border: isBrutal
+                                  ? Border.all(
+                                      color: theme.brutalBorderColor,
+                                      width: 2.2,
+                                    )
+                                  : null,
+                              boxShadow: isBrutal
+                                  ? [
+                                      BoxShadow(
+                                        color: theme.brutalShadowColor,
+                                        blurRadius: 0,
+                                        offset: const Offset(3.2, 3.2),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Color(0xFF111111),
+                                  size: 22,
+                                ),
+                                SizedBox(width: 6),
+                                Text(
+                                  'Putar Album',
+                                  style: TextStyle(
+                                    color: Color(0xFF111111),
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            side: BorderSide(
-                              color: Colors.white.withOpacity(0.18),
-                            ),
-                            backgroundColor: Colors.white.withOpacity(0.06),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          icon: const Icon(Icons.shuffle_rounded, size: 18),
-                          label: const Text(
-                            'Acak',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          onPressed: () {
+                        child: LiquidGlassBox(
+                          height: 44,
+                          borderRadius: 16,
+                          tintOpacity: 0.09,
+                          rimIntensity: 0.35,
+                          onTap: () {
                             final shuffled = List.of(tracks)..shuffle();
                             player.playSong(
                               shuffled.first,
@@ -688,6 +768,25 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                               contextName: widget.album.title,
                             );
                           },
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.shuffle_rounded,
+                                size: 18,
+                                color: theme.accentText,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Acak',
+                                style: TextStyle(
+                                  color: theme.textPrimary,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13.5,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],

@@ -15,8 +15,6 @@ import 'services/rapot_service.dart';
 import 'services/ytmusic_service.dart';
 import 'services/zunify_audio_handler.dart';
 
-/// ZUNIFY v1.3.0 - Standalone Aesthetic Music Player
-/// Crafted with ❤️ by Fannz (`com.fannz.zunify`)
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -24,13 +22,10 @@ Future<void> main() async {
   PaintingBinding.instance.imageCache.maximumSize = 120;
   PaintingBinding.instance.imageCache.maximumSizeBytes = 45 * 1024 * 1024;
 
-  // Lock portrait orientation for sleek mobile UX
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
   ]);
 
-  // Initialize Foreground Audio Service & Lockscreen Notification Controls
-  // Uses transparent vector `@drawable/ic_stat_zunify` + full Prev/Play/Next buttons
   ZunifyAudioHandler? audioHandler;
   try {
     audioHandler = await AudioService.init(
@@ -48,7 +43,6 @@ Future<void> main() async {
     );
   } catch (_) {}
 
-  // Initialize Standalone Services
   final ytMusicService = YTMusicService();
   final lyricsService = LyricsTranslationService();
   final downloadService = DownloadService(ytMusicService, lyricsService);
@@ -56,7 +50,6 @@ Future<void> main() async {
   final equalizerService = EqualizerService();
   final rapotService = RapotService();
 
-  // Initialize State Providers in parallel for instant cold startup
   final themeProvider = ThemeProvider();
   final libraryProvider = LibraryProvider(downloadService, importerService);
   final playerProvider = PlayerProvider(
@@ -98,26 +91,52 @@ class ZunifyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
+    final isLight = theme.isLightCanvas;
 
-    return MaterialApp(
-      title: 'Zunify',
-      debugShowCheckedModeBanner: false,
-      themeMode: ThemeMode.dark,
-      darkTheme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: theme.scaffoldBgColor,
-        primaryColor: theme.accentColor,
-        colorScheme: ColorScheme.dark(
-          primary: theme.accentColor,
-          secondary: theme.secondaryAccentColor,
-          surface: theme.cardBgColor,
-        ),
-        textTheme: GoogleFonts.plusJakartaSansTextTheme(
-          ThemeData.dark().textTheme,
-        ),
-        useMaterial3: true,
+    final baseTextTheme = isLight
+        ? ThemeData.light().textTheme
+        : ThemeData.dark().textTheme;
+
+    final appTheme = ThemeData(
+      brightness: isLight ? Brightness.light : Brightness.dark,
+      scaffoldBackgroundColor: theme.scaffoldBgColor,
+      primaryColor: theme.accentColor,
+      colorScheme: ColorScheme(
+        brightness: isLight ? Brightness.light : Brightness.dark,
+        primary: theme.accentColor,
+        onPrimary: const Color(0xFF111111),
+        secondary: theme.secondaryAccentColor,
+        onSecondary: const Color(0xFF111111),
+        error: Colors.redAccent,
+        onError: Colors.white,
+        surface: theme.cardBgColor,
+        onSurface: theme.textPrimary,
       ),
-      home: MainShell(ytMusicService: ytMusicService),
+      textTheme: GoogleFonts.plusJakartaSansTextTheme(baseTextTheme).apply(
+        bodyColor: theme.textPrimary,
+        displayColor: theme.textPrimary,
+      ),
+      iconTheme: IconThemeData(color: theme.textPrimary),
+      useMaterial3: true,
+    );
+
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness:
+            isLight ? Brightness.dark : Brightness.light,
+        systemNavigationBarColor: Colors.transparent,
+        systemNavigationBarIconBrightness:
+            isLight ? Brightness.dark : Brightness.light,
+      ),
+      child: MaterialApp(
+        title: 'Zunify',
+        debugShowCheckedModeBanner: false,
+        themeMode: isLight ? ThemeMode.light : ThemeMode.dark,
+        theme: appTheme,
+        darkTheme: appTheme,
+        home: MainShell(ytMusicService: ytMusicService),
+      ),
     );
   }
 }

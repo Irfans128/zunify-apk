@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../services/equalizer_service.dart';
+import 'liquid_background_widget.dart';
 
 class EqualizerSheet extends StatelessWidget {
   const EqualizerSheet({super.key});
@@ -18,274 +19,271 @@ class EqualizerSheet extends StatelessWidget {
         .where((p) => p.name == player.selectedEqPresetName)
         .firstOrNull;
 
-    return Container(
+    return ZunifySheetContainer(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-      decoration: BoxDecoration(
-        color: theme.cardBgColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        border: Border.all(color: Colors.white.withOpacity(0.09)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Header + Reset + Hardware DSP Switch
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 38,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: player.eqEnabled
-                        ? accent.withOpacity(0.16)
-                        : Colors.white.withOpacity(0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
+                    color: theme.dividerColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Header + Reset + Switch
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
                       color: player.eqEnabled
-                          ? accent.withOpacity(0.35)
-                          : Colors.white12,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.graphic_eq_rounded,
-                    color: player.eqEnabled ? accent : Colors.white54,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Equalizer',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        player.eqEnabled
-                            ? (activePreset != null
-                                ? activePreset.name
-                                : player.selectedEqPresetName)
-                            : 'Nonaktif',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: player.eqEnabled ? accent : Colors.white54,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (player.eqEnabled)
-                  TextButton(
-                    style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 6,
-                      ),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: () =>
-                        player.selectEqPreset(EqualizerService.presets.first),
-                    child: const Text(
-                      'Reset',
-                      style: TextStyle(
-                        color: Colors.white60,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                          ? accent.withOpacity(theme.isLightCanvas ? 0.35 : 0.18)
+                          : theme.subtleFill,
+                      borderRadius: BorderRadius.circular(11),
+                      border: Border.all(
+                        color: theme.isNeoBrutalism
+                            ? theme.brutalBorderColor
+                            : (player.eqEnabled
+                                ? accent.withOpacity(0.4)
+                                : theme.dividerColor),
+                        width: theme.isNeoBrutalism ? 1.8 : 1.0,
                       ),
                     ),
+                    child: Icon(
+                      Icons.graphic_eq_rounded,
+                      color: player.eqEnabled
+                          ? (theme.isLightCanvas
+                              ? const Color(0xFF111111)
+                              : accent)
+                          : theme.textMuted,
+                      size: 20,
+                    ),
                   ),
-                Switch(
-                  value: player.eqEnabled,
-                  activeColor: accent,
-                  onChanged: (v) => player.setEqualizerEnabled(v),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // Preset Chips
-            SizedBox(
-              height: 36,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: EqualizerService.presets.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final preset = EqualizerService.presets[index];
-                  final isSelected = player.selectedEqPresetName == preset.name;
-                  return GestureDetector(
-                    onTap: () async {
-                      if (!player.eqEnabled) {
-                        await player.setEqualizerEnabled(true);
-                      }
-                      await player.selectEqPreset(preset);
-                    },
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? accent.withOpacity(0.22)
-                            : Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(
-                          color: isSelected
-                              ? accent
-                              : Colors.white.withOpacity(0.10),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Equalizer',
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.3,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 2),
+                        Text(
+                          player.eqEnabled
+                              ? (activePreset != null
+                                  ? activePreset.name
+                                  : player.selectedEqPresetName)
+                              : 'Nonaktif',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: player.eqEnabled
+                                ? theme.accentText
+                                : theme.textMuted,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (player.eqEnabled)
+                    TextButton(
+                      onPressed: () =>
+                          player.selectEqPreset(EqualizerService.presets.first),
                       child: Text(
-                        preset.name,
+                        'Reset',
                         style: TextStyle(
-                          color: isSelected ? accent : Colors.white70,
-                          fontWeight:
-                              isSelected ? FontWeight.w800 : FontWeight.w600,
-                          fontSize: 12.2,
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // Live Cubic Bézier Frequency Response Curve Visualizer
-            Container(
-              height: 68,
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.28),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.06)),
-              ),
-              child: CustomPaint(
-                painter: _EqCurvePainter(
-                  bandLevels: player.bandLevels,
-                  enabled: player.eqEnabled,
-                  accent: accent,
-                  secondary: secondary,
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-
-            // 5-Band Vertical Sliders
-            SizedBox(
-              height: 178,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(EqualizerService.bandLabels.length, (i) {
-                  final level = player.bandLevels[i];
-                  final dbValue = (level / 100).toStringAsFixed(1);
-                  return Column(
-                    children: [
-                      Text(
-                        '${level >= 0 ? '+' : ''}$dbValue',
-                        style: TextStyle(
-                          color: player.eqEnabled ? accent : Colors.white38,
-                          fontSize: 10.5,
+                          color: theme.textSecondary,
+                          fontSize: 12,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
-                      Expanded(
-                        child: RotatedBox(
-                          quarterTurns: 3,
-                          child: SliderTheme(
-                            data: SliderTheme.of(context).copyWith(
-                              activeTrackColor: accent,
-                              inactiveTrackColor: Colors.white12,
-                              thumbColor: Colors.white,
-                              overlayColor: accent.withOpacity(0.18),
-                              trackHeight: 4.5,
-                              thumbShape: const RoundSliderThumbShape(
-                                enabledThumbRadius: 7.5,
+                    ),
+                  Switch(
+                    value: player.eqEnabled,
+                    activeColor: accent,
+                    onChanged: (v) => player.setEqualizerEnabled(v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Preset Chips
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: EqualizerService.presets.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final preset = EqualizerService.presets[index];
+                    final isSelected =
+                        player.selectedEqPresetName == preset.name;
+                    return IosGlassPillButton(
+                      label: preset.name,
+                      height: 34,
+                      activeColor: accent,
+                      isActive: isSelected,
+                      onTap: () async {
+                        if (!player.eqEnabled) {
+                          await player.setEqualizerEnabled(true);
+                        }
+                        await player.selectEqPreset(preset);
+                      },
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // Frequency Response Curve Visualizer
+              Container(
+                height: 64,
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: theme.isLightCanvas
+                      ? const Color(0xFF18181B)
+                      : Colors.black.withOpacity(0.28),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: theme.isNeoBrutalism
+                        ? theme.brutalBorderColor
+                        : Colors.white.withOpacity(0.08),
+                    width: theme.isNeoBrutalism ? 2.0 : 1.0,
+                  ),
+                ),
+                child: CustomPaint(
+                  painter: _EqCurvePainter(
+                    bandLevels: player.bandLevels,
+                    enabled: player.eqEnabled,
+                    accent: accent,
+                    secondary: secondary,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // 5-Band Vertical Sliders
+              SizedBox(
+                height: 174,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children:
+                      List.generate(EqualizerService.bandLabels.length, (i) {
+                    final level = player.bandLevels[i];
+                    final dbValue = (level / 100).toStringAsFixed(1);
+                    return Column(
+                      children: [
+                        Text(
+                          '${level >= 0 ? '+' : ''}$dbValue',
+                          style: TextStyle(
+                            color: player.eqEnabled
+                                ? theme.accentText
+                                : theme.textMuted,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Expanded(
+                          child: RotatedBox(
+                            quarterTurns: 3,
+                            child: SliderTheme(
+                              data: SliderTheme.of(context).copyWith(
+                                activeTrackColor: accent,
+                                inactiveTrackColor: theme.dividerColor,
+                                thumbColor: theme.textPrimary,
+                                overlayColor: accent.withOpacity(0.18),
+                                trackHeight: 4.5,
+                                thumbShape: const RoundSliderThumbShape(
+                                  enabledThumbRadius: 7,
+                                ),
                               ),
-                            ),
-                            child: Slider(
-                              value: level.toDouble().clamp(-1500, 1500),
-                              min: -1500,
-                              max: 1500,
-                              onChanged: player.eqEnabled
-                                  ? (v) =>
-                                      player.updateCustomBandLevel(i, v.round())
-                                  : null,
+                              child: Slider(
+                                value: level.toDouble().clamp(-1500, 1500),
+                                min: -1500,
+                                max: 1500,
+                                onChanged: player.eqEnabled
+                                    ? (v) => player.updateCustomBandLevel(
+                                          i,
+                                          v.round(),
+                                        )
+                                    : null,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      Text(
-                        EqualizerService.bandLabels[i],
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
+                        Text(
+                          EqualizerService.bandLabels[i],
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
-                      ),
-                      Text(
-                        EqualizerService.bandSubLabels[i],
-                        style: const TextStyle(
-                          color: Colors.white38,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
+                        Text(
+                          EqualizerService.bandSubLabels[i],
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
-                  );
-                }),
+                      ],
+                    );
+                  }),
+                ),
               ),
-            ),
-            const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
-            // Bass Boost & 3D Virtualizer Sliders
-            _buildEffectSlider(
-              label: 'Sub-Bass Boost Pro 🔥',
-              value: player.bassBoostStrength,
-              enabled: player.eqEnabled,
-              accent: accent,
-              onChanged: (v) => player.updateBassBoost(v),
-            ),
-            const SizedBox(height: 6),
-            _buildEffectSlider(
-              label: 'Dolby 3D Spatial Virtualizer 🎧',
-              value: player.virtualizerStrength,
-              enabled: player.eqEnabled,
-              accent: secondary,
-              onChanged: (v) => player.updateVirtualizer(v),
-            ),
-          ],
+              _buildEffectSlider(
+                theme: theme,
+                label: 'Bass Boost',
+                value: player.bassBoostStrength,
+                enabled: player.eqEnabled,
+                accent: accent,
+                onChanged: (v) => player.updateBassBoost(v),
+              ),
+              const SizedBox(height: 4),
+              _buildEffectSlider(
+                theme: theme,
+                label: 'Efek Ruang 3D',
+                value: player.virtualizerStrength,
+                enabled: player.eqEnabled,
+                accent: secondary,
+                onChanged: (v) => player.updateVirtualizer(v),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildEffectSlider({
+    required ThemeProvider theme,
     required String label,
     required int value,
     required bool enabled,
@@ -301,8 +299,8 @@ class EqualizerSheet extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: theme.textPrimary,
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
               ),
@@ -310,7 +308,7 @@ class EqualizerSheet extends StatelessWidget {
             Text(
               '$pct%',
               style: TextStyle(
-                color: enabled ? accent : Colors.white38,
+                color: enabled ? theme.accentText : theme.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
@@ -320,8 +318,8 @@ class EqualizerSheet extends StatelessWidget {
         SliderTheme(
           data: SliderThemeData(
             activeTrackColor: accent,
-            inactiveTrackColor: Colors.white12,
-            thumbColor: Colors.white,
+            inactiveTrackColor: theme.dividerColor,
+            thumbColor: theme.textPrimary,
             overlayColor: accent.withOpacity(0.16),
             trackHeight: 4,
             thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
@@ -355,9 +353,8 @@ class _EqCurvePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final midY = size.height / 2;
 
-    // 0 dB center reference line
     final refPaint = Paint()
-      ..color = Colors.white.withOpacity(0.10)
+      ..color = Colors.white.withOpacity(0.12)
       ..strokeWidth = 1;
     canvas.drawLine(Offset(0, midY), Offset(size.width, midY), refPaint);
 
@@ -384,7 +381,7 @@ class _EqCurvePainter extends CustomPainter {
       ..lineTo(0, size.height)
       ..close();
 
-    final activeColor = enabled ? accent : Colors.white30;
+    final activeColor = enabled ? accent : Colors.white38;
     final fillPaint = Paint()
       ..shader = LinearGradient(
         begin: Alignment.topCenter,
