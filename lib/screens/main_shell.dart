@@ -31,7 +31,6 @@ class MainShell extends StatefulWidget {
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _selectedIndex = 0;
-  Timer? _broadcastPollTimer;
   late final List<Widget> _screens;
   bool _checkedInitialMainStartup = false;
 
@@ -45,8 +44,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       const SettingsScreen(),
     ];
     WidgetsBinding.instance.addObserver(this);
-    _pollBroadcastOnly();
-    _startBroadcastTimer();
   }
 
   Future<void> _checkMissingPermissions() async {
@@ -56,18 +53,9 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     await AppPermissionsManager.checkAndPromptIfMissing(context);
   }
 
-  void _startBroadcastTimer() {
-    _broadcastPollTimer?.cancel();
-    _broadcastPollTimer = Timer.periodic(
-      const Duration(seconds: 60),
-      (_) => _pollBroadcastOnly(),
-    );
-  }
-
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _broadcastPollTimer?.cancel();
     super.dispose();
   }
 
@@ -75,20 +63,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _checkMissingPermissions();
-      _pollBroadcastOnly();
-      _startBroadcastTimer();
-    } else if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.detached) {
-      _broadcastPollTimer?.cancel();
-      _broadcastPollTimer = null;
     }
-  }
-
-  Future<void> _pollBroadcastOnly() async {
-    if (!mounted) return;
-    try {
-      await UpdateService().checkBroadcastAnnouncement();
-    } catch (_) {}
   }
 
   Future<void> _checkBackgroundUpdate() async {
@@ -103,11 +78,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           context.read<LibraryProvider>().hasCompletedOnboarding) {
         await showUpdateSheet(context, info);
       }
-    } catch (_) {}
-
-    if (!mounted) return;
-    try {
-      await updater.checkBroadcastAnnouncement();
     } catch (_) {}
   }
 

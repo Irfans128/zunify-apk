@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "819849073401",
+    "project_id": "zunify-376c4",
+    "storage_bucket": "zunify-376c4.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:819849073401:android:bbeb22afc9d49aedf1c828",
+        "android_client_info": {
+          "package_name": "com.fannz.zunify"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgYCRC4cC0-ooCxw25E-WeeccjQIT3i6M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:819849073401:android:bbeb22afc9d49aedf1c828",
+        "android_client_info": {
+          "package_name": "com.fannz.zunify.admin"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDgYCRC4cC0-ooCxw25E-WeeccjQIT3i6M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

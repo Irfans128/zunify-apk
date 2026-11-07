@@ -42,6 +42,7 @@ jobs:
           cp /tmp/zunify_android_backup/app/build.gradle android/app/build.gradle
           cp /tmp/zunify_android_backup/app/proguard-rules.pro android/app/proguard-rules.pro
           cp /tmp/zunify_android_backup/app/zunify-release.p12 android/app/zunify-release.p12
+          cp /tmp/zunify_android_backup/app/google-services.json android/app/google-services.json
           cp /tmp/zunify_android_backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/kotlin/com/fannz/zunify
           cp /tmp/zunify_android_backup/app/src/main/kotlin/com/fannz/zunify/*.kt android/app/src/main/kotlin/com/fannz/zunify/
@@ -89,7 +90,7 @@ jobs:
         run: |
           APP_VER=$(grep "kAppVersion =" lib/app_version.dart | cut -d"'" -f2)
           TAG="v${APP_VER}"
-          NOTES="- Major Update Zunify v2.0.1: Dual Tema Eksklusif (iOS Optical Liquid Glass & Neo-Brutalism)\n- Real-Time Background Push Notification Engine (:notif Process + Suara Sistem, Masuk Hitungan Detik Meski Aplikasi Ditutup)\n- Animasi Spring Halus Mendukung Layar 90Hz / 120Hz & Performa Lebih Ringan\n- Algoritma Antrean Lagu Pintar ala Spotify (Sesuai Genre & Mood Pendengar)\n- Pencarian Suara Kustom Multi-Bahasa (Indonesia, Inggris, Jepang, Korea)\n- Pilihan Kualitas Audio 3 Tingkat (Rendah, Standar, Tinggi) + Download Otomatis Kualitas Tinggi\n- Zunify Tempo Studio, Sleep Timer, Crossfade Mulus, & Wrapped Poster Tema Neo-Brutalism"
+          NOTES="update notifikasi"
           gh release delete "$TAG" --yes || true
           git tag -f "$TAG"
           git push origin "$TAG" --force

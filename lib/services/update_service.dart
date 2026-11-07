@@ -211,100 +211,59 @@ class UpdateService {
     return info;
   }
 
-  /// Triggers the native Android notification engine to check `announcements.json`
-  /// and post ONLY to the phone's system notification bar (never inside the app).
-  Future<void> checkBroadcastAnnouncement() async {
-    try {
-      await _nativeChannel.invokeMethod('checkBroadcastNative');
-    } catch (_) {}
-  }
-
-  /// Fire-and-forget publisher for Fannz's Zunify Notif Admin APK.
-  /// Sends title + message + optional local phone gallery image once with zero history.
-  Future<bool> publishBroadcastAnnouncement({
+  /// Real-time FCM Notification Publisher for Zunify Notif Admin APK.
+  /// Sends instant push notification with high priority & sound directly to all Zunify users.
+  static Future<bool> sendFcmBroadcast({
     required String title,
     required String message,
     String? imageBase64,
     required String githubToken,
   }) async {
-    final cleanToken = githubToken.trim();
-    if (cleanToken.isEmpty) return false;
-
-    final headers = {
-      'Authorization': 'Bearer $cleanToken',
-      'Accept': 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'Zunify-Admin-Fannz',
-    };
-
-    final nowMs = DateTime.now().millisecondsSinceEpoch;
-    final notifId = 'fannz_$nowMs';
     String finalImageUrl = '';
 
-    // Upload local gallery image if selected
-    if (imageBase64 != null && imageBase64.trim().isNotEmpty) {
-      final imgPath = 'announcements/$notifId.jpg';
-      final imgApiUri = Uri.parse(
-        'https://api.github.com/repos/$kUpdateRepo/contents/$imgPath',
-      );
-      final imgPutRes = await http
-          .put(
-            imgApiUri,
-            headers: headers,
-            body: jsonEncode({
-              'message':
-                  'chore(broadcast): upload notif image $notifId [skip ci]',
-              'content': imageBase64.trim(),
-            }),
-          )
-          .timeout(const Duration(seconds: 18));
-      if (imgPutRes.statusCode == 200 || imgPutRes.statusCode == 201) {
-        finalImageUrl =
-            'https://raw.githubusercontent.com/$kUpdateRepo/main/$imgPath';
-      }
+    // If an image was selected from phone gallery, upload it to GitHub raw so FCM can load it
+    if (imageBase64 != null &&
+        imageBase64.trim().isNotEmpty &&
+        githubToken.trim().isNotEmpty) {
+      try {
+        final notifId = 'fannz_${DateTime.now().millisecondsSinceEpoch}';
+        final imgPath = 'announcements/$notifId.jpg';
+        final imgApiUri = Uri.parse(
+          'https://api.github.com/repos/$kUpdateRepo/contents/$imgPath',
+        );
+        final res = await http
+            .put(
+              imgApiUri,
+              headers: {
+                'Authorization': 'Bearer ${githubToken.trim()}',
+                'Accept': 'application/vnd.github+json',
+                'Content-Type': 'application/json',
+                'User-Agent': 'Zunify-Admin-Fannz',
+              },
+              body: jsonEncode({
+                'message':
+                    'chore(broadcast): upload notif image $notifId [skip ci]',
+                'content': imageBase64.trim(),
+              }),
+            )
+            .timeout(const Duration(seconds: 15));
+        if (res.statusCode == 200 || res.statusCode == 201) {
+          finalImageUrl =
+              'https://raw.githubusercontent.com/$kUpdateRepo/main/$imgPath';
+        }
+      } catch (_) {}
     }
 
-    final apiUri = Uri.parse(
-      'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
-    );
-
-    String? existingSha;
     try {
-      final getRes = await http
-          .get(apiUri, headers: headers)
-          .timeout(const Duration(seconds: 8));
-      if (getRes.statusCode == 200) {
-        final meta =
-            jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
-        existingSha = meta['sha']?.toString();
-      }
-    } catch (_) {}
-
-    final newPayload = <String, dynamic>{
-      'id': notifId,
-      'active': true,
-      'title': title.trim().isEmpty ? 'Zunify' : title.trim(),
-      'message': message.trim(),
-      'imageUrl': finalImageUrl,
-      'createdAtMs': nowMs,
-      'createdAt':
-          DateTime.fromMillisecondsSinceEpoch(nowMs, isUtc: true)
-              .toIso8601String(),
-    };
-
-    final jsonBytes = utf8.encode(
-      const JsonEncoder.withIndent('  ').convert(newPayload),
-    );
-    final body = <String, dynamic>{
-      'message': 'chore(broadcast): push notification from Fannz [skip ci]',
-      'content': base64Encode(jsonBytes),
-      if (existingSha != null) 'sha': existingSha,
-    };
-
-    final putRes = await http
-        .put(apiUri, headers: headers, body: jsonEncode(body))
-        .timeout(const Duration(seconds: 12));
-    return putRes.statusCode == 200 || putRes.statusCode == 201;
+      final ok = await _nativeChannel.invokeMethod<bool>('sendFcmBroadcast', {
+        'title': title.trim().isEmpty ? 'Zunify' : title.trim(),
+        'body': message.trim(),
+        'imageUrl': finalImageUrl,
+      });
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> skipVersion(String version) async {

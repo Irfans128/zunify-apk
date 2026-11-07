@@ -73,43 +73,13 @@ class MainActivity : AudioServiceFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableHighRefreshRate()
-        ZunifyNotifEngine.ensureScheduled(this, startKeepAliveService = true)
-        ZunifyNotifEngine.checkNowAsync(this)
+        ZunifyFcmHelper.initAndSubscribe(this)
     }
 
     override fun onResume() {
         super.onResume()
         enableHighRefreshRate()
-        ZunifyNotifEngine.ensureScheduled(this, startKeepAliveService = true)
-        ZunifyNotifEngine.checkNowAsync(this)
-        mainHandler.postDelayed({ requestUnrestrictedBackgroundIfNeeded() }, 1400L)
-    }
-
-    private fun requestUnrestrictedBackgroundIfNeeded() {
-        if (ZunifyNotifEngine.isAdminPackage(this)) return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
-        try {
-            if (Build.VERSION.SDK_INT >= 33 &&
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                return
-            }
-            val pm = getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return
-            if (pm.isIgnoringBatteryOptimizations(packageName)) return
-
-            val prefs = getSharedPreferences("zunify_bg_opt", Context.MODE_PRIVATE)
-            if (prefs.getBoolean("prompted_v1", false)) return
-            prefs.edit().putBoolean("prompted_v1", true).apply()
-
-            val intent = Intent(
-                Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                Uri.parse("package:$packageName")
-            )
-            startActivity(intent)
-        } catch (_: Exception) {}
+        ZunifyFcmHelper.initAndSubscribe(this)
     }
 
     /**
@@ -380,26 +350,33 @@ class MainActivity : AudioServiceFragmentActivity() {
                     }
                 }
                 "checkBroadcastNative" -> {
-                    ZunifyNotifEngine.ensureScheduled(this, startKeepAliveService = true)
-                    ZunifyNotifEngine.checkNowAsync(this)
                     result.success(true)
                 }
                 "showNativePushNotification" -> {
-                    val id = call.argument<Int>("id") ?: 901
                     val title = call.argument<String>("title") ?: "Zunify"
                     val body = call.argument<String>("body") ?: ""
                     val imageUrl = call.argument<String>("imageUrl") ?: ""
-                    val localImagePath = call.argument<String>("localImagePath") ?: ""
                     Thread {
-                        ZunifyNotifEngine.postSystemNotification(
+                        ZunifyFcmHelper.postSystemNotification(
                             context = applicationContext,
-                            notifId = id,
                             title = title,
                             body = body,
-                            imageUrl = imageUrl,
-                            localImagePath = localImagePath
+                            imageUrl = imageUrl
                         )
                         mainHandler.post { result.success(true) }
+                    }.start()
+                }
+                "sendFcmBroadcast" -> {
+                    val title = call.argument<String>("title") ?: "Zunify"
+                    val body = call.argument<String>("body") ?: ""
+                    val imageUrl = call.argument<String>("imageUrl") ?: ""
+                    Thread {
+                        val ok = ZunifyFcmSender.sendBroadcast(
+                            title = title,
+                            body = body,
+                            imageUrl = imageUrl
+                        )
+                        mainHandler.post { result.success(ok) }
                     }.start()
                 }
                 else -> result.notImplemented()
@@ -643,9 +620,7 @@ class MainActivity : AudioServiceFragmentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_APP_PERMISSIONS) {
-            ZunifyNotifEngine.ensureScheduled(this, startKeepAliveService = true)
-            ZunifyNotifEngine.checkNowAsync(this)
-            mainHandler.postDelayed({ requestUnrestrictedBackgroundIfNeeded() }, 600L)
+            ZunifyFcmHelper.initAndSubscribe(this)
             val cb = pendingPermResult
             pendingPermResult = null
             cb?.success(getPermissionsStatusMap())

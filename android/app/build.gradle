@@ -2,6 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
+    id "com.google.gms.google-services"
 }
 
 android {
@@ -23,7 +24,7 @@ android {
         applicationId "com.fannz.zunify"
         minSdkVersion 24
         targetSdkVersion 35
-        versionCode 206
+        versionCode 207
         versionName "2.0.1"
         multiDexEnabled true
     }
@@ -54,4 +55,6 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.0.4'
+    implementation platform('com.google.firebase:firebase-bom:33.5.1')
+    implementation 'com.google.firebase:firebase-messaging'
 }

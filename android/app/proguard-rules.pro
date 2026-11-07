@@ -6,9 +6,10 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
-# Zunify Native Android Classes (Equalizer + APK Self-Installer + FileProvider)
+# Zunify Native Android Classes (Equalizer + APK Self-Installer + FileProvider + FCM)
 -keep class com.fannz.zunify.** { *; }
 -keep class androidx.core.content.FileProvider { *; }
+-keep class com.google.firebase.** { *; }
 
 # Audio Service, Just Audio, & ExoPlayer / Media3
 -keep class com.ryanheise.** { *; }
@@ -22,8 +23,8 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 
 -dontwarn com.google.android.play.core.**
+-dontwarn com.google.firebase.**
 -dontwarn javax.annotation.**
 -dontwarn org.codehaus.mojo.animal_sniffer.**
 -dontwarn com.google.errorprone.annotations.**
 -dontwarn org.checkerframework.**
-

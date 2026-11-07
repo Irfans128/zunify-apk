@@ -1,7 +1,7 @@
 name: zunify
 description: "Zunify - Standalone Aesthetic Music Player with Synced Bilingual Lyrics, Equalizer & Weekly Rapot. Crafted with ❤️ by Fannz."
 publish_to: 'none'
-version: 2.0.1+206
+version: 2.0.1+207
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
