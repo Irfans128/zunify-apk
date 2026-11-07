@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/liquid_background_widget.dart';
+import '../widgets/permissions_sheet.dart';
 import '../widgets/vinyl_disc_widget.dart';
 
 /// First-Time Welcome & Local Account Login Screen
@@ -15,6 +17,17 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   final TextEditingController _nameController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(const Duration(milliseconds: 350), () {
+        if (!mounted) return;
+        unawaited(AppPermissionsManager.requestDirectPermissions());
+      });
+    });
+  }
 
   @override
   void dispose() {

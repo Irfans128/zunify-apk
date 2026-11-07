@@ -2,6 +2,7 @@ package com.fannz.zunify
 
 import android.Manifest
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -24,13 +25,17 @@ import android.net.NetworkCapabilities
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
+import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Base64
 import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.ryanheise.audioservice.AudioServiceFragmentActivity
@@ -59,8 +64,10 @@ class MainActivity : AudioServiceFragmentActivity() {
     private var lastPartialTranscript: String = ""
     private var pendingVoiceLang: String = "auto"
     private var pendingImageResult: MethodChannel.Result? = null
+    private var pendingPermResult: MethodChannel.Result? = null
     private val REQ_PICK_IMAGE = 9401
     private val REQ_RECORD_AUDIO = 9403
+    private val REQ_APP_PERMISSIONS = 9404
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -274,8 +281,130 @@ class MainActivity : AudioServiceFragmentActivity() {
                     destroySpeechRecognizer()
                     result.success(true)
                 }
+                "getPermissionsStatus" -> {
+                    result.success(getPermissionsStatusMap())
+                }
+                "requestAppPermissions" -> {
+                    val missing = mutableListOf<String>()
+                    if (Build.VERSION.SDK_INT >= 33 &&
+                        ContextCompat.checkSelfPermission(
+                            this,
+                            "android.permission.POST_NOTIFICATIONS"
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        missing.add("android.permission.POST_NOTIFICATIONS")
+                    }
+                    if (ContextCompat.checkSelfPermission(
+                            this,
+                            Manifest.permission.RECORD_AUDIO
+                        ) != PackageManager.PERMISSION_GRANTED
+                    ) {
+                        missing.add(Manifest.permission.RECORD_AUDIO)
+                    }
+                    if (missing.isEmpty()) {
+                        result.success(getPermissionsStatusMap())
+                    } else {
+                        pendingPermResult = result
+                        ActivityCompat.requestPermissions(
+                            this,
+                            missing.toTypedArray(),
+                            REQ_APP_PERMISSIONS
+                        )
+                    }
+                }
+                "openAppPermissionSettings" -> {
+                    val target = call.argument<String>("target") ?: "app"
+                    try {
+                        val intent = if (target == "notif" && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        } else {
+                            Intent(
+                                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                Uri.fromParts("package", packageName, null)
+                            ).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                        }
+                        startActivity(intent)
+                        result.success(true)
+                    } catch (_: Exception) {
+                        result.success(false)
+                    }
+                }
+                "saveImageToGallery" -> {
+                    val bytes = call.argument<ByteArray>("bytes")
+                    val fileName = call.argument<String>("fileName") ?: "QRIS_7FANNZ_STORE.jpg"
+                    if (bytes == null || bytes.isEmpty()) {
+                        result.success(false)
+                    } else {
+                        Thread {
+                            val ok = saveImageBytesToMediaStore(bytes, fileName)
+                            mainHandler.post { result.success(ok) }
+                        }.start()
+                    }
+                }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    private fun getPermissionsStatusMap(): Map<String, Boolean> {
+        val micOk = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        val notifRuntimeOk = if (Build.VERSION.SDK_INT >= 33) {
+            ContextCompat.checkSelfPermission(
+                this,
+                "android.permission.POST_NOTIFICATIONS"
+            ) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        val notifEnabled = try {
+            NotificationManagerCompat.from(this).areNotificationsEnabled()
+        } catch (_: Exception) {
+            true
+        }
+        return mapOf(
+            "micGranted" to micOk,
+            "notifGranted" to (notifRuntimeOk && notifEnabled)
+        )
+    }
+
+    private fun saveImageBytesToMediaStore(bytes: ByteArray, fileName: String): Boolean {
+        return try {
+            val mime = if (fileName.lowercase().endsWith(".png")) "image/png" else "image/jpeg"
+            val values = ContentValues().apply {
+                put(MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(MediaStore.Images.Media.MIME_TYPE, mime)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(
+                        MediaStore.Images.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_PICTURES + "/Zunify"
+                    )
+                    put(MediaStore.Images.Media.IS_PENDING, 1)
+                }
+            }
+            val resolver = contentResolver
+            val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+                ?: return false
+            resolver.openOutputStream(uri)?.use { out ->
+                out.write(bytes)
+                out.flush()
+            } ?: return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val doneValues = ContentValues().apply {
+                    put(MediaStore.Images.Media.IS_PENDING, 0)
+                }
+                resolver.update(uri, doneValues, null, null)
+            }
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 
@@ -457,6 +586,12 @@ class MainActivity : AudioServiceFragmentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQ_APP_PERMISSIONS) {
+            val cb = pendingPermResult
+            pendingPermResult = null
+            cb?.success(getPermissionsStatusMap())
+            return
+        }
         if (requestCode == REQ_RECORD_AUDIO) {
             if (grantResults.isNotEmpty() &&
                 grantResults[0] == PackageManager.PERMISSION_GRANTED

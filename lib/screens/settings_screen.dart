@@ -7,6 +7,7 @@ import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/equalizer_sheet.dart';
 import '../widgets/liquid_background_widget.dart';
+import '../widgets/qris_donation_sheet.dart';
 import '../widgets/update_sheet.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -367,24 +368,25 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   _menuDivider(theme),
                   _menuTile(
-                    icon: Icons.system_update_rounded,
-                    iconBg: const Color(0xFF3B82F6),
-                    title: 'Cek Update',
-                    valueText: 'v$kAppVersion',
+                    icon: Icons.qr_code_2_rounded,
+                    iconBg: const Color(0xFFF43F5E),
+                    title: 'Donasi QRIS',
+                    valueText: 'Dukung',
                     theme: theme,
-                    onTap: () => runManualUpdateCheck(context),
+                    onTap: () => showQrisDonationSheet(context),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 20),
 
-            // 5. Creator Footer (Only place with Crafted with ❤️ by Fannz)
+            // 5. Creator Footer + Merged APK Version & Check Update Card (Only place with Crafted with ❤️ by Fannz)
             LiquidGlassBox(
               borderRadius: 22,
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-              tintOpacity: 0.07,
-              rimIntensity: 0.32,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              tintOpacity: 0.08,
+              rimIntensity: 0.36,
+              onTap: () => runManualUpdateCheck(context),
               child: Row(
                 children: [
                   Container(
@@ -401,14 +403,14 @@ class SettingsScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(isBrutal ? 10.2 : 14),
                       child: Image.asset(
                         'assets/images/zunify_logo.png',
-                        width: 48,
-                        height: 48,
+                        width: 46,
+                        height: 46,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,12 +421,12 @@ class SettingsScreen extends StatelessWidget {
                               'Zunify',
                               style: TextStyle(
                                 color: theme.textPrimary,
-                                fontSize: 17,
+                                fontSize: 16.5,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: -0.3,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            const SizedBox(width: 7),
                             Container(
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 7,
@@ -455,17 +457,30 @@ class SettingsScreen extends StatelessWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           'Crafted with ❤️ by Fannz',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             color: theme.accentText,
                             fontWeight: FontWeight.w800,
-                            fontSize: 12.5,
+                            fontSize: 12,
                           ),
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  IosGlassPillButton(
+                    icon: Icons.system_update_rounded,
+                    label: 'Cek Update',
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                    activeColor: accent,
+                    isActive: true,
+                    fontSize: 11.2,
+                    onTap: () => runManualUpdateCheck(context),
                   ),
                 ],
               ),

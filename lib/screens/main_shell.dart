@@ -9,6 +9,7 @@ import '../providers/theme_provider.dart';
 import '../services/update_service.dart';
 import '../services/ytmusic_service.dart';
 import '../widgets/liquid_background_widget.dart';
+import '../widgets/permissions_sheet.dart';
 import '../widgets/update_sheet.dart';
 import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
@@ -32,6 +33,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   Timer? _broadcastPollTimer;
   late final List<Widget> _screens;
+  bool _checkedInitialMainPermissions = false;
 
   @override
   void initState() {
@@ -44,10 +46,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     ];
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkMissingPermissions();
       _checkSunday18WIBRapotPopup();
       _checkBackgroundUpdate();
     });
     _startBroadcastTimer();
+  }
+
+  Future<void> _checkMissingPermissions() async {
+    await Future.delayed(const Duration(milliseconds: 650));
+    if (!mounted) return;
+    if (!context.read<LibraryProvider>().hasCompletedOnboarding) return;
+    await AppPermissionsManager.checkAndPromptIfMissing(context);
   }
 
   void _startBroadcastTimer() {
@@ -68,6 +78,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      _checkMissingPermissions();
       _pollBroadcastOnly();
       _startBroadcastTimer();
     } else if (state == AppLifecycleState.paused ||
@@ -312,6 +323,13 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
     if (!hasCompletedOnboarding) {
       return const OnboardingScreen();
+    }
+
+    if (!_checkedInitialMainPermissions) {
+      _checkedInitialMainPermissions = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkMissingPermissions();
+      });
     }
 
     final theme = context.watch<ThemeProvider>();

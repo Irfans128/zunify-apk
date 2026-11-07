@@ -54,6 +54,8 @@ class PlayerProvider extends ChangeNotifier {
   int _currentIndex = 0;
   String _contextName = '';
   List<ZunifySong> _originalContextOrder = [];
+  List<ZunifySong> _originalAutoplayOrder = [];
+  bool _isRadioSession = false;
 
   bool _autoplayEnabled = true;
   bool _isFetchingAutoplay = false;
@@ -651,7 +653,8 @@ class PlayerProvider extends ChangeNotifier {
     await prefs.setBool('autoplay_enabled', enabled);
   }
 
-  /// Spotify shuffle: reshuffles the upcoming context tracks (user queue stays first).
+  /// Spotify Smart Shuffle: reshuffles both playlist context AND autoplay radio tracks
+  /// with artist spacing (user-queued tracks always stay first).
   void toggleShuffle() async {
     _shuffleEnabled = !_shuffleEnabled;
     if (_queue.isNotEmpty) {
@@ -667,8 +670,42 @@ class PlayerProvider extends ChangeNotifier {
     await prefs.setBool('shuffle_enabled', _shuffleEnabled);
   }
 
+  List<ZunifySong> _smartShuffleWithArtistSpacing(
+    List<ZunifySong> items, {
+    String? avoidFirstVideoId,
+    String? previousArtistKey,
+  }) {
+    if (items.length <= 1) return List<ZunifySong>.from(items);
+    final pool = List<ZunifySong>.from(items)..shuffle(_random);
+    final out = <ZunifySong>[];
+    String lastArt = previousArtistKey ?? '';
+
+    while (pool.isNotEmpty) {
+      int pickIdx = pool.indexWhere((s) {
+        final ak = _artistKey(s.artist);
+        if (out.isEmpty &&
+            avoidFirstVideoId != null &&
+            pool.length > 1 &&
+            s.videoId == avoidFirstVideoId) {
+          return false;
+        }
+        return ak != lastArt;
+      });
+      if (pickIdx < 0 && out.isEmpty && avoidFirstVideoId != null) {
+        pickIdx = pool.indexWhere((s) => s.videoId != avoidFirstVideoId);
+      }
+      if (pickIdx < 0) pickIdx = 0;
+
+      final chosen = pool.removeAt(pickIdx);
+      out.add(chosen);
+      lastArt = _artistKey(chosen.artist);
+    }
+    return out;
+  }
+
   void _shuffleUpcomingContext() {
     final start = _currentIndex + 1;
+    if (start >= _queue.length) return;
     final userItems = <ZunifySong>[];
     final contextItems = <ZunifySong>[];
     final autoplayItems = <ZunifySong>[];
@@ -685,37 +722,84 @@ class PlayerProvider extends ChangeNotifier {
           break;
       }
     }
-    contextItems.shuffle(_random);
-    _rebuildUpcoming(userItems, contextItems, autoplayItems);
+
+    final anchorArtist = userItems.isNotEmpty
+        ? _artistKey(userItems.last.artist)
+        : (_currentSong != null ? _artistKey(_currentSong!.artist) : '');
+
+    final shuffledContext = _smartShuffleWithArtistSpacing(
+      contextItems,
+      avoidFirstVideoId:
+          contextItems.length > 1 ? contextItems.first.videoId : null,
+      previousArtistKey: anchorArtist,
+    );
+
+    final afterContextArtist = shuffledContext.isNotEmpty
+        ? _artistKey(shuffledContext.last.artist)
+        : anchorArtist;
+
+    final shuffledAutoplay = _smartShuffleWithArtistSpacing(
+      autoplayItems,
+      avoidFirstVideoId:
+          autoplayItems.length > 1 ? autoplayItems.first.videoId : null,
+      previousArtistKey: afterContextArtist,
+    );
+
+    _rebuildUpcoming(userItems, shuffledContext, shuffledAutoplay);
   }
 
   void _restoreContextOrder() {
-    if (_originalContextOrder.isEmpty || _currentSong == null) return;
+    if (_currentSong == null) return;
     final start = _currentIndex + 1;
+    if (start >= _queue.length) return;
     final userItems = <ZunifySong>[];
     final autoplayItems = <ZunifySong>[];
     final upcomingContextIds = <String>{};
+    final upcomingAutoplayIds = <String>{};
     for (int i = start; i < _queue.length; i++) {
       if (_sources[i] == QueueSource.user) {
         userItems.add(_queue[i]);
       } else if (_sources[i] == QueueSource.autoplay) {
         autoplayItems.add(_queue[i]);
+        upcomingAutoplayIds.add(_queue[i].videoId);
       } else {
         upcomingContextIds.add(_queue[i].videoId);
       }
     }
-    final originalPos = _originalContextOrder
-        .indexWhere((s) => s.videoId == _currentSong!.videoId);
-    final ordered = <ZunifySong>[];
-    if (originalPos >= 0) {
-      // Continue from the current track's original position (Spotify behaviour)
-      ordered.addAll(_originalContextOrder.sublist(originalPos + 1));
-    } else {
-      ordered.addAll(
-        _originalContextOrder.where((s) => upcomingContextIds.contains(s.videoId)),
-      );
+
+    final orderedContext = <ZunifySong>[];
+    if (_originalContextOrder.length > 1 && upcomingContextIds.isNotEmpty) {
+      final originalPos = _originalContextOrder
+          .indexWhere((s) => s.videoId == _currentSong!.videoId);
+      if (originalPos >= 0) {
+        orderedContext.addAll(
+          _originalContextOrder
+              .sublist(originalPos + 1)
+              .where((s) => upcomingContextIds.contains(s.videoId)),
+        );
+      }
+      for (final s in _originalContextOrder) {
+        if (upcomingContextIds.contains(s.videoId) &&
+            !orderedContext.any((e) => e.videoId == s.videoId)) {
+          orderedContext.add(s);
+        }
+      }
     }
-    _rebuildUpcoming(userItems, ordered, autoplayItems);
+
+    List<ZunifySong> orderedAutoplay = autoplayItems;
+    if (_originalAutoplayOrder.isNotEmpty && upcomingAutoplayIds.isNotEmpty) {
+      final restored = _originalAutoplayOrder
+          .where((s) => upcomingAutoplayIds.contains(s.videoId))
+          .toList();
+      for (final s in autoplayItems) {
+        if (!restored.any((e) => e.videoId == s.videoId)) {
+          restored.add(s);
+        }
+      }
+      orderedAutoplay = restored;
+    }
+
+    _rebuildUpcoming(userItems, orderedContext, orderedAutoplay);
   }
 
   void _rebuildUpcoming(
@@ -775,15 +859,20 @@ class PlayerProvider extends ChangeNotifier {
       if (!seen.contains(song.videoId)) ctx.insert(0, song);
 
       _originalContextOrder = List.from(ctx);
+      _originalAutoplayOrder = [];
+      _isRadioSession = false;
       _contextName = contextName ?? 'Daftar putar';
 
       if (_shuffleEnabled) {
-        final rest = ctx
+        final restRaw = ctx
             .where((s) =>
                 s.videoId != song.videoId &&
                 !userTracks.any((u) => u.videoId == s.videoId))
-            .toList()
-          ..shuffle(_random);
+            .toList();
+        final rest = _smartShuffleWithArtistSpacing(
+          restRaw,
+          previousArtistKey: _artistKey(song.artist),
+        );
         _queue = [song, ...userTracks, ...rest];
         _sources = [
           QueueSource.context,
@@ -808,7 +897,7 @@ class PlayerProvider extends ChangeNotifier {
       }
     } else {
       // Single-song playback (e.g. from Search or Quick Picks):
-      // Start fresh Spotify-style Genre / Mood Radio around `song`
+      // Start fresh Spotify-style Genre & Mood Radio around `song`
       _queue = [song, ...userTracks];
       _sources = [
         QueueSource.context,
@@ -816,6 +905,8 @@ class PlayerProvider extends ChangeNotifier {
       ];
       _currentIndex = 0;
       _originalContextOrder = [song];
+      _originalAutoplayOrder = [];
+      _isRadioSession = true;
       _contextName = contextName ?? 'Radio ${song.title}';
       _isFetchingAutoplay = false;
       _autoplayToken++;
@@ -1112,11 +1203,409 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // Smart Autoplay / Recommendation Algorithm (Spotify-like)
+  // Spotify-Authentic Genre, Region & Listener Mood Queue Engine
   // ---------------------------------------------------------------------------
+  static const Set<String> _indoCoreArtists = {
+    'hindia',
+    'bernadya',
+    'mahalini',
+    'tulus',
+    'nadin amizah',
+    'juicy luicy',
+    'sal priadi',
+    'pamungkas',
+    'feast',
+    '.feast',
+    'lomba sihir',
+    'perunggu',
+    'reality club',
+    'gangga',
+    'ardhito pramono',
+    'tiara andini',
+    'lyodra',
+    'ziva magnolya',
+    'rizky febian',
+    'keisya levronka',
+    'fiersa besari',
+    'fourtwnty',
+    'payung teduh',
+    'float',
+    'soegi bornean',
+    'daun jatuh',
+    'idgitaf',
+    'dere',
+    'kunto aji',
+    'yura yunita',
+    'raisa',
+    'isyana sarasvati',
+    'afgan',
+    'rossa',
+    'glenn fredly',
+    'chrisye',
+    'sheila on 7',
+    'dewa 19',
+    'peterpan',
+    'noah',
+    'ungu',
+    'kerispatih',
+    'samsons',
+    'ada band',
+    'padi',
+    'kahitna',
+    'maliq',
+    'hivi!',
+    'hivi',
+    'vierratale',
+    'vierra',
+    'last child',
+    'virgoun',
+    'armada',
+    'd\'masiv',
+    'dmasiv',
+    'geisha',
+    'kotak',
+    'nidji',
+    'letto',
+    'andra and the backbone',
+    'slank',
+    'iwan fals',
+    'for revenge',
+    'stand here alone',
+    'pee wee gaskins',
+    'barasuara',
+    'efek rumah kaca',
+    'danilla',
+    'diskoria',
+    'dipha barus',
+    'weird genius',
+    'ghea indrawari',
+    'fabio asher',
+    'anggis devaki',
+    'nyoman paul',
+    'rony parulian',
+    'salma salsabil',
+    'budi doremi',
+    'raim laode',
+    'batas senja',
+    'meiska',
+    'dudy oris',
+    'cakra khan',
+    'judika',
+    'andmesh',
+    'bilal indrajaya',
+    'teddy adhitya',
+    'petra sihombing',
+    'rendy pandugo',
+    'oslo ibrahim',
+    'coldiac',
+    'the overtunes',
+    'ran',
+    'naff',
+    'repvblik',
+    'utopia',
+    'cokelat',
+    'gigi',
+    'ari lasso',
+    'once mekel',
+    'bunga citra lestari',
+    'maudy ayunda',
+    'marion jola',
+    'rizwan fadilah',
+    'adrian khalif',
+    'jkt48',
+  };
+
+  static const Set<String> _jpopCoreArtists = {
+    'yoasobi',
+    'ado',
+    'kenshi yonezu',
+    'fujii kaze',
+    'imase',
+    'radwimps',
+    'aimyon',
+    'official hige dandism',
+    'mrs. green apple',
+    'vaundy',
+    'yorushika',
+    'zutomayo',
+    'eve',
+    'king gnu',
+    'creepy nuts',
+    'tatsuya kitani',
+    'yuuri',
+    'back number',
+    'one ok rock',
+    'kana-boon',
+    'bump of chicken',
+    'ikimonogakari',
+    'utada hikaru',
+    'milet',
+    'aimer',
+    'babymetal',
+    'kessoku band',
+  };
+
+  static const Set<String> _kpopCoreArtists = {
+    'bts',
+    'blackpink',
+    'newjeans',
+    'aespa',
+    'ive',
+    'le sserafim',
+    'twice',
+    'stray kids',
+    'enhypen',
+    'txt',
+    'tomorrow x together',
+    'exo',
+    'nct',
+    'red velvet',
+    'itzy',
+    '(g)i-dle',
+    'babymonster',
+    'illit',
+    'kiss of life',
+    'day6',
+    'wave to earth',
+    'iu',
+    'taeyeon',
+    'jungkook',
+    'jimin',
+    'jennie',
+    'rosé',
+    'jisoo',
+    'treasure',
+    'ateez',
+    'bol4',
+    'akmu',
+    '10cm',
+    'heize',
+    'crush',
+    'bigbang',
+    '2ne1',
+    'stayc',
+    'nmixx',
+  };
+
+  static final RegExp _indoWordsRegex = RegExp(
+    r'\b(aku|kamu|kau|kita|yang|dan|dari|untuk|dengan|dalam|tak|tidak|bukan|jangan|sudah|telah|masih|hanya|karena|jika|bila|kalau|saat|ketika|sampai|hingga|cinta|hati|rasa|rindu|luka|pergi|pulang|kembali|hilang|tinggal|kenangan|malam|pagi|senja|hujan|langit|bumi|dunia|hidup|mati|bahagia|sedih|kecewa|maaf|terima kasih|selamat|jalan|rumah|kota|sendiri|bersama|selamanya|tentang|sebuah|kisah|cerita|jiwa|ragu|percaya|harapan|mimpi|bayang|peluk|genggam|langkah|waktu|mengapa|kenapa|bagaimana|tanpa|bersamamu|untukmu|padamu|cintaku|hatiku|diriku|dirimu)\b',
+  );
+
+  static final RegExp _cjkRegex = RegExp(r'[\u3040-\u30ff\u4e00-\u9fff]');
+  static final RegExp _hangulRegex = RegExp(r'[\uac00-\ud7af]');
+
+  static final RegExp _djRemixRegex = RegExp(
+    r'(\bdj\b|jedag\s*jedug|\bjj\b|funkot|full\s*bass|mengpane|slowed|sped\s*up|nightcore|bootleg|thailand\s*style|viral\s*tiktok|remix)',
+  );
+
+  static final RegExp _koploRegex = RegExp(
+    r'(denny caknan|happy asmara|guyon waton|ndarboy|aftershine|gilga sahid|masdddho|\bndx\b|koplo|campursari|dangdut|ambyar)',
+  );
+
+  _VibeProfile _inferVibeProfile(ZunifySong s) {
+    final titleLower = s.title.toLowerCase();
+    final artistLower = s.artist.toLowerCase();
+    final aKey = _artistKey(s.artist);
+    final combined = '$titleLower $artistLower ${s.album.toLowerCase()}';
+
+    // 1. Detect specialized pockets first (DJ/Remix & Koplo/Dangdut)
+    if (_djRemixRegex.hasMatch(combined)) {
+      return const _VibeProfile(
+        _MusicRegion.electronicDj,
+        _MusicMood.electronicParty,
+      );
+    }
+    if (_koploRegex.hasMatch(combined)) {
+      return const _VibeProfile(
+        _MusicRegion.koploDangdut,
+        _MusicMood.upbeatPop,
+      );
+    }
+
+    // 2. Detect Region / Language Pocket
+    _MusicRegion region = _MusicRegion.western;
+    if (_hangulRegex.hasMatch(combined) ||
+        _kpopCoreArtists.contains(aKey) ||
+        _kpopCoreArtists.any((k) => k.length >= 4 && artistLower.contains(k))) {
+      region = _MusicRegion.kpop;
+    } else if (_cjkRegex.hasMatch(combined) ||
+        _jpopCoreArtists.contains(aKey) ||
+        _jpopCoreArtists.any((j) => j.length >= 4 && artistLower.contains(j))) {
+      region = _MusicRegion.jpop;
+    } else if (_indoCoreArtists.contains(aKey) ||
+        _indoCoreArtists.any((id) => id.length >= 5 && artistLower.contains(id)) ||
+        _indoWordsRegex.hasMatch(titleLower)) {
+      region = _MusicRegion.indo;
+    }
+
+    // 3. Detect Mood / Genre Pocket
+    _MusicMood mood = _MusicMood.upbeatPop;
+    final isGalauLex = RegExp(
+      r'\b(galau|luka|pergi|hilang|usai|pisah|kecewa|air mata|menangis|sendiri|hampa|trauma|sial|runtuh|evaluasi|membasuh|untungnya|satu bulan|lama-lama|tak segampang|pesan terakhir|sisa rasa|bohongi hati|mati-matian|heartbreak|sad|lonely|tears|broken|cry|goodbye|miss you|without you|glimpse of us|someone like you|all too well|drivers license|traitor|happier|acoustic|akustik|piano|ballad)\b',
+    ).hasMatch(combined);
+    final isGalauArtist = const {
+      'bernadya',
+      'nadin amizah',
+      'mahalini',
+      'fiersa besari',
+      'daun jatuh',
+      'soegi bornean',
+      'virgoun',
+      'last child',
+      'kerispatih',
+      'rossa',
+      'glenn fredly',
+      'adele',
+      'olivia rodrigo',
+      'lewis capaldi',
+      'sam smith',
+      'conan gray',
+      'gracie abrams',
+      'phoebe bridgers',
+      'cigarettes after sex',
+      'joji',
+      'fabio asher',
+      'anggis devaki',
+      'meiska',
+      'raisa',
+    }.contains(aKey);
+
+    final isIndieChillArtist = const {
+      'hindia',
+      'pamungkas',
+      'sal priadi',
+      'kunto aji',
+      'payung teduh',
+      'fourtwnty',
+      'perunggu',
+      'lomba sihir',
+      'reality club',
+      'ardhito pramono',
+      'bilal indrajaya',
+      'danilla',
+      'float',
+      'gangga',
+      'juicy luicy',
+      'wave to earth',
+      'daniel caesar',
+      'keshi',
+      'rex orange county',
+      'clairo',
+      'beabadoobee',
+      'men i trust',
+      'mac demarco',
+      'arctic monkeys',
+      'the 1975',
+      'lany',
+      'niki',
+      'frank ocean',
+      'laufey',
+    }.contains(aKey);
+
+    final isRockBandArtist = const {
+      'sheila on 7',
+      'dewa 19',
+      'noah',
+      'peterpan',
+      'padi',
+      'gigi',
+      'cokelat',
+      'kotak',
+      'nidji',
+      'd\'masiv',
+      'dmasiv',
+      'armada',
+      'ungu',
+      'samsons',
+      '.feast',
+      'feast',
+      'barasuara',
+      'pee wee gaskins',
+      'for revenge',
+      'linkin park',
+      'green day',
+      'my chemical romance',
+      'paramore',
+      'bring me the horizon',
+      'nirvana',
+      'queen',
+      'oasis',
+      'coldplay',
+      'imagine dragons',
+      'maroon 5',
+      'one ok rock',
+      'radwimps',
+      'day6',
+    }.contains(aKey);
+
+    final isRnbGrooveArtist = const {
+      'tulus',
+      'maliq',
+      'ran',
+      'hivi!',
+      'hivi',
+      'diskoria',
+      'adrian khalif',
+      'rizky febian',
+      'marion jola',
+      'the weeknd',
+      'bruno mars',
+      'silk sonic',
+      'chris brown',
+      'drake',
+      'kendrick lamar',
+      'travis scott',
+      'post malone',
+      'sza',
+      'ariana grande',
+      'justin bieber',
+      'khalid',
+      'giveon',
+      'brent faiyaz',
+    }.contains(aKey);
+
+    if (isGalauLex || isGalauArtist) {
+      mood = _MusicMood.galauBallad;
+    } else if (isIndieChillArtist ||
+        RegExp(r'\b(chill|lofi|senja|indie|coffee|malam)\b')
+            .hasMatch(combined)) {
+      mood = _MusicMood.indieChill;
+    } else if (isRockBandArtist ||
+        RegExp(r'\b(rock|metal|punk|band|anthem)\b').hasMatch(combined)) {
+      mood = _MusicMood.rockBand;
+    } else if (isRnbGrooveArtist ||
+        RegExp(r'\b(r&b|rnb|soul|groove|hip hop|rap)\b').hasMatch(combined)) {
+      mood = _MusicMood.rnbGroove;
+    }
+
+    return _VibeProfile(region, mood);
+  }
+
+  bool _areMoodsCompatible(_MusicMood a, _MusicMood b) {
+    if (a == b) return true;
+    if ((a == _MusicMood.galauBallad && b == _MusicMood.indieChill) ||
+        (b == _MusicMood.galauBallad && a == _MusicMood.indieChill)) {
+      return true;
+    }
+    if ((a == _MusicMood.indieChill && b == _MusicMood.rnbGroove) ||
+        (b == _MusicMood.indieChill && a == _MusicMood.rnbGroove)) {
+      return true;
+    }
+    if ((a == _MusicMood.upbeatPop && b == _MusicMood.rnbGroove) ||
+        (b == _MusicMood.upbeatPop && a == _MusicMood.rnbGroove)) {
+      return true;
+    }
+    if ((a == _MusicMood.indieChill && b == _MusicMood.rockBand) ||
+        (b == _MusicMood.indieChill && a == _MusicMood.rockBand)) {
+      return true;
+    }
+    return false;
+  }
+
   void _maybeFillAutoplay() {
-    if (!_autoplayEnabled || _offlineModeEnabled || _repeatMode == 1) return;
-    if (upcomingCount < 3) {
+    if (_offlineModeEnabled || _repeatMode == 1) return;
+    if (!_autoplayEnabled && !(_isRadioSession && upcomingCount == 0)) return;
+    if (upcomingCount < 6) {
       unawaited(_appendAutoplayRecommendations());
     }
   }
@@ -1161,7 +1650,12 @@ class PlayerProvider extends ChangeNotifier {
       }
     }
     s = s
-        .replaceAll(RegExp(r'\b(feat|ft|official|music|video|audio|lyric|lyrics|lirik|live|acoustic|akustik|cover|remix|version|versi|karaoke|instrumental|slowed|reverb|sped|up|hd|hq|mv|visualizer)\b.*'), ' ')
+        .replaceAll(
+          RegExp(
+            r'\b(feat|ft|official|music|video|audio|lyric|lyrics|lirik|live|acoustic|akustik|cover|remix|version|versi|karaoke|instrumental|slowed|reverb|sped|up|hd|hq|mv|visualizer)\b.*',
+          ),
+          ' ',
+        )
         .replaceAll(RegExp(r'[^a-z0-9 ]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
@@ -1200,6 +1694,35 @@ class PlayerProvider extends ChangeNotifier {
         t.contains('instrumental');
   }
 
+  ZunifySong? _pickMatchingListenerTasteSeed(
+    ZunifySong seed,
+    _VibeProfile seedVibe,
+    Set<String> excludeIds,
+  ) {
+    final seedArtist = _artistKey(seed.artist);
+    final pool = <ZunifySong>[
+      ..._libraryProvider.favorites,
+      ..._libraryProvider.recentlyPlayed.take(18),
+    ];
+    final matching = <ZunifySong>[];
+    for (final item in pool) {
+      if (item.videoId == seed.videoId || excludeIds.contains(item.videoId)) {
+        continue;
+      }
+      final ak = _artistKey(item.artist);
+      if (ak == seedArtist) continue;
+      if ((_artistSkipPenalty[ak] ?? 0) > 0) continue;
+      final v = _inferVibeProfile(item);
+      if (v.region == seedVibe.region &&
+          _areMoodsCompatible(v.mood, seedVibe.mood)) {
+        matching.add(item);
+      }
+    }
+    if (matching.isEmpty) return null;
+    final topSlice = matching.take(6).toList();
+    return topSlice[_random.nextInt(topSlice.length)];
+  }
+
   Future<void> _appendAutoplayRecommendations() async {
     final seed = _currentSong;
     if (seed == null || _isFetchingAutoplay) return;
@@ -1210,82 +1733,214 @@ class PlayerProvider extends ChangeNotifier {
     try {
       final excludeIds = <String>{
         ..._queue.map((s) => s.videoId),
-        ..._recentHistoryIds.take(45),
+        ..._recentHistoryIds.take(40),
       };
-      final raw = await _ytMusicService.getRadioRecommendations(
-        seed,
-        excludeVideoIds: excludeIds,
-      );
+
+      final seedVibe = _inferVibeProfile(seed);
+      final tasteSeed =
+          _pickMatchingListenerTasteSeed(seed, seedVibe, excludeIds);
+
+      // Fetch pure RDAMVM Song Radio + Personalized Listener Taste Radio in parallel
+      final radioBatches = await Future.wait<List<ZunifySong>>([
+        _ytMusicService.getRadioRecommendations(
+          seed,
+          excludeVideoIds: excludeIds,
+          tunerMode: 'AUTOMIX_SETTING_NORMAL',
+        ),
+        if (tasteSeed != null)
+          _ytMusicService.getRadioRecommendations(
+            tasteSeed,
+            excludeVideoIds: excludeIds,
+            tunerMode: 'AUTOMIX_SETTING_FAMILIAR',
+          ),
+      ]);
+
       if (myAutoToken != _autoplayToken) return;
-      if (_currentSong?.videoId != seed.videoId && upcomingCount >= 3) {
-        return; // user moved on and the queue is already filled
+      if (_currentSong?.videoId != seed.videoId && upcomingCount >= 6) {
+        return;
       }
 
-      // Taste signals from the user's own library
+      final primaryRaw = radioBatches[0];
+      final tasteRaw =
+          radioBatches.length > 1 ? radioBatches[1] : const <ZunifySong>[];
+
+      // Session mood & region profile from the listener's recent 5 tracks
+      final recentSession = _libraryProvider.recentlyPlayed.take(5).toList();
+      final sessionRegions = <_MusicRegion>{};
+      final moodCounts = <_MusicMood, int>{};
+      for (final rs in recentSession) {
+        final rv = _inferVibeProfile(rs);
+        sessionRegions.add(rv.region);
+        moodCounts[rv.mood] = (moodCounts[rv.mood] ?? 0) + 1;
+      }
+      _MusicMood? dominantSessionMood;
+      int bestMoodCount = 0;
+      moodCounts.forEach((m, cnt) {
+        if (cnt > bestMoodCount) {
+          bestMoodCount = cnt;
+          dominantSessionMood = m;
+        }
+      });
+
+      final favVideoIds =
+          _libraryProvider.favorites.map((s) => s.videoId).toSet();
       final favArtists = _libraryProvider.favorites
           .map((s) => _artistKey(s.artist))
           .toSet();
       final recentArtists = _libraryProvider.recentlyPlayed
+          .take(25)
           .map((s) => _artistKey(s.artist))
           .toSet();
+
       final knownTitleKeys = <String>{
         _titleKey(seed.title),
         ..._queue.map((s) => _titleKey(s.title)),
       };
-
+      final seenCandidateIds = <String>{...excludeIds};
       final candidates = <_ScoredSong>[];
-      for (int i = 0; i < raw.length; i++) {
-        final s = raw[i];
-        if (excludeIds.contains(s.videoId)) continue;
-        if (_looksLikeNonSong(s)) continue;
-        final tKey = _titleKey(s.title);
-        if (_isDuplicateOrCoverTitle(tKey, knownTitleKeys)) {
-          continue; // Strictly drop covers, live versions, or duplicates of the same title
-        }
-        knownTitleKeys.add(tKey);
 
-        final aKey = _artistKey(s.artist);
-        // Preserve YouTube Music RDAMVM genre/mood similarity rank while blending user taste
-        double score = (raw.length - i) * 1.4;
-        if (favArtists.contains(aKey)) score += 5.5;
-        if (recentArtists.contains(aKey)) score += 2.5;
-        score -= (_artistSkipPenalty[aKey] ?? 0) * 5.0;
-        score += _random.nextDouble() * 2.0; // Natural radio variety
-        candidates.add(_ScoredSong(s, score, aKey));
+      void scoreBatch(List<ZunifySong> batch, {required bool isPrimary}) {
+        for (int i = 0; i < batch.length; i++) {
+          final s = batch[i];
+          if (!seenCandidateIds.add(s.videoId)) continue;
+          if (_looksLikeNonSong(s)) continue;
+
+          final candVibe = _inferVibeProfile(s);
+
+          // Strictly block DJ/Jedag-Jedug/Slowed/Remix & Koplo from regular music queues
+          if (candVibe.region == _MusicRegion.electronicDj &&
+              seedVibe.region != _MusicRegion.electronicDj) {
+            continue;
+          }
+          if (candVibe.region == _MusicRegion.koploDangdut &&
+              seedVibe.region != _MusicRegion.koploDangdut) {
+            continue;
+          }
+
+          final tKey = _titleKey(s.title);
+          if (_isDuplicateOrCoverTitle(tKey, knownTitleKeys)) {
+            continue;
+          }
+          knownTitleKeys.add(tKey);
+
+          final aKey = _artistKey(s.artist);
+
+          // 1. Base RDAMVM acoustic/genre graph similarity rank
+          double score = isPrimary
+              ? (batch.length - i) * 1.15
+              : (batch.length - i) * 0.85;
+
+          // 2. Spotify Region & Genre Continuity
+          if (candVibe.region == seedVibe.region) {
+            score += 10.0;
+          } else if (sessionRegions.contains(candVibe.region)) {
+            score -= 2.5;
+          } else {
+            score -= 9.0;
+          }
+
+          // 3. Listener Mood Continuity
+          if (candVibe.mood == seedVibe.mood) {
+            score += 6.5;
+          } else if (_areMoodsCompatible(candVibe.mood, seedVibe.mood)) {
+            score += 3.0;
+          } else {
+            score -= 3.5;
+          }
+
+          if (dominantSessionMood != null &&
+              candVibe.mood == dominantSessionMood &&
+              _areMoodsCompatible(candVibe.mood, seedVibe.mood)) {
+            score += 2.5;
+          }
+
+          // 4. Personal Library Affinity & Skip Feedback
+          if (favVideoIds.contains(s.videoId) &&
+              !_recentHistoryIds.take(15).contains(s.videoId)) {
+            score += 4.5;
+          }
+          if (favArtists.contains(aKey)) score += 5.0;
+          if (recentArtists.contains(aKey)) score += 2.5;
+          score -= (_artistSkipPenalty[aKey] ?? 0) * 6.5;
+
+          // Natural organic radio freshness
+          score += _random.nextDouble() * 1.8;
+
+          candidates.add(_ScoredSong(s, score, aKey));
+        }
       }
+
+      scoreBatch(primaryRaw, isPrimary: true);
+      scoreBatch(tasteRaw, isPrimary: false);
 
       candidates.sort((a, b) => b.score.compareTo(a.score));
 
-      // Spotify Radio Diversity Pass:
-      // 1. Never place the same artist back-to-back
-      // 2. Cap any single artist to at most 2 tracks per batch so the mix stays varied across the genre
+      // Spotify 3-Slot Artist Spacing & Diversity Pass:
+      // - Never repeat an artist within the last 2 slots when alternatives exist
+      // - Cap any single artist to max 2 tracks per batch (max 1 extra for seed artist early on)
       final picked = <ZunifySong>[];
       final artistCounts = <String, int>{};
-      String lastArtist =
-          _artistKey(_queue.isNotEmpty ? _queue.last.artist : seed.artist);
-      artistCounts[ _artistKey(seed.artist)] = 1;
+      final seedArtistKey = _artistKey(seed.artist);
+      artistCounts[seedArtistKey] = 1;
 
-      while (candidates.isNotEmpty && picked.length < 14) {
+      final recentWindow = <String>[];
+      if (_queue.isNotEmpty) {
+        recentWindow.add(_artistKey(_queue.last.artist));
+        if (_queue.length >= 2) {
+          recentWindow.insert(0, _artistKey(_queue[_queue.length - 2].artist));
+        }
+      } else {
+        recentWindow.add(seedArtistKey);
+      }
+
+      while (candidates.isNotEmpty && picked.length < 16) {
+        // Strict pass: not in recent 2-slot window & < 2 tracks in batch
         int idx = candidates.indexWhere(
           (c) =>
-              c.artistKey != lastArtist &&
-              (artistCounts[c.artistKey] ?? 0) < 2,
+              !recentWindow.contains(c.artistKey) &&
+              (artistCounts[c.artistKey] ?? 0) < 2 &&
+              !(picked.length < 4 && c.artistKey == seedArtistKey),
         );
+        // Relaxed pass 1: not immediate previous artist & < 2 tracks
         if (idx < 0) {
-          idx = candidates.indexWhere((c) => c.artistKey != lastArtist);
+          final immediateLast =
+              recentWindow.isNotEmpty ? recentWindow.last : '';
+          idx = candidates.indexWhere(
+            (c) =>
+                c.artistKey != immediateLast &&
+                (artistCounts[c.artistKey] ?? 0) < 2,
+          );
+        }
+        // Relaxed pass 2: not immediate previous artist
+        if (idx < 0) {
+          final immediateLast =
+              recentWindow.isNotEmpty ? recentWindow.last : '';
+          idx = candidates.indexWhere((c) => c.artistKey != immediateLast);
         }
         if (idx < 0) idx = 0;
 
         final chosen = candidates.removeAt(idx);
         picked.add(chosen.song);
-        lastArtist = chosen.artistKey;
         artistCounts[chosen.artistKey] =
             (artistCounts[chosen.artistKey] ?? 0) + 1;
+        recentWindow.add(chosen.artistKey);
+        if (recentWindow.length > 2) {
+          recentWindow.removeAt(0);
+        }
       }
 
       if (picked.isNotEmpty && myAutoToken == _autoplayToken) {
-        _queue.addAll(picked);
-        _sources.addAll(List.filled(picked.length, QueueSource.autoplay));
+        _originalAutoplayOrder.addAll(picked);
+        final toAppend = _shuffleEnabled
+            ? _smartShuffleWithArtistSpacing(
+                picked,
+                previousArtistKey: _queue.isNotEmpty
+                    ? _artistKey(_queue.last.artist)
+                    : seedArtistKey,
+              )
+            : picked;
+        _queue.addAll(toAppend);
+        _sources.addAll(List.filled(toAppend.length, QueueSource.autoplay));
         _prefetchNext();
       }
     } catch (_) {
@@ -1633,6 +2288,31 @@ class PlayerProvider extends ChangeNotifier {
     _audioPlayer.dispose();
     super.dispose();
   }
+}
+
+enum _MusicRegion {
+  indo,
+  western,
+  jpop,
+  kpop,
+  koploDangdut,
+  electronicDj,
+}
+
+enum _MusicMood {
+  galauBallad,
+  indieChill,
+  upbeatPop,
+  rnbGroove,
+  rockBand,
+  electronicParty,
+}
+
+class _VibeProfile {
+  final _MusicRegion region;
+  final _MusicMood mood;
+
+  const _VibeProfile(this.region, this.mood);
 }
 
 class _ScoredSong {

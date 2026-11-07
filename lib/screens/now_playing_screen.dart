@@ -2363,14 +2363,6 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 final total = livePlayer.queue.length;
                 final upcomingCount = (total - curIdx - 1).clamp(0, total);
 
-                bool hasUserAddedItems = false;
-                for (int k = curIdx + 1; k < total; k++) {
-                  if (livePlayer.sourceAt(k) == QueueSource.user) {
-                    hasUserAddedItems = true;
-                    break;
-                  }
-                }
-
                 return ZunifySheetContainer(
                   padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
                   child: Column(
@@ -2418,33 +2410,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               ],
                             ),
                           ),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IosGlassPillButton(
-                                icon: Icons.auto_awesome_rounded,
-                                label: 'Autoplay',
-                                height: 30,
-                                padding:
-                                    const EdgeInsets.symmetric(horizontal: 10),
-                                activeColor: accent,
-                                isActive: livePlayer.autoplayEnabled,
-                                fontSize: 11,
-                                onTap: () => livePlayer.setAutoplayEnabled(
-                                  !livePlayer.autoplayEnabled,
-                                ),
-                              ),
-                              const SizedBox(width: 6),
-                              IosGlassIconButton(
-                                icon: Icons.shuffle_rounded,
-                                size: 32,
-                                iconSize: 16,
-                                activeColor: accent,
-                                isActive: livePlayer.shuffleEnabled,
-                                tooltip: 'Acak Antrean',
-                                onTap: () => livePlayer.toggleShuffle(),
-                              ),
-                            ],
+                          IosGlassPillButton(
+                            icon: Icons.shuffle_rounded,
+                            label: 'Acak Antrean',
+                            height: 32,
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            activeColor: accent,
+                            isActive: livePlayer.shuffleEnabled,
+                            fontSize: 11.5,
+                            onTap: () => livePlayer.toggleShuffle(),
                           ),
                         ],
                       ),
@@ -2570,7 +2544,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             : 'DAFTAR PUTAR';
                                         break;
                                       case QueueSource.autoplay:
-                                        sectionTitle = 'AUTOPLAY';
+                                        sectionTitle =
+                                            'REKOMENDASI SESUAI GENRE & MOOD';
                                         break;
                                     }
                                   }
@@ -2590,43 +2565,18 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                             left: 4,
                                             right: 4,
                                           ),
-                                          child: Row(
-                                            mainAxisAlignment:
-                                                MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  sectionTitle,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
-                                                  style: TextStyle(
-                                                    color: source ==
-                                                            QueueSource.user
-                                                        ? theme.accentText
-                                                        : theme.textMuted,
-                                                    fontSize: 10.5,
-                                                    fontWeight: FontWeight.w800,
-                                                    letterSpacing: 0.7,
-                                                  ),
-                                                ),
-                                              ),
-                                              if (source == QueueSource.user &&
-                                                  hasUserAddedItems)
-                                                GestureDetector(
-                                                  onTap: () => livePlayer
-                                                      .clearUserQueue(),
-                                                  child: Text(
-                                                    'Bersihkan',
-                                                    style: TextStyle(
-                                                      color: theme.accentText,
-                                                      fontSize: 11.5,
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
+                                          child: Text(
+                                            sectionTitle,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: source == QueueSource.user
+                                                  ? theme.accentText
+                                                  : theme.textMuted,
+                                              fontSize: 10.5,
+                                              fontWeight: FontWeight.w800,
+                                              letterSpacing: 0.7,
+                                            ),
                                           ),
                                         ),
                                       Container(

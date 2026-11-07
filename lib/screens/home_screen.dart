@@ -349,7 +349,6 @@ class _HomeScreenState extends State<HomeScreen> {
                         final song = quickPicks[i];
                         return _buildQuickPickTile(
                           song,
-                          quickPicks,
                           player,
                           theme,
                           accent,
@@ -394,7 +393,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           final song = _moodSongs[idx];
                           return _squareSongCard(
                             song,
-                            _moodSongs,
                             player,
                             theme,
                             accent,
@@ -421,8 +419,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ..._trendingIndo.take(5).toList().asMap().entries.map(
                         (entry) => ZunifySongTile(
                           song: entry.value,
-                          queueContext: _trendingIndo,
-                          contextName: 'Populer di Indonesia',
+                          queueContext: const [],
+                          contextName: 'Radio ${entry.value.title}',
                           rank: entry.key + 1,
                         ),
                       ),
@@ -445,8 +443,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   ..._trendingGlobal.take(5).toList().asMap().entries.map(
                         (entry) => ZunifySongTile(
                           song: entry.value,
-                          queueContext: _trendingGlobal,
-                          contextName: 'Top Global',
+                          queueContext: const [],
+                          contextName: 'Radio ${entry.value.title}',
                           rank: entry.key + 1,
                         ),
                       ),
@@ -628,7 +626,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickPickTile(
     ZunifySong song,
-    List<ZunifySong> queueList,
     PlayerProvider player,
     ThemeProvider theme,
     Color accent,
@@ -643,8 +640,8 @@ class _HomeScreenState extends State<HomeScreen> {
       rimIntensity: isCurrent ? 0.46 : 0.30,
       onTap: () => player.playSong(
         song,
-        customQueue: queueList,
-        contextName: 'Dengarkan Cepat',
+        customQueue: const [],
+        contextName: 'Radio ${song.title}',
       ),
       child: Row(
         children: [
@@ -807,7 +804,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _squareSongCard(
     ZunifySong song,
-    List<ZunifySong> queueList,
     PlayerProvider player,
     ThemeProvider theme,
     Color accent,
@@ -819,8 +815,8 @@ class _HomeScreenState extends State<HomeScreen> {
       borderRadius: isBrutal ? 13 : 18,
       onTap: () => player.playSong(
         song,
-        customQueue: queueList,
-        contextName: 'Rekomendasi Untukmu',
+        customQueue: const [],
+        contextName: 'Radio ${song.title}',
       ),
       onLongPress: () => showSongActionSheet(context, song: song),
       child: SizedBox(

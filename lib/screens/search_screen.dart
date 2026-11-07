@@ -1401,8 +1401,8 @@ class _SearchScreenState extends State<SearchScreen> {
         final item = _results[songIdx];
         return ZunifySongTile(
           song: item,
-          queueContext: _results,
-          contextName: 'Pencarian',
+          queueContext: const [],
+          contextName: 'Radio ${item.title}',
         );
       },
     );

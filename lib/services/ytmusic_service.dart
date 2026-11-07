@@ -351,27 +351,68 @@ class YTMusicService {
     return songs;
   }
 
-  /// Spotify-style Genre / Mood Radio Engine via YouTube Music `RDAMVM` AutoMix Watch Playlist
-  Future<List<ZunifySong>> getRadioRecommendations(
-    ZunifySong seedSong, {
-    Set<String> excludeVideoIds = const {},
+  void _extractPlaylistPanelVideos(
+    dynamic node,
+    List<Map<String, dynamic>> out,
+  ) {
+    if (node is Map<String, dynamic>) {
+      final wrapper = node['playlistPanelVideoWrapperRenderer'];
+      if (wrapper is Map<String, dynamic>) {
+        final primary = wrapper['primaryRenderer'];
+        if (primary != null) {
+          _extractPlaylistPanelVideos(primary, out);
+        }
+        return;
+      }
+      final videoRenderer = node['playlistPanelVideoRenderer'];
+      if (videoRenderer is Map<String, dynamic>) {
+        out.add(videoRenderer);
+        return;
+      }
+      for (final value in node.values) {
+        if (value is Map || value is List) {
+          _extractPlaylistPanelVideos(value, out);
+        }
+      }
+    } else if (node is List) {
+      for (final item in node) {
+        if (item is Map || item is List) {
+          _extractPlaylistPanelVideos(item, out);
+        }
+      }
+    }
+  }
+
+  Future<void> _fetchNextRadioBatch({
+    required String videoId,
+    required String? playlistId,
+    required String tunerMode,
+    required String fallbackArtist,
+    required Set<String> seen,
+    required List<ZunifySong> results,
+    int maxResults = 40,
   }) async {
+    if (results.length >= maxResults) return;
     try {
-      final seen = <String>{seedSong.videoId, ...excludeVideoIds};
-      final payload = {
-        'videoId': seedSong.videoId,
-        'playlistId': 'RDAMVM${seedSong.videoId}',
+      final clientMap = <String, dynamic>{
+        'clientName': 'WEB_REMIX',
+        'clientVersion': '1.20250101.01.00',
+        'hl': 'id',
+        'gl': 'ID',
+      };
+      if (_cachedVisitorData != null && _cachedVisitorData!.isNotEmpty) {
+        clientMap['visitorData'] = _cachedVisitorData;
+      }
+
+      final payload = <String, dynamic>{
+        'videoId': videoId,
+        if (playlistId != null && playlistId.isNotEmpty)
+          'playlistId': playlistId,
+        'params': 'wAEB',
         'isAudioOnly': true,
         'enablePersistentPlaylistPanel': true,
-        'tunerSettingValue': 'AUTOMIX_SETTING_NORMAL',
-        'context': {
-          'client': {
-            'clientName': 'WEB_REMIX',
-            'clientVersion': '1.20250101.01.00',
-            'hl': 'id',
-            'gl': 'ID',
-          },
-        },
+        'tunerSettingValue': tunerMode,
+        'context': {'client': clientMap},
       };
 
       final res = await _http
@@ -379,95 +420,160 @@ class YTMusicService {
             Uri.parse(_ytmNextUrl),
             headers: {
               'Content-Type': 'application/json',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+              'User-Agent':
+                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
               'Origin': 'https://music.youtube.com',
+              'Referer': 'https://music.youtube.com/',
             },
             body: jsonEncode(payload),
           )
           .timeout(const Duration(seconds: 10));
 
-      if (res.statusCode == 200) {
-        final data = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-        _captureVisitorDataFromResponse(data);
-        final tabs = data['contents']?['singleColumnMusicWatchNextResultsRenderer']
-                ?['tabbedRenderer']?['watchNextTabbedResultsRenderer']?['tabs']
-            as List<dynamic>?;
-        final tracks = tabs?[0]?['tabRenderer']?['content']?['musicQueueRenderer']
-            ?['content']?['playlistPanelRenderer']?['contents'] as List<dynamic>?;
+      if (res.statusCode != 200) return;
 
-        if (tracks != null) {
-          final results = <ZunifySong>[];
-          for (final t in tracks) {
-            final r = (t as Map<String, dynamic>)['playlistPanelVideoRenderer']
-                as Map<String, dynamic>?;
-            if (r == null) continue;
+      final data =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      _captureVisitorDataFromResponse(data);
 
-            final vid = r['videoId']?.toString();
-            if (vid == null || seen.contains(vid)) continue;
-            seen.add(vid);
+      final rawRenderers = <Map<String, dynamic>>[];
+      final watchNextRoot =
+          data['contents']?['singleColumnMusicWatchNextResultsRenderer'] ??
+              data['continuationContents'] ??
+              data['contents'];
+      _extractPlaylistPanelVideos(watchNextRoot, rawRenderers);
 
-            final title =
-                r['title']?['runs']?[0]?['text']?.toString() ?? 'Unknown';
-            final mvType = r['navigationEndpoint']?['watchEndpoint']
-                    ?['watchEndpointMusicSupportedConfigs']
-                    ?['watchEndpointMusicConfig']?['musicVideoType']
-                ?.toString();
-            final bylineRuns = r['longBylineText']?['runs'] as List<dynamic>?;
-            final bylineJoined = bylineRuns != null
-                ? bylineRuns
-                    .map((e) => (e as Map<String, dynamic>)['text']?.toString() ?? '')
-                    .join(' ')
-                : '';
-            final artist =
-                bylineRuns != null && bylineRuns.isNotEmpty
-                    ? (bylineRuns[0]['text']?.toString() ?? seedSong.artist)
-                    : seedSong.artist;
-            final album =
-                bylineRuns != null && bylineRuns.length >= 3
-                    ? (bylineRuns[2]['text']?.toString() ?? 'Zunify Radio')
-                    : 'Zunify Radio';
-            final durText =
-                r['lengthText']?['runs']?[0]?['text']?.toString() ?? '3:30';
-            final parsedDurSec = _parseDurationText(durText);
+      for (final r in rawRenderers) {
+        final vid = r['videoId']?.toString();
+        if (vid == null || vid.isEmpty || seen.contains(vid)) continue;
+        seen.add(vid);
 
-            if (_isNonSongYouTubeJunk(
-              title: title,
-              subtitle: bylineJoined,
-              musicVideoType: mvType,
-              durationSec: parsedDurSec,
-            )) {
-              continue;
+        final titleRuns = r['title']?['runs'] as List<dynamic>?;
+        final title = titleRuns != null && titleRuns.isNotEmpty
+            ? titleRuns
+                .map((e) => (e as Map<String, dynamic>)['text']?.toString() ?? '')
+                .join()
+                .trim()
+            : '';
+        if (title.isEmpty) continue;
+
+        final mvType = r['navigationEndpoint']?['watchEndpoint']
+                ?['watchEndpointMusicSupportedConfigs']
+                ?['watchEndpointMusicConfig']?['musicVideoType']
+            ?.toString();
+
+        final bylineRuns =
+            (r['longBylineText']?['runs'] ?? r['shortBylineText']?['runs'])
+                as List<dynamic>?;
+        final segments = <String>[];
+        final currentSeg = StringBuffer();
+        String bylineJoined = '';
+        if (bylineRuns != null) {
+          final allText = <String>[];
+          for (final run in bylineRuns) {
+            final txt =
+                (run as Map<String, dynamic>)['text']?.toString() ?? '';
+            allText.add(txt);
+            if (txt.contains('•')) {
+              final s = currentSeg.toString().trim();
+              if (s.isNotEmpty) segments.add(s);
+              currentSeg.clear();
+            } else {
+              currentSeg.write(txt);
             }
-
-            final thumbs =
-                r['thumbnail']?['thumbnails'] as List<dynamic>? ?? [];
-            String thumb = 'https://i.ytimg.com/vi/$vid/hqdefault.jpg';
-            if (thumbs.isNotEmpty) {
-              thumb =
-                  (thumbs.last as Map<String, dynamic>)['url']?.toString() ??
-                      thumb;
-            }
-
-            results.add(
-              ZunifySong(
-                videoId: vid,
-                title: title,
-                artist: artist,
-                album: album,
-                durationSeconds: parsedDurSec,
-                thumbnailUrl: thumb,
-                highResArtUrl: _upgradeThumbnailToSquareHD(thumb),
-                addedAt: DateTime.now(),
-              ),
-            );
-            if (results.length >= 36) break;
           }
-          if (results.isNotEmpty) return results;
+          final tail = currentSeg.toString().trim();
+          if (tail.isNotEmpty) segments.add(tail);
+          bylineJoined = allText.join(' ');
         }
+
+        final artist = segments.isNotEmpty && segments.first.isNotEmpty
+            ? segments.first
+            : fallbackArtist;
+        String album = 'Zunify Radio';
+        if (segments.length >= 2) {
+          final candidateAlbum = segments[1];
+          final lowerAlb = candidateAlbum.toLowerCase();
+          if (!RegExp(r'^\d{4}$').hasMatch(candidateAlbum) &&
+              !lowerAlb.contains('ditonton') &&
+              !lowerAlb.contains('views') &&
+              !lowerAlb.contains('rb ') &&
+              !lowerAlb.contains('jt ')) {
+            album = candidateAlbum;
+          }
+        }
+
+        final durText =
+            r['lengthText']?['runs']?[0]?['text']?.toString() ?? '3:30';
+        final parsedDurSec = _parseDurationText(durText);
+
+        if (_isNonSongYouTubeJunk(
+          title: title,
+          subtitle: bylineJoined,
+          musicVideoType: mvType,
+          durationSec: parsedDurSec,
+        )) {
+          continue;
+        }
+
+        final thumbs = r['thumbnail']?['thumbnails'] as List<dynamic>? ?? [];
+        String thumb = 'https://i.ytimg.com/vi/$vid/hqdefault.jpg';
+        if (thumbs.isNotEmpty) {
+          thumb =
+              (thumbs.last as Map<String, dynamic>)['url']?.toString() ?? thumb;
+        }
+
+        results.add(
+          ZunifySong(
+            videoId: vid,
+            title: title,
+            artist: artist,
+            album: album,
+            durationSeconds: parsedDurSec,
+            thumbnailUrl: thumb,
+            highResArtUrl: _upgradeThumbnailToSquareHD(thumb),
+            addedAt: DateTime.now(),
+          ),
+        );
+        if (results.length >= maxResults) break;
       }
     } catch (_) {}
+  }
 
-    return searchSongs('Mix lagu mirip ${seedSong.artist}', limit: 20);
+  /// Pure Spotify-style Genre / Mood Radio Engine via YouTube Music `RDAMVM` AutoMix Graph.
+  /// Strictly uses `youtubei/v1/next` radio graph and NEVER falls back to search results.
+  Future<List<ZunifySong>> getRadioRecommendations(
+    ZunifySong seedSong, {
+    Set<String> excludeVideoIds = const {},
+    String tunerMode = 'AUTOMIX_SETTING_NORMAL',
+  }) async {
+    final seen = <String>{seedSong.videoId, ...excludeVideoIds};
+    final results = <ZunifySong>[];
+
+    // 1. Primary AutoMix Song Radio (`RDAMVM`)
+    await _fetchNextRadioBatch(
+      videoId: seedSong.videoId,
+      playlistId: 'RDAMVM${seedSong.videoId}',
+      tunerMode: tunerMode,
+      fallbackArtist: seedSong.artist,
+      seen: seen,
+      results: results,
+      maxResults: 42,
+    );
+
+    // 2. Secondary Watch Radio (`RD`) if primary AutoMix yielded very few tracks
+    if (results.length < 8) {
+      await _fetchNextRadioBatch(
+        videoId: seedSong.videoId,
+        playlistId: 'RD${seedSong.videoId}',
+        tunerMode: 'AUTOMIX_SETTING_NORMAL',
+        fallbackArtist: seedSong.artist,
+        seen: seen,
+        results: results,
+        maxResults: 42,
+      );
+    }
+
+    return results;
   }
 
   /// Resolves direct playable Audio Stream (`HTTP 200/206`) using `AusDMusic`'s
