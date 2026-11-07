@@ -1,9 +1,24 @@
-{
-  "id": "fannz_1794049811281",
-  "active": true,
-  "title": "Haloo",
-  "message": "test",
-  "imageUrl": "",
-  "createdAtMs": 1794049811281,
-  "createdAt": "2026-11-07T11:10:11.281Z"
+﻿{
+    "message":  "Update Zunify v2.0.2 sudah resmi rilis dengan sistem notifikasi FCM baru \u0026 tema Neo-Brutalism. Silakan update langsung lewat tombol di bawah atau lewat menu Pengaturan \u003e Cek Update!",
+    "id":  "fannz_update_v202_release",
+    "songQuery":  "",
+    "imageUrl":  "",
+    "history":  [
+                    {
+                        "message":  "Update Zunify v2.0.2 sudah resmi rilis dengan sistem notifikasi FCM baru \u0026 tema Neo-Brutalism. Silakan update langsung lewat tombol di bawah atau lewat menu Pengaturan \u003e Cek Update!",
+                        "id":  "fannz_update_v202_release",
+                        "songQuery":  "",
+                        "imageUrl":  "",
+                        "sender":  "Fannz",
+                        "createdAt":  "2026-11-07T11:37:22.935340Z",
+                        "active":  true,
+                        "title":  "🚀 Update Zunify v2.0.2 Tersedia!",
+                        "actionUrl":  "https://github.com/Irfans128/zunify-apk/releases/latest"
+                    }
+                ],
+    "sender":  "Fannz",
+    "createdAt":  "2026-11-07T11:37:22.903326Z",
+    "active":  true,
+    "title":  "🚀 Update Zunify v2.0.2 Tersedia!",
+    "actionUrl":  "https://github.com/Irfans128/zunify-apk/releases/latest"
 }
