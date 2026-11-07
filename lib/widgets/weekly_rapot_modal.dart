@@ -35,12 +35,25 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
   int _viewMode = 0; // 0 = Replay Dashboard, 1 = Story & Poster Studio
   bool _isSharing = false;
   int _currentSlide = 0; // 0 = Replay Poster, 1 = Top 5 Songs, 2 = Top Artists & Aura
-  int _selectedThemeIndex = 0; // 0: Liquid Glass, 1: Crimson Z, 2: Midnight Violet, 3: Cyber Emerald
+  int _selectedThemeIndex = 0; // 0: Liquid Glass, 1: Saweria, 2: Rose Quartz, 3: Lavender, 4: Matcha, 5: Champagne
+  bool _didInitPosterTheme = false;
+
+  bool get _isSaweriaPoster => _selectedThemeIndex == 1;
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_didInitPosterTheme) {
+      _didInitPosterTheme = true;
+      final isSaweriaApp = context.read<ThemeProvider>().isNeoBrutalism;
+      _selectedThemeIndex = isSaweriaApp ? 1 : 0;
+    }
   }
 
   @override
@@ -88,25 +101,31 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
 
   List<Color> _getGradientColors(Color dynamicAccent) {
     switch (_selectedThemeIndex) {
-      case 1: // Rose Quartz
+      case 1: // Saweria (Cream Paper Neo-Brutalism)
+        return const [
+          Color(0xFFFAF4E6),
+          Color(0xFFF7EFE0),
+          Color(0xFFF3E8D2),
+        ];
+      case 2: // Rose Quartz
         return const [
           Color(0xFF4A152B),
           Color(0xFF1F0C18),
           Color(0xFF09070D),
         ];
-      case 2: // Lavender Dream
+      case 3: // Lavender Dream
         return const [
           Color(0xFF2E1A47),
           Color(0xFF141126),
           Color(0xFF070710),
         ];
-      case 3: // Matcha Sage
+      case 4: // Matcha Sage
         return const [
           Color(0xFF11382B),
           Color(0xFF0B1C1A),
           Color(0xFF060B0C),
         ];
-      case 4: // Champagne Gold
+      case 5: // Champagne Gold
         return const [
           Color(0xFF422C12),
           Color(0xFF1C140C),
@@ -123,13 +142,15 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
 
   Color _getPrimaryAccent(Color dynamicAccent) {
     switch (_selectedThemeIndex) {
-      case 1:
-        return const Color(0xFFF48FB1);
+      case 1: // Saweria Mustard
+        return const Color(0xFFFAAE2B);
       case 2:
-        return const Color(0xFFB39DDB);
+        return const Color(0xFFF48FB1);
       case 3:
-        return const Color(0xFF66BB6A);
+        return const Color(0xFFB39DDB);
       case 4:
+        return const Color(0xFF66BB6A);
+      case 5:
         return const Color(0xFFFFD54F);
       default:
         return dynamicAccent;
@@ -138,13 +159,15 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
 
   Color _getSecondaryAccent(Color dynamicSecondary) {
     switch (_selectedThemeIndex) {
-      case 1:
-        return const Color(0xFFCE93D8);
+      case 1: // Saweria Warm Coral/Amber
+        return const Color(0xFFFF7A59);
       case 2:
-        return const Color(0xFF90CAF9);
+        return const Color(0xFFCE93D8);
       case 3:
-        return const Color(0xFF26A69A);
+        return const Color(0xFF90CAF9);
       case 4:
+        return const Color(0xFF26A69A);
+      case 5:
         return const Color(0xFFFFAB91);
       default:
         return dynamicSecondary;
@@ -158,8 +181,13 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     final player = context.watch<PlayerProvider>();
     final isBrutal = theme.isNeoBrutalism;
     final topRadius = isBrutal ? 18.0 : 32.0;
-    final primaryAccent = _getPrimaryAccent(theme.accentColor);
-    final secondaryAccent = _getSecondaryAccent(theme.secondaryAccentColor);
+    final posterPrimaryAccent = _getPrimaryAccent(theme.accentColor);
+    final posterSecondaryAccent =
+        _getSecondaryAccent(theme.secondaryAccentColor);
+    final primaryAccent =
+        _viewMode == 0 ? theme.accentColor : posterPrimaryAccent;
+    final secondaryAccent =
+        _viewMode == 0 ? theme.secondaryAccentColor : posterSecondaryAccent;
     final gradientColors = _getGradientColors(theme.accentColor);
     final rapot = widget.rapot;
     final topCoverUrl = rapot.topSongs.isNotEmpty
@@ -749,42 +777,17 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           const SizedBox(height: 14),
         ],
 
-        // 4. Top Songs Ranked List
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 4),
-              child: Text(
-                'Lagu Paling Sering Diputar',
-                style: TextStyle(
-                  color: theme.textPrimary,
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
+        // 4. Top Songs Ranked List (without Putar Semua button)
+        Padding(
+          padding: const EdgeInsets.only(left: 4),
+          child: Text(
+            'Lagu Paling Sering Diputar',
+            style: TextStyle(
+              color: theme.textPrimary,
+              fontSize: 15.5,
+              fontWeight: FontWeight.w800,
             ),
-            if (rapot.topSongs.isNotEmpty)
-              IosGlassPillButton(
-                icon: Icons.play_arrow_rounded,
-                label: 'Putar Semua',
-                height: 30,
-                padding: const EdgeInsets.symmetric(horizontal: 11),
-                activeColor: primaryAccent,
-                isActive: true,
-                fontSize: 11.2,
-                onTap: () {
-                  final songs = rapot.topSongs.map((e) => e.song).toList();
-                  player.playSong(
-                    songs.first,
-                    customQueue: songs,
-                    contextName: 'Replay Mingguan',
-                  );
-                  Navigator.pop(context);
-                },
-              ),
-          ],
+          ),
         ),
         const SizedBox(height: 8),
         if (rapot.topSongs.isEmpty)
@@ -1029,6 +1032,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     final isBrutal = theme.isNeoBrutalism;
     const themeLabels = [
       '💧 Liquid Glass',
+      '⚡ Neo-Brutalism',
       '🌸 Rose Quartz',
       '🔮 Lavender Dream',
       '🍃 Matcha Sage',
@@ -1041,6 +1045,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         // Slide selector pills
         SingleChildScrollView(
           scrollDirection: Axis.horizontal,
+          clipBehavior: Clip.none,
+          padding: EdgeInsets.only(bottom: isBrutal ? 3 : 0),
           physics: const BouncingScrollPhysics(),
           child: Row(
             children: [
@@ -1090,9 +1096,11 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 32,
+          height: isBrutal ? 36 : 32,
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
+            clipBehavior: Clip.none,
+            padding: EdgeInsets.only(bottom: isBrutal ? 4 : 0, right: 4),
             physics: const BouncingScrollPhysics(),
             itemCount: themeLabels.length,
             separatorBuilder: (_, __) => const SizedBox(width: 7),
@@ -1274,6 +1282,79 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required List<Color> gradientColors,
     required Widget child,
   }) {
+    final saweria = _isSaweriaPoster;
+    if (saweria) {
+      return Padding(
+        padding: const EdgeInsets.only(right: 4, bottom: 4),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: gradientColors,
+            ),
+            border: Border.all(
+              color: const Color(0xFF111111),
+              width: 2.6,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0xFF111111),
+                blurRadius: 0,
+                offset: Offset(4.0, 4.0),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(15.4),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned(
+                  top: -38,
+                  right: -28,
+                  child: Container(
+                    width: 126,
+                    height: 126,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: primaryAccent.withOpacity(0.32),
+                      border: Border.all(
+                        color: const Color(0xFF111111).withOpacity(0.16),
+                        width: 2.0,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: -44,
+                  left: -30,
+                  child: Container(
+                    width: 132,
+                    height: 132,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: secondaryAccent.withOpacity(0.22),
+                      border: Border.all(
+                        color: const Color(0xFF111111).withOpacity(0.14),
+                        width: 2.0,
+                      ),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+                  child: child,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
@@ -1327,47 +1408,80 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     );
   }
 
+  Widget _buildPosterHeaderBadge({
+    required String label,
+    required String slideCounter,
+    required Color primaryAccent,
+  }) {
+    final saweria = _isSaweriaPoster;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: saweria
+              ? BoxDecoration(
+                  color: primaryAccent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF111111),
+                    width: 1.8,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0xFF111111),
+                      blurRadius: 0,
+                      offset: Offset(2.0, 2.0),
+                    ),
+                  ],
+                )
+              : BoxDecoration(
+                  color: primaryAccent.withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: primaryAccent.withOpacity(0.4)),
+                ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: saweria ? const Color(0xFF111111) : primaryAccent,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.7,
+            ),
+          ),
+        ),
+        const Spacer(),
+        Text(
+          slideCounter,
+          style: TextStyle(
+            color: saweria ? const Color(0xFF5C5449) : Colors.white38,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildSlide1Content({
     required String username,
     required WeeklyRapot rapot,
     required Color primaryAccent,
     required Color secondaryAccent,
   }) {
+    final saweria = _isSaweriaPoster;
+    final textMain = saweria ? const Color(0xFF111111) : Colors.white;
+    final textSub =
+        saweria ? const Color(0xFF4B453C) : Colors.white.withOpacity(0.75);
     final topOne = rapot.topSongs.isNotEmpty ? rapot.topSongs.first : null;
     final topArtist = topOne != null ? topOne.song.artist : 'Eksplorasi Baru';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: primaryAccent.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: primaryAccent.withOpacity(0.4)),
-              ),
-              child: Text(
-                'REPLAY STUDIO • ${rapot.weekId}',
-                style: TextStyle(
-                  color: primaryAccent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.7,
-                ),
-              ),
-            ),
-            const Spacer(),
-            const Text(
-              '1 / 3',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+        _buildPosterHeaderBadge(
+          label: 'REPLAY STUDIO • ${rapot.weekId}',
+          slideCounter: '1 / 3',
+          primaryAccent: primaryAccent,
         ),
         const SizedBox(height: 10),
         Text(
@@ -1375,7 +1489,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
+            color: textMain,
             fontSize: 20.5,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.4,
@@ -1387,34 +1501,62 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.75),
+            color: textSub,
             fontSize: 11.5,
+            fontWeight: saweria ? FontWeight.w600 : FontWeight.w500,
             height: 1.28,
           ),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.07),
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: primaryAccent.withOpacity(0.38)),
-          ),
+          decoration: saweria
+              ? BoxDecoration(
+                  color: const Color(0xFFFFFDF7),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: const Color(0xFF111111),
+                    width: 2.0,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0xFF111111),
+                      blurRadius: 0,
+                      offset: Offset(3.0, 3.0),
+                    ),
+                  ],
+                )
+              : BoxDecoration(
+                  color: Colors.white.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: primaryAccent.withOpacity(0.38)),
+                ),
           child: Row(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: topOne != null
-                    ? CachedNetworkImage(
-                        imageUrl: topOne.song.highResArtUrl,
-                        width: 62,
-                        height: 62,
-                        memCacheWidth: 190,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            _fallbackThumb(62, primaryAccent),
+              Container(
+                decoration: saweria
+                    ? BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF111111),
+                          width: 1.8,
+                        ),
                       )
-                    : _fallbackThumb(62, primaryAccent),
+                    : null,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(saweria ? 8.2 : 12),
+                  child: topOne != null
+                      ? CachedNetworkImage(
+                          imageUrl: topOne.song.highResArtUrl,
+                          width: 60,
+                          height: 60,
+                          memCacheWidth: 190,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) =>
+                              _fallbackThumb(60, primaryAccent),
+                        )
+                      : _fallbackThumb(60, primaryAccent),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1429,11 +1571,17 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       decoration: BoxDecoration(
                         color: primaryAccent,
                         borderRadius: BorderRadius.circular(6),
+                        border: saweria
+                            ? Border.all(
+                                color: const Color(0xFF111111),
+                                width: 1.4,
+                              )
+                            : null,
                       ),
                       child: const Text(
                         '👑 #1 LAGU TERATAS',
                         style: TextStyle(
-                          color: Colors.black,
+                          color: Color(0xFF111111),
                           fontSize: 9,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 0.5,
@@ -1445,8 +1593,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       topOne?.song.title ?? 'Belum Ada Lagu Diputar',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: textMain,
                         fontSize: 14,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1459,9 +1607,10 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: primaryAccent,
+                        color:
+                            saweria ? const Color(0xFF9A5B00) : primaryAccent,
                         fontSize: 11.2,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -1483,6 +1632,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         label: 'WAKTU DENGAR',
                         value: rapot.formattedListenTime,
                         color: primaryAccent,
+                        tintedSaweria: true,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1506,7 +1656,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                         icon: Icons.mic_external_on_rounded,
                         label: 'ARTIS TERATAS',
                         value: topArtist,
-                        color: Colors.white,
+                        color: saweria ? const Color(0xFF111111) : Colors.white,
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -1518,6 +1668,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             .replaceAll(RegExp(r'[^\w\s]'), '')
                             .trim(),
                         color: primaryAccent,
+                        tintedSaweria: true,
                       ),
                     ),
                   ],
@@ -1537,38 +1688,18 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required WeeklyRapot rapot,
     required Color primaryAccent,
   }) {
+    final saweria = _isSaweriaPoster;
+    final textMain = saweria ? const Color(0xFF111111) : Colors.white;
+    final textSub =
+        saweria ? const Color(0xFF575046) : Colors.white.withOpacity(0.65);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: primaryAccent.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: primaryAccent.withOpacity(0.4)),
-              ),
-              child: Text(
-                'TOP CHARTS • ${rapot.weekId}',
-                style: TextStyle(
-                  color: primaryAccent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.7,
-                ),
-              ),
-            ),
-            const Spacer(),
-            const Text(
-              '2 / 3',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+        _buildPosterHeaderBadge(
+          label: 'TOP CHARTS • ${rapot.weekId}',
+          slideCounter: '2 / 3',
+          primaryAccent: primaryAccent,
         ),
         const SizedBox(height: 10),
         Text(
@@ -1576,7 +1707,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
+            color: textMain,
             fontSize: 19.5,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.4,
@@ -1588,18 +1719,19 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.65),
+            color: textSub,
             fontSize: 11.2,
+            fontWeight: saweria ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
         const SizedBox(height: 10),
         Expanded(
           child: rapot.topSongs.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Belum ada lagu yang diputar minggu ini.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.white60, fontSize: 12.5),
+                    style: TextStyle(color: textSub, fontSize: 12.5),
                   ),
                 )
               : Column(
@@ -1613,17 +1745,35 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                           horizontal: 10,
                           vertical: 6.5,
                         ),
-                        decoration: BoxDecoration(
-                          color: i == 0
-                              ? primaryAccent.withOpacity(0.14)
-                              : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: i == 0
-                                ? primaryAccent.withOpacity(0.45)
-                                : Colors.white.withOpacity(0.06),
-                          ),
-                        ),
+                        decoration: saweria
+                            ? BoxDecoration(
+                                color: i == 0
+                                    ? const Color(0xFFFFE59D)
+                                    : const Color(0xFFFFFDF7),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: const Color(0xFF111111),
+                                  width: 1.8,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0xFF111111),
+                                    blurRadius: 0,
+                                    offset: Offset(2.2, 2.2),
+                                  ),
+                                ],
+                              )
+                            : BoxDecoration(
+                                color: i == 0
+                                    ? primaryAccent.withOpacity(0.14)
+                                    : Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(13),
+                                border: Border.all(
+                                  color: i == 0
+                                      ? primaryAccent.withOpacity(0.45)
+                                      : Colors.white.withOpacity(0.06),
+                                ),
+                              ),
                         child: Row(
                           children: [
                             SizedBox(
@@ -1631,23 +1781,38 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                               child: Text(
                                 '#${i + 1}',
                                 style: TextStyle(
-                                  color:
-                                      i == 0 ? primaryAccent : Colors.white70,
+                                  color: saweria
+                                      ? const Color(0xFF111111)
+                                      : (i == 0
+                                          ? primaryAccent
+                                          : Colors.white70),
                                   fontWeight: FontWeight.w900,
                                   fontSize: 13,
                                 ),
                               ),
                             ),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: CachedNetworkImage(
-                                imageUrl: item.song.thumbnailUrl,
-                                width: 36,
-                                height: 36,
-                                memCacheWidth: 120,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) =>
-                                    _fallbackThumb(36, primaryAccent),
+                            Container(
+                              decoration: saweria
+                                  ? BoxDecoration(
+                                      borderRadius: BorderRadius.circular(7),
+                                      border: Border.all(
+                                        color: const Color(0xFF111111),
+                                        width: 1.4,
+                                      ),
+                                    )
+                                  : null,
+                              child: ClipRRect(
+                                borderRadius:
+                                    BorderRadius.circular(saweria ? 5.6 : 8),
+                                child: CachedNetworkImage(
+                                  imageUrl: item.song.thumbnailUrl,
+                                  width: 36,
+                                  height: 36,
+                                  memCacheWidth: 120,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) =>
+                                      _fallbackThumb(36, primaryAccent),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -1660,8 +1825,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                                     item.song.title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: textMain,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 12.5,
                                     ),
@@ -1670,9 +1835,14 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                                     item.song.artist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: Colors.white60,
+                                    style: TextStyle(
+                                      color: saweria
+                                          ? const Color(0xFF575046)
+                                          : Colors.white60,
                                       fontSize: 10.5,
+                                      fontWeight: saweria
+                                          ? FontWeight.w600
+                                          : FontWeight.w500,
                                     ),
                                   ),
                                 ],
@@ -1683,14 +1853,25 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                                 horizontal: 8,
                                 vertical: 3,
                               ),
-                              decoration: BoxDecoration(
-                                color: primaryAccent.withOpacity(0.16),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
+                              decoration: saweria
+                                  ? BoxDecoration(
+                                      color: primaryAccent,
+                                      borderRadius: BorderRadius.circular(7),
+                                      border: Border.all(
+                                        color: const Color(0xFF111111),
+                                        width: 1.4,
+                                      ),
+                                    )
+                                  : BoxDecoration(
+                                      color: primaryAccent.withOpacity(0.16),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
                               child: Text(
                                 '${item.playCount}x',
                                 style: TextStyle(
-                                  color: primaryAccent,
+                                  color: saweria
+                                      ? const Color(0xFF111111)
+                                      : primaryAccent,
                                   fontWeight: FontWeight.w900,
                                   fontSize: 11,
                                 ),
@@ -1715,38 +1896,18 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required Color primaryAccent,
     required Color secondaryAccent,
   }) {
+    final saweria = _isSaweriaPoster;
+    final textMain = saweria ? const Color(0xFF111111) : Colors.white;
+    final textSub =
+        saweria ? const Color(0xFF575046) : Colors.white.withOpacity(0.65);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: primaryAccent.withOpacity(0.16),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: primaryAccent.withOpacity(0.4)),
-              ),
-              child: Text(
-                'TOP ARTISTS • ${rapot.weekId}',
-                style: TextStyle(
-                  color: primaryAccent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.7,
-                ),
-              ),
-            ),
-            const Spacer(),
-            const Text(
-              '3 / 3',
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ],
+        _buildPosterHeaderBadge(
+          label: 'TOP ARTISTS • ${rapot.weekId}',
+          slideCounter: '3 / 3',
+          primaryAccent: primaryAccent,
         ),
         const SizedBox(height: 10),
         Text(
@@ -1754,7 +1915,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: GoogleFonts.plusJakartaSans(
-            color: Colors.white,
+            color: textMain,
             fontSize: 19.5,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.4,
@@ -1766,17 +1927,18 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.65),
+            color: textSub,
             fontSize: 11.2,
+            fontWeight: saweria ? FontWeight.w600 : FontWeight.w500,
           ),
         ),
         const SizedBox(height: 10),
         Expanded(
           child: rapot.topArtists.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Belum ada statistik artis minggu ini.',
-                    style: TextStyle(color: Colors.white60, fontSize: 12.5),
+                    style: TextStyle(color: textSub, fontSize: 12.5),
                   ),
                 )
               : Column(
@@ -1790,17 +1952,35 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                           horizontal: 10,
                           vertical: 7,
                         ),
-                        decoration: BoxDecoration(
-                          color: i == 0
-                              ? primaryAccent.withOpacity(0.14)
-                              : Colors.white.withOpacity(0.05),
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: i == 0
-                                ? primaryAccent.withOpacity(0.45)
-                                : Colors.white.withOpacity(0.06),
-                          ),
-                        ),
+                        decoration: saweria
+                            ? BoxDecoration(
+                                color: i == 0
+                                    ? const Color(0xFFFFE59D)
+                                    : const Color(0xFFFFFDF7),
+                                borderRadius: BorderRadius.circular(11),
+                                border: Border.all(
+                                  color: const Color(0xFF111111),
+                                  width: 1.8,
+                                ),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0xFF111111),
+                                    blurRadius: 0,
+                                    offset: Offset(2.2, 2.2),
+                                  ),
+                                ],
+                              )
+                            : BoxDecoration(
+                                color: i == 0
+                                    ? primaryAccent.withOpacity(0.14)
+                                    : Colors.white.withOpacity(0.05),
+                                borderRadius: BorderRadius.circular(13),
+                                border: Border.all(
+                                  color: i == 0
+                                      ? primaryAccent.withOpacity(0.45)
+                                      : Colors.white.withOpacity(0.06),
+                                ),
+                              ),
                         child: Row(
                           children: [
                             SizedBox(
@@ -1808,22 +1988,36 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                               child: Text(
                                 '#${i + 1}',
                                 style: TextStyle(
-                                  color:
-                                      i == 0 ? primaryAccent : Colors.white70,
+                                  color: saweria
+                                      ? const Color(0xFF111111)
+                                      : (i == 0
+                                          ? primaryAccent
+                                          : Colors.white70),
                                   fontWeight: FontWeight.w900,
                                   fontSize: 13,
                                 ),
                               ),
                             ),
-                            ClipOval(
-                              child: CachedNetworkImage(
-                                imageUrl: artist.sampleThumbnailUrl,
-                                width: 36,
-                                height: 36,
-                                memCacheWidth: 120,
-                                fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) =>
-                                    _fallbackThumb(36, primaryAccent),
+                            Container(
+                              decoration: saweria
+                                  ? BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: const Color(0xFF111111),
+                                        width: 1.5,
+                                      ),
+                                    )
+                                  : null,
+                              child: ClipOval(
+                                child: CachedNetworkImage(
+                                  imageUrl: artist.sampleThumbnailUrl,
+                                  width: 36,
+                                  height: 36,
+                                  memCacheWidth: 120,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) =>
+                                      _fallbackThumb(36, primaryAccent),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -1832,8 +2026,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                                 artist.artistName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: textMain,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 13,
                                 ),
@@ -1842,7 +2036,9 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                             Text(
                               '${artist.playCount}x • ${artist.totalMinutes} mnt',
                               style: TextStyle(
-                                color: i == 0 ? primaryAccent : Colors.white70,
+                                color: saweria
+                                    ? const Color(0xFF111111)
+                                    : (i == 0 ? primaryAccent : Colors.white70),
                                 fontWeight: FontWeight.w800,
                                 fontSize: 11,
                               ),
@@ -1865,29 +2061,53 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     required String label,
     required String value,
     required Color color,
+    bool tintedSaweria = false,
   }) {
+    final saweria = _isSaweriaPoster;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
-      ),
+      decoration: saweria
+          ? BoxDecoration(
+              color: tintedSaweria
+                  ? const Color(0xFFFFF2CC)
+                  : const Color(0xFFFFFDF7),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF111111),
+                width: 1.9,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0xFF111111),
+                  blurRadius: 0,
+                  offset: Offset(2.5, 2.5),
+                ),
+              ],
+            )
+          : BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Row(
             children: [
-              Icon(icon, color: color, size: 13),
+              Icon(
+                icon,
+                color: saweria ? const Color(0xFF111111) : color,
+                size: 13,
+              ),
               const SizedBox(width: 5),
               Expanded(
                 child: Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white54,
+                  style: TextStyle(
+                    color: saweria ? const Color(0xFF5C5449) : Colors.white54,
                     fontSize: 9.2,
                     fontWeight: FontWeight.w800,
                     letterSpacing: 0.6,
@@ -1901,8 +2121,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
             value,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: saweria ? const Color(0xFF111111) : Colors.white,
               fontSize: 14,
               fontWeight: FontWeight.w900,
             ),
@@ -1913,17 +2133,22 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
   }
 
   Widget _buildWatermarkFooter(Color accent) {
+    final saweria = _isSaweriaPoster;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Row(
           children: [
-            Icon(Icons.graphic_eq_rounded, color: accent, size: 15),
+            Icon(
+              Icons.graphic_eq_rounded,
+              color: saweria ? const Color(0xFF111111) : accent,
+              size: 15,
+            ),
             const SizedBox(width: 5),
-            const Text(
+            Text(
               'ZUNIFY 2.0',
               style: TextStyle(
-                color: Colors.white,
+                color: saweria ? const Color(0xFF111111) : Colors.white,
                 fontWeight: FontWeight.w900,
                 fontSize: 11,
                 letterSpacing: 1.1,
@@ -1931,26 +2156,48 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
             ),
           ],
         ),
-        Text(
-          'Zunify Wrapped',
-          style: TextStyle(
-            color: accent,
-            fontSize: 10.5,
-            fontWeight: FontWeight.w800,
+        if (saweria)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: accent,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: const Color(0xFF111111),
+                width: 1.4,
+              ),
+            ),
+            child: const Text(
+              'Zunify Wrapped',
+              style: TextStyle(
+                color: Color(0xFF111111),
+                fontSize: 9.8,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          )
+        else
+          Text(
+            'Zunify Wrapped',
+            style: TextStyle(
+              color: accent,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
       ],
     );
   }
 
   Widget _fallbackThumb(double size, Color accent) {
+    final saweria = _isSaweriaPoster;
     return Container(
       width: size,
       height: size,
-      color: Colors.white10,
+      color: saweria ? const Color(0xFFF2E8D5) : Colors.white10,
       child: Icon(
         Icons.music_note_rounded,
-        color: accent,
+        color: saweria ? const Color(0xFF111111) : accent,
         size: size * 0.45,
       ),
     );

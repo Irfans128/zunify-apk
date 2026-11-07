@@ -23,7 +23,7 @@ android {
         applicationId "com.fannz.zunify"
         minSdkVersion 24
         targetSdkVersion 35
-        versionCode 20
+        versionCode 205
         versionName "2.0.0"
         multiDexEnabled true
     }

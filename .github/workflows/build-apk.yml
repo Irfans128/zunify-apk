@@ -44,7 +44,7 @@ jobs:
           cp /tmp/zunify_android_backup/app/zunify-release.p12 android/app/zunify-release.p12
           cp /tmp/zunify_android_backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/kotlin/com/fannz/zunify
-          cp /tmp/zunify_android_backup/app/src/main/kotlin/com/fannz/zunify/MainActivity.kt android/app/src/main/kotlin/com/fannz/zunify/MainActivity.kt
+          cp /tmp/zunify_android_backup/app/src/main/kotlin/com/fannz/zunify/*.kt android/app/src/main/kotlin/com/fannz/zunify/
           mkdir -p android/app/src/main/res/drawable
           mkdir -p android/app/src/main/res/raw
           mkdir -p android/app/src/main/res/xml
@@ -88,18 +88,17 @@ jobs:
             Zunify-v1.0-Universal-by-Fannz.apk
 
       - name: Publish GitHub Release for In-App Auto Updater
-        if: false
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           APP_VER=$(grep "kAppVersion =" lib/app_version.dart | cut -d"'" -f2)
           TAG="v${APP_VER}"
-          NOTES="- Major Overhaul Zunify v2.0.0\n- Dynamic Artwork Theme & Kustomisasi Tampilan Lengkap (Animation Speed, Player Spacing, Blur Glass, Sampul 3D/Vinyl)\n- Perbaikan Posisi Lirik Presisi di Tengah Layar + Multi-Provider Word Sync\n- Zunify Audio & Tempo Studio (Speed, Pitch, Crossfade & Hi-Res Audio Badge)\n- Logo Baru Zunify Crimson Z"
+          NOTES="- Major Update Zunify v2.0.0: Dual Tema Eksklusif (iOS Optical Liquid Glass & Neo-Brutalism)\n- Animasi Spring Halus Mendukung Layar 90Hz / 120Hz & Performa Lebih Ringan\n- Algoritma Antrean Lagu Pintar ala Spotify (Sesuai Genre & Mood Pendengar)\n- Pencarian Suara Kustom Multi-Bahasa (Indonesia, Inggris, Jepang, Korea)\n- Pilihan Kualitas Audio 3 Tingkat (Rendah, Standar, Tinggi) + Download Otomatis Kualitas Tinggi\n- Zunify Tempo Studio, Sleep Timer, Crossfade Mulus, & Wrapped Poster Tema Neo-Brutalism\n- Optimalisasi Notifikasi Sistem Background Bersuara (Tetap Masuk Meski Aplikasi Ditutup)"
           gh release delete "$TAG" --yes || true
           git tag -f "$TAG"
           git push origin "$TAG" --force
           gh release create "$TAG" \
             Zunify-v2.0.0-Lite-arm64-by-Fannz.apk \
             Zunify-v2.0.0-Universal-by-Fannz.apk \
-            --title "Zunify $TAG (Crafted by Fannz)" \
+            --title "Zunify $TAG" \
             --notes "$(echo -e "$NOTES")"

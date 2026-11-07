@@ -512,14 +512,14 @@ class _HomeScreenState extends State<HomeScreen> {
               borderRadius: BorderRadius.circular(isBrutal ? 9.8 : 18),
               child: CachedNetworkImage(
                 imageUrl: song.highResArtUrl,
-                width: 92,
-                height: 92,
+                width: 88,
+                height: 88,
                 memCacheWidth: 260,
                 fadeInDuration: const Duration(milliseconds: 140),
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => Container(
-                  width: 92,
-                  height: 92,
+                  width: 88,
+                  height: 88,
                   color: theme.subtleFill,
                   child: Icon(
                     Icons.music_note_rounded,
@@ -530,7 +530,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 15),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -564,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: GoogleFonts.plusJakartaSans(
                     color: theme.textPrimary,
-                    fontSize: 16.5,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     letterSpacing: -0.3,
                   ),
@@ -576,45 +576,57 @@ class _HomeScreenState extends State<HomeScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: theme.textSecondary,
-                    fontSize: 12.2,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 11),
-                Row(
-                  children: [
-                    IosGlassPillButton(
-                      icon: Icons.play_arrow_rounded,
-                      label: 'Putar',
-                      height: 32,
-                      padding: const EdgeInsets.symmetric(horizontal: 14),
-                      activeColor: accent,
-                      isActive: true,
-                      fontSize: 12,
-                      onTap: () => player.playSong(
-                        song,
-                        customQueue: queueToPlay,
-                        contextName: badgeLabel,
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: isBrutal ? 3 : 0,
+                    bottom: isBrutal ? 3 : 0,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: IosGlassPillButton(
+                          icon: Icons.play_arrow_rounded,
+                          label: 'Putar',
+                          height: 34,
+                          expand: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          activeColor: accent,
+                          isActive: true,
+                          fontSize: 12,
+                          onTap: () => player.playSong(
+                            song,
+                            customQueue: queueToPlay,
+                            contextName: badgeLabel,
+                          ),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IosGlassPillButton(
-                      icon: Icons.shuffle_rounded,
-                      label: 'Acak',
-                      height: 32,
-                      padding: const EdgeInsets.symmetric(horizontal: 13),
-                      fontSize: 12,
-                      onTap: () {
-                        final shuffled = List<ZunifySong>.from(queueToPlay)
-                          ..shuffle();
-                        player.playSong(
-                          shuffled.first,
-                          customQueue: shuffled,
-                          contextName: badgeLabel,
-                        );
-                      },
-                    ),
-                  ],
+                      const SizedBox(width: 9),
+                      Expanded(
+                        child: IosGlassPillButton(
+                          icon: Icons.shuffle_rounded,
+                          label: 'Acak',
+                          height: 34,
+                          expand: true,
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          fontSize: 12,
+                          onTap: () {
+                            final shuffled = List<ZunifySong>.from(queueToPlay)
+                              ..shuffle();
+                            player.playSong(
+                              shuffled.first,
+                              customQueue: shuffled,
+                              contextName: badgeLabel,
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

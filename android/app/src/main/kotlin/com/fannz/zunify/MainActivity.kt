@@ -72,11 +72,15 @@ class MainActivity : AudioServiceFragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableHighRefreshRate()
+        ZunifyNotifEngine.ensureScheduled(this)
+        ZunifyNotifEngine.checkNowAsync(this)
     }
 
     override fun onResume() {
         super.onResume()
         enableHighRefreshRate()
+        ZunifyNotifEngine.ensureScheduled(this)
+        ZunifyNotifEngine.checkNowAsync(this)
     }
 
     /**
@@ -346,6 +350,29 @@ class MainActivity : AudioServiceFragmentActivity() {
                         }.start()
                     }
                 }
+                "checkBroadcastNative" -> {
+                    ZunifyNotifEngine.ensureScheduled(this)
+                    ZunifyNotifEngine.checkNowAsync(this)
+                    result.success(true)
+                }
+                "showNativePushNotification" -> {
+                    val id = call.argument<Int>("id") ?: 901
+                    val title = call.argument<String>("title") ?: "Zunify"
+                    val body = call.argument<String>("body") ?: ""
+                    val imageUrl = call.argument<String>("imageUrl") ?: ""
+                    val localImagePath = call.argument<String>("localImagePath") ?: ""
+                    Thread {
+                        ZunifyNotifEngine.postSystemNotification(
+                            context = applicationContext,
+                            notifId = id,
+                            title = title,
+                            body = body,
+                            imageUrl = imageUrl,
+                            localImagePath = localImagePath
+                        )
+                        mainHandler.post { result.success(true) }
+                    }.start()
+                }
                 else -> result.notImplemented()
             }
         }
@@ -587,6 +614,8 @@ class MainActivity : AudioServiceFragmentActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == REQ_APP_PERMISSIONS) {
+            ZunifyNotifEngine.ensureScheduled(this)
+            ZunifyNotifEngine.checkNowAsync(this)
             val cb = pendingPermResult
             pendingPermResult = null
             cb?.success(getPermissionsStatusMap())

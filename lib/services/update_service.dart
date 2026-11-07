@@ -33,57 +33,7 @@ class UpdateInfo {
   }
 }
 
-class BroadcastAnnouncement {
-  final String id;
-  final bool active;
-  final String title;
-  final String message;
-  final String imageUrl;
-  final String actionUrl;
-  final String songQuery;
-  final String sender;
-  final String createdAt;
-
-  const BroadcastAnnouncement({
-    required this.id,
-    required this.active,
-    required this.title,
-    required this.message,
-    this.imageUrl = '',
-    this.actionUrl = '',
-    this.songQuery = '',
-    required this.sender,
-    required this.createdAt,
-  });
-
-  factory BroadcastAnnouncement.fromJson(Map<String, dynamic> json) {
-    return BroadcastAnnouncement(
-      id: (json['id'] ?? '').toString(),
-      active: json['active'] == true,
-      title: (json['title'] ?? 'Info Zunify').toString(),
-      message: (json['message'] ?? '').toString(),
-      imageUrl: (json['imageUrl'] ?? '').toString().trim(),
-      actionUrl: (json['actionUrl'] ?? '').toString().trim(),
-      songQuery: (json['songQuery'] ?? '').toString().trim(),
-      sender: (json['sender'] ?? 'Fannz').toString(),
-      createdAt: (json['createdAt'] ?? '').toString(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'active': active,
-        'title': title,
-        'message': message,
-        'imageUrl': imageUrl,
-        'actionUrl': actionUrl,
-        'songQuery': songQuery,
-        'sender': sender,
-        'createdAt': createdAt,
-      };
-}
-
-/// Serverless in-app updater & developer broadcast notification service
+/// Serverless in-app updater & system status-bar notification service
 /// powered by GitHub Releases & `announcements.json`.
 class UpdateService {
   static const MethodChannel _nativeChannel =
@@ -91,8 +41,6 @@ class UpdateService {
   static const _prefLastCheck = 'update_last_check_ms';
   static const _prefSkipped = 'update_skipped_version';
   static const _prefCachedJson = 'update_cached_release_json';
-  static const _prefNotifiedVer = 'update_notified_version';
-  static const _prefLastSeenAnnouncementId = 'last_seen_announcement_id';
   static const Duration _throttle = Duration(hours: 6);
 
   static final FlutterLocalNotificationsPlugin _notifPlugin =
@@ -114,8 +62,8 @@ class UpdateService {
     } catch (_) {}
   }
 
-  /// Displays a system status-bar notification on the user's phone.
-  /// Supports optional [imageUrl] or [localImagePath] (not mandatory).
+  /// Displays a system status-bar notification on the phone with sound & vibration.
+  /// Supports optional [imageUrl] or [localImagePath].
   static Future<void> showSystemPushNotification({
     required int id,
     required String title,
@@ -123,6 +71,20 @@ class UpdateService {
     String? imageUrl,
     String? localImagePath,
   }) async {
+    try {
+      final ok = await _nativeChannel.invokeMethod<bool>(
+        'showNativePushNotification',
+        {
+          'id': id,
+          'title': title,
+          'body': body,
+          'imageUrl': imageUrl ?? '',
+          'localImagePath': localImagePath ?? '',
+        },
+      );
+      if (ok == true) return;
+    } catch (_) {}
+
     try {
       await _ensureNotifInitialized();
       String? resolvedImgPath = localImagePath;
@@ -163,14 +125,15 @@ class UpdateService {
       }
 
       final androidDetails = AndroidNotificationDetails(
-        'zunify_updates_broadcast',
-        'Update & Info Zunify (Fannz)',
-        channelDescription:
-            'Notifikasi update aplikasi dan pengumuman resmi dari Fannz',
+        'zunify_broadcast_sound_v3',
+        'Notifikasi Zunify',
+        channelDescription: 'Notifikasi informasi resmi Zunify',
         icon: '@drawable/ic_stat_zunify',
         largeIcon: largeIconBmp,
         importance: Importance.max,
         priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
         styleInformation: styleInfo,
       );
       final details = NotificationDetails(android: androidDetails);
@@ -197,8 +160,8 @@ class UpdateService {
     } catch (_) {}
   }
 
-  /// Returns an [UpdateInfo] when a newer version exists, otherwise null.
-  /// Also fires an Android system notification once per new release version.
+  /// Returns an [UpdateInfo] when a newer version exists for the built-in in-app UpdateSheet.
+  /// Never pushes an automatic OS notification (in-app update prompt only).
   Future<UpdateInfo?> checkForUpdate({bool manual = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -245,101 +208,23 @@ class UpdateService {
 
     if (!manual && prefs.getString(_prefSkipped) == info.version) return null;
 
-    // Trigger Android status-bar notification once for this new version
-    final alreadyNotified = prefs.getString(_prefNotifiedVer);
-    if (alreadyNotified != info.version) {
-      await prefs.setString(_prefNotifiedVer, info.version);
-      await showSystemPushNotification(
-        id: 888,
-        title: '🚀 Update Zunify v${info.version} Tersedia!',
-        body: info.changelog.isNotEmpty
-            ? info.changelog.split('\n').first.replaceFirst(RegExp(r'^-\s*'), '')
-            : 'Versi terbaru Zunify sudah siap diunduh langsung dari aplikasi.',
-      );
-    }
-
     return info;
   }
 
-  /// Checks if Fannz has published a new broadcast notification in `announcements.json`.
-  /// If a new active announcement is found, triggers a real Android push notification
-  /// and returns it for the in-app banner.
-  Future<BroadcastAnnouncement?> checkBroadcastAnnouncement() async {
+  /// Triggers the native Android notification engine to check `announcements.json`
+  /// and post ONLY to the phone's system notification bar (never inside the app).
+  Future<void> checkBroadcastAnnouncement() async {
     try {
-      final res = await http
-          .get(
-            Uri.parse(
-              'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
-            ),
-            headers: const {
-              'Accept': 'application/vnd.github.raw+json',
-              'User-Agent': 'Zunify-Updater',
-              'Cache-Control': 'no-cache',
-            },
-          )
-          .timeout(const Duration(seconds: 6));
-
-      if (res.statusCode != 200) return null;
-
-      final decoded =
-          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      final announcement = BroadcastAnnouncement.fromJson(decoded);
-      if (!announcement.active ||
-          announcement.id.isEmpty ||
-          announcement.message.trim().isEmpty) {
-        return null;
-      }
-
-      final prefs = await SharedPreferences.getInstance();
-      final lastSeen = prefs.getString(_prefLastSeenAnnouncementId);
-      if (lastSeen == announcement.id) {
-        return null;
-      }
-
-      await prefs.setString(_prefLastSeenAnnouncementId, announcement.id);
-      await showSystemPushNotification(
-        id: 889,
-        title: announcement.title,
-        body: announcement.message,
-        imageUrl: announcement.imageUrl,
-      );
-      return announcement;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  /// Fetches the current active announcement + history list for the Admin APK.
-  Future<Map<String, dynamic>> fetchAnnouncementData() async {
-    try {
-      final res = await http
-          .get(
-            Uri.parse(
-              'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
-            ),
-            headers: const {
-              'Accept': 'application/vnd.github.raw+json',
-              'User-Agent': 'Zunify-Admin-Fannz',
-              'Cache-Control': 'no-cache',
-            },
-          )
-          .timeout(const Duration(seconds: 7));
-      if (res.statusCode == 200) {
-        return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
-      }
+      await _nativeChannel.invokeMethod('checkBroadcastNative');
     } catch (_) {}
-    return {};
   }
 
-  /// Admin feature for Fannz: publishes a live broadcast notification to all Zunify users
-  /// with optional gallery image (uploaded to GitHub repo), optional image URL, and optional action link/song.
+  /// Fire-and-forget publisher for Fannz's Zunify Notif Admin APK.
+  /// Sends title + message + optional local phone gallery image once with zero history.
   Future<bool> publishBroadcastAnnouncement({
     required String title,
     required String message,
     String? imageBase64,
-    String? imageUrl,
-    String? actionUrl,
-    String? songQuery,
     required String githubToken,
   }) async {
     final cleanToken = githubToken.trim();
@@ -352,10 +237,11 @@ class UpdateService {
       'User-Agent': 'Zunify-Admin-Fannz',
     };
 
-    final notifId = 'fannz_${DateTime.now().millisecondsSinceEpoch}';
-    String finalImageUrl = (imageUrl ?? '').trim();
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final notifId = 'fannz_$nowMs';
+    String finalImageUrl = '';
 
-    // If Fannz picked an image from Gallery, upload it to `announcements/<notifId>.jpg`
+    // Upload local gallery image if selected
     if (imageBase64 != null && imageBase64.trim().isNotEmpty) {
       final imgPath = 'announcements/$notifId.jpg';
       final imgApiUri = Uri.parse(
@@ -366,11 +252,12 @@ class UpdateService {
             imgApiUri,
             headers: headers,
             body: jsonEncode({
-              'message': 'chore(broadcast): upload notif image $notifId [skip ci]',
+              'message':
+                  'chore(broadcast): upload notif image $notifId [skip ci]',
               'content': imageBase64.trim(),
             }),
           )
-          .timeout(const Duration(seconds: 15));
+          .timeout(const Duration(seconds: 18));
       if (imgPutRes.statusCode == 200 || imgPutRes.statusCode == 201) {
         finalImageUrl =
             'https://raw.githubusercontent.com/$kUpdateRepo/main/$imgPath';
@@ -382,7 +269,6 @@ class UpdateService {
     );
 
     String? existingSha;
-    List<Map<String, dynamic>> history = [];
     try {
       final getRes = await http
           .get(apiUri, headers: headers)
@@ -391,43 +277,19 @@ class UpdateService {
         final meta =
             jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
         existingSha = meta['sha']?.toString();
-        final rawB64 = (meta['content'] ?? '').toString().replaceAll('\n', '');
-        if (rawB64.isNotEmpty) {
-          final existingJson = jsonDecode(utf8.decode(base64Decode(rawB64)))
-              as Map<String, dynamic>;
-          final oldList = existingJson['history'];
-          if (oldList is List) {
-            for (final item in oldList) {
-              if (item is Map<String, dynamic>) {
-                history.add(item);
-              }
-            }
-          }
-        }
       }
     } catch (_) {}
 
-    final createdAt = DateTime.now().toUtc().toIso8601String();
-    final currentEntry = <String, dynamic>{
+    final newPayload = <String, dynamic>{
       'id': notifId,
       'active': true,
-      'title': title.trim().isEmpty ? '🎧 Info dari Fannz' : title.trim(),
+      'title': title.trim().isEmpty ? 'Zunify' : title.trim(),
       'message': message.trim(),
       'imageUrl': finalImageUrl,
-      'actionUrl': (actionUrl ?? '').trim(),
-      'songQuery': (songQuery ?? '').trim(),
-      'sender': 'Fannz',
-      'createdAt': createdAt,
-    };
-
-    history.insert(0, Map<String, dynamic>.from(currentEntry));
-    if (history.length > 20) {
-      history = history.sublist(0, 20);
-    }
-
-    final newPayload = <String, dynamic>{
-      ...currentEntry,
-      'history': history,
+      'createdAtMs': nowMs,
+      'createdAt':
+          DateTime.fromMillisecondsSinceEpoch(nowMs, isUtc: true)
+              .toIso8601String(),
     };
 
     final jsonBytes = utf8.encode(
@@ -441,61 +303,8 @@ class UpdateService {
 
     final putRes = await http
         .put(apiUri, headers: headers, body: jsonEncode(body))
-        .timeout(const Duration(seconds: 10));
+        .timeout(const Duration(seconds: 12));
     return putRes.statusCode == 200 || putRes.statusCode == 201;
-  }
-
-  /// Recalls/deactivates the currently active announcement so users no longer see it.
-  Future<bool> recallActiveAnnouncement({
-    required String githubToken,
-  }) async {
-    final cleanToken = githubToken.trim();
-    if (cleanToken.isEmpty) return false;
-
-    final apiUri = Uri.parse(
-      'https://api.github.com/repos/$kUpdateRepo/contents/announcements.json',
-    );
-    final headers = {
-      'Authorization': 'Bearer $cleanToken',
-      'Accept': 'application/vnd.github+json',
-      'Content-Type': 'application/json',
-      'User-Agent': 'Zunify-Admin-Fannz',
-    };
-
-    try {
-      final getRes = await http
-          .get(apiUri, headers: headers)
-          .timeout(const Duration(seconds: 8));
-      if (getRes.statusCode != 200) return false;
-      final meta =
-          jsonDecode(utf8.decode(getRes.bodyBytes)) as Map<String, dynamic>;
-      final existingSha = meta['sha']?.toString();
-      final rawB64 = (meta['content'] ?? '').toString().replaceAll('\n', '');
-      Map<String, dynamic> existingJson = {};
-      if (rawB64.isNotEmpty) {
-        existingJson =
-            jsonDecode(utf8.decode(base64Decode(rawB64))) as Map<String, dynamic>;
-      }
-      existingJson['active'] = false;
-
-      final jsonBytes = utf8.encode(
-        const JsonEncoder.withIndent('  ').convert(existingJson),
-      );
-      final putRes = await http
-          .put(
-            apiUri,
-            headers: headers,
-            body: jsonEncode({
-              'message': 'chore(broadcast): recall active notification [skip ci]',
-              'content': base64Encode(jsonBytes),
-              if (existingSha != null) 'sha': existingSha,
-            }),
-          )
-          .timeout(const Duration(seconds: 10));
-      return putRes.statusCode == 200 || putRes.statusCode == 201;
-    } catch (_) {
-      return false;
-    }
   }
 
   Future<void> skipVersion(String version) async {

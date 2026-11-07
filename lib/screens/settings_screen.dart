@@ -115,7 +115,7 @@ class SettingsScreen extends StatelessWidget {
         bottom: false,
         child: ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 176),
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 215),
           children: [
             Text(
               'Pengaturan',
@@ -380,31 +380,34 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // 5. Creator Footer + Merged APK Version & Check Update Card (Only place with Crafted with ❤️ by Fannz)
+            // 5. Merged APK Version & Check Update Card + Pure-Text Creator Watermark
+            _sectionLabel('Tentang Aplikasi', theme),
+            const SizedBox(height: 8),
             LiquidGlassBox(
               borderRadius: 22,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
               tintOpacity: 0.08,
               rimIntensity: 0.36,
               onTap: () => runManualUpdateCheck(context),
               child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   Container(
                     decoration: isBrutal
                         ? BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(11),
                             border: Border.all(
                               color: theme.brutalBorderColor,
-                              width: 1.8,
+                              width: 1.9,
                             ),
                           )
                         : null,
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(isBrutal ? 10.2 : 14),
+                      borderRadius: BorderRadius.circular(isBrutal ? 9.1 : 14),
                       child: Image.asset(
                         'assets/images/zunify_logo.png',
-                        width: 46,
-                        height: 46,
+                        width: 44,
+                        height: 44,
                         fit: BoxFit.cover,
                         errorBuilder: (_, __, ___) => const SizedBox.shrink(),
                       ),
@@ -414,75 +417,114 @@ class SettingsScreen extends StatelessWidget {
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Zunify',
-                              style: TextStyle(
-                                color: theme.textPrimary,
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: -0.3,
-                              ),
-                            ),
-                            const SizedBox(width: 7),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 7,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isBrutal
-                                    ? accent
-                                    : accent.withOpacity(0.18),
-                                borderRadius: BorderRadius.circular(6),
-                                border: isBrutal
-                                    ? Border.all(
-                                        color: theme.brutalBorderColor,
-                                        width: 1.4,
-                                      )
-                                    : null,
-                              ),
-                              child: Text(
-                                'v$kAppVersion',
-                                style: TextStyle(
-                                  color: isBrutal
-                                      ? const Color(0xFF111111)
-                                      : accent,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 3),
                         Text(
-                          'Crafted with ❤️ by Fannz',
+                          'Zunify',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: theme.accentText,
-                            fontWeight: FontWeight.w800,
+                            color: theme.textPrimary,
+                            fontSize: 16.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Versi v$kAppVersion',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontWeight: FontWeight.w700,
                             fontSize: 12,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IosGlassPillButton(
-                    icon: Icons.system_update_rounded,
-                    label: 'Cek Update',
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 11),
-                    activeColor: accent,
-                    isActive: true,
-                    fontSize: 11.2,
-                    onTap: () => runManualUpdateCheck(context),
+                  const SizedBox(width: 10),
+                  Padding(
+                    padding: EdgeInsets.only(
+                      right: isBrutal ? 3 : 0,
+                      bottom: isBrutal ? 3 : 0,
+                    ),
+                    child: IosGlassPillButton(
+                      icon: Icons.refresh_rounded,
+                      label: 'Cek Update',
+                      height: 34,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      activeColor: accent,
+                      isActive: true,
+                      fontSize: 11.5,
+                      onTap: () => runManualUpdateCheck(context),
+                    ),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Pure-Text Creator Watermark (Visible, aesthetic, non-intrusive, zero external link shortcuts)
+            IgnorePointer(
+              child: LiquidGlassBox(
+                width: double.infinity,
+                borderRadius: 20,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                tintColor: accent,
+                tintOpacity: isBrutal ? 0.12 : 0.07,
+                rimIntensity: 0.34,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Create by Fannz/Irfan',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.textPrimary,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Wrap(
+                      alignment: WrapAlignment.center,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 3,
+                      children: [
+                        Text(
+                          'WA (+6283122013652)',
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontSize: 11.8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        Text(
+                          '•',
+                          style: TextStyle(
+                            color: theme.textMuted,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        Text(
+                          'TikTok (@fannnamikaze_)',
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontSize: 11.8,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

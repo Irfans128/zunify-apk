@@ -278,8 +278,6 @@ class LiquidGlassBox extends StatelessWidget {
         width: width,
         height: height,
         margin: margin,
-        alignment: effectiveAlignment,
-        padding: padding ?? EdgeInsets.zero,
         decoration: BoxDecoration(
           color: fillBg,
           borderRadius: BorderRadius.circular(brutalRadius),
@@ -298,7 +296,11 @@ class LiquidGlassBox extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(math.max(0, brutalRadius - 2.2)),
-          child: child,
+          child: Container(
+            alignment: effectiveAlignment,
+            padding: padding ?? EdgeInsets.zero,
+            child: child,
+          ),
         ),
       );
 
@@ -527,6 +529,7 @@ class IosGlassPillButton extends StatelessWidget {
   final Color? activeColor;
   final bool isActive;
   final double fontSize;
+  final bool expand;
 
   const IosGlassPillButton({
     super.key,
@@ -538,6 +541,7 @@ class IosGlassPillButton extends StatelessWidget {
     this.activeColor,
     this.isActive = false,
     this.fontSize = 12.0,
+    this.expand = false,
   });
 
   @override
@@ -546,43 +550,52 @@ class IosGlassPillButton extends StatelessWidget {
     final accent = activeColor ?? theme.accentColor;
 
     if (theme.isNeoBrutalism) {
-      final fill = isActive ? accent : theme.cardBgColor;
+      final fill = isActive
+          ? accent
+          : (theme.isLightCanvas ? const Color(0xFFFFFDF7) : theme.cardBgColor);
       final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
       return IosSpringButton(
         onTap: onTap,
         borderRadius: 10,
         child: Container(
+          width: expand ? double.infinity : null,
           height: height,
           padding: padding,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: fill,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.brutalBorderColor, width: 2.0),
+            border: Border.all(color: theme.brutalBorderColor, width: 1.9),
             boxShadow: [
               BoxShadow(
                 color: theme.brutalShadowColor,
                 blurRadius: 0,
-                offset: const Offset(2.8, 2.8),
+                offset: const Offset(2.4, 2.4),
               ),
             ],
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: fontSize + 2.5, color: fg),
-                const SizedBox(width: 6),
+                Icon(icon, size: fontSize + 2.2, color: fg),
+                const SizedBox(width: 5),
               ],
-              Text(
-                label,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: fontSize,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.1,
-                  height: 1.1,
+              Flexible(
+                fit: FlexFit.loose,
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.1,
+                    height: 1.1,
+                  ),
                 ),
               ),
             ],
@@ -598,6 +611,7 @@ class IosGlassPillButton extends StatelessWidget {
       scaleDown: 0.90,
       borderRadius: height / 2,
       child: LiquidGlassBox(
+        width: expand ? double.infinity : null,
         height: height,
         borderRadius: height / 2,
         padding: padding,
@@ -607,7 +621,8 @@ class IosGlassPillButton extends StatelessWidget {
         alignment: Alignment.center,
         enableSpring: false,
         child: Row(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             if (icon != null) ...[
@@ -618,14 +633,19 @@ class IosGlassPillButton extends StatelessWidget {
               ),
               const SizedBox(width: 6),
             ],
-            Text(
-              label,
-              style: TextStyle(
-                color: fgColor,
-                fontSize: fontSize,
-                fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
-                letterSpacing: -0.1,
-                height: 1.1,
+            Flexible(
+              fit: FlexFit.loose,
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: fgColor,
+                  fontSize: fontSize,
+                  fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                  letterSpacing: -0.1,
+                  height: 1.1,
+                ),
               ),
             ),
           ],

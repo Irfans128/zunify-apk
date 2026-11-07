@@ -33,7 +33,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   int _selectedIndex = 0;
   Timer? _broadcastPollTimer;
   late final List<Widget> _screens;
-  bool _checkedInitialMainPermissions = false;
+  bool _checkedInitialMainStartup = false;
 
   @override
   void initState() {
@@ -45,11 +45,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       const SettingsScreen(),
     ];
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkMissingPermissions();
-      _checkSunday18WIBRapotPopup();
-      _checkBackgroundUpdate();
-    });
+    _pollBroadcastOnly();
     _startBroadcastTimer();
   }
 
@@ -63,7 +59,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void _startBroadcastTimer() {
     _broadcastPollTimer?.cancel();
     _broadcastPollTimer = Timer.periodic(
-      const Duration(minutes: 3),
+      const Duration(seconds: 60),
       (_) => _pollBroadcastOnly(),
     );
   }
@@ -91,208 +87,28 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   Future<void> _pollBroadcastOnly() async {
     if (!mounted) return;
     try {
-      final broadcast = await UpdateService().checkBroadcastAnnouncement();
-      if (broadcast != null && mounted) {
-        _showBroadcastDialog(context, broadcast);
-      }
+      await UpdateService().checkBroadcastAnnouncement();
     } catch (_) {}
   }
 
   Future<void> _checkBackgroundUpdate() async {
-    await Future.delayed(const Duration(milliseconds: 3500));
+    await Future.delayed(const Duration(milliseconds: 2200));
     if (!mounted) return;
+    if (!context.read<LibraryProvider>().hasCompletedOnboarding) return;
     final updater = UpdateService();
     try {
       final info = await updater.checkForUpdate(manual: false);
-      if (info != null && mounted) {
+      if (info != null &&
+          mounted &&
+          context.read<LibraryProvider>().hasCompletedOnboarding) {
         await showUpdateSheet(context, info);
       }
     } catch (_) {}
 
     if (!mounted) return;
     try {
-      final broadcast = await updater.checkBroadcastAnnouncement();
-      if (broadcast != null && mounted) {
-        _showBroadcastDialog(context, broadcast);
-      }
+      await updater.checkBroadcastAnnouncement();
     } catch (_) {}
-  }
-
-  void _showBroadcastDialog(BuildContext context, BroadcastAnnouncement item) {
-    final theme = context.read<ThemeProvider>();
-    final accent = theme.accentColor;
-    final isBrutal = theme.isNeoBrutalism;
-    final player = context.read<PlayerProvider>();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.sheetBgColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(isBrutal ? 16 : 24),
-          side: BorderSide(
-            color: isBrutal ? theme.brutalBorderColor : accent.withOpacity(0.35),
-            width: isBrutal ? 2.4 : 1.0,
-          ),
-        ),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: accent.withOpacity(isBrutal ? 0.28 : 0.16),
-                shape: BoxShape.circle,
-                border: isBrutal
-                    ? Border.all(color: theme.brutalBorderColor, width: 1.6)
-                    : null,
-              ),
-              child: Icon(
-                Icons.campaign_rounded,
-                color: isBrutal ? const Color(0xFF111111) : accent,
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                item.title,
-                style: TextStyle(
-                  color: theme.textPrimary,
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (item.imageUrl.isNotEmpty) ...[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(isBrutal ? 12 : 16),
-                  child: CachedNetworkImage(
-                    imageUrl: item.imageUrl,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-              ],
-              Text(
-                item.message,
-                style: TextStyle(
-                  color: theme.textSecondary,
-                  fontSize: 13.8,
-                  height: 1.45,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                '— ${item.sender}',
-                style: TextStyle(
-                  color: theme.accentText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              if (item.songQuery.isNotEmpty) ...[
-                const SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: theme.accentText,
-                      side: BorderSide(
-                        color: isBrutal
-                            ? theme.brutalBorderColor
-                            : accent.withOpacity(0.5),
-                        width: isBrutal ? 1.8 : 1.0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
-                      ),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(ctx);
-                      try {
-                        final songs = await widget.ytMusicService
-                            .searchSongs(item.songQuery);
-                        if (songs.isNotEmpty) {
-                          await player.playSong(
-                            songs.first,
-                            customQueue: songs,
-                            contextName: 'Pilihan Fannz',
-                          );
-                        }
-                      } catch (_) {}
-                    },
-                    icon: const Icon(Icons.play_circle_fill_rounded, size: 18),
-                    label: Text(
-                      'Putar: ${item.songQuery}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-              ],
-              if (item.actionUrl.isNotEmpty) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: theme.textPrimary,
-                      side: BorderSide(
-                        color: isBrutal
-                            ? theme.brutalBorderColor
-                            : theme.dividerColor,
-                        width: isBrutal ? 1.8 : 1.0,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.pop(ctx);
-                      UpdateService.openExternalUrl(item.actionUrl);
-                    },
-                    icon: const Icon(Icons.open_in_new_rounded, size: 17),
-                    label: const Text(
-                      'Buka Link',
-                      style: TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: accent,
-              foregroundColor: const Color(0xFF111111),
-              elevation: 0,
-              side: isBrutal
-                  ? BorderSide(color: theme.brutalBorderColor, width: 2.0)
-                  : BorderSide.none,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(isBrutal ? 10 : 14),
-              ),
-            ),
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text(
-              'Siap, Mengerti',
-              style: TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _checkSunday18WIBRapotPopup() async {
@@ -325,10 +141,12 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       return const OnboardingScreen();
     }
 
-    if (!_checkedInitialMainPermissions) {
-      _checkedInitialMainPermissions = true;
+    if (!_checkedInitialMainStartup) {
+      _checkedInitialMainStartup = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _checkMissingPermissions();
+        _checkSunday18WIBRapotPopup();
+        _checkBackgroundUpdate();
       });
     }
 
