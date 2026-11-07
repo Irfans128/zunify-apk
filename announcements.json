@@ -1,14 +1,25 @@
 {
-  "id": "fannz_1793930112945",
-  "active": false,
-  "title": "GoodMorning",
-  "message": "update 2.0.0 kapan ya enaknya🤔",
+  "id": "fannz_1794038537627",
+  "active": true,
+  "title": "testing",
+  "message": "woy",
   "imageUrl": "",
   "actionUrl": "",
   "songQuery": "",
   "sender": "Fannz",
-  "createdAt": "2026-11-06T01:55:13.467956Z",
+  "createdAt": "2026-11-07T08:02:18.040855Z",
   "history": [
+    {
+      "id": "fannz_1794038537627",
+      "active": true,
+      "title": "testing",
+      "message": "woy",
+      "imageUrl": "",
+      "actionUrl": "",
+      "songQuery": "",
+      "sender": "Fannz",
+      "createdAt": "2026-11-07T08:02:18.040855Z"
+    },
     {
       "id": "fannz_1793930112945",
       "active": true,
