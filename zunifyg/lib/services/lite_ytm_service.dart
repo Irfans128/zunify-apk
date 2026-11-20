@@ -198,10 +198,9 @@ class LiteYtmService {
 
       final tabs = data['contents']?['tabbedSearchResultsRenderer']?['tabs']
           as List<dynamic>?;
-      final sections = tabs != null && tabs.isNotEmpty
-          ? tabs[0]['tabRenderer']?['content']?['sectionListRenderer']?['contents']
-              as List<dynamic>?
-          : null;
+      if (tabs == null || tabs.isEmpty) return const [];
+      final sections = tabs[0]['tabRenderer']?['content']
+          ?['sectionListRenderer']?['contents'] as List<dynamic>?;
       if (sections == null) return const [];
 
       for (final sec in sections) {
