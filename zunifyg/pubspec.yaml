@@ -1,0 +1,37 @@
+name: zunifyg
+description: "ZunifyG - Ultra-Lightweight Gaming Music Player for Low-End Devices. Crafted by Fannz."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Ultra-Lean Audio Engine & Background Media Controls
+  just_audio: ^0.9.40
+  audio_service: ^0.18.15
+  audio_session: ^0.1.21
+
+  # Minimal Networking & Local Lightweight Persistence
+  http: ^1.2.2
+  shared_preferences: ^2.3.2
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/images/zunifyg_logo.png"
+  min_sdk_android: 24
+  adaptive_icon_background: "#0B0C10"
+  adaptive_icon_foreground: "assets/images/zunifyg_logo.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/

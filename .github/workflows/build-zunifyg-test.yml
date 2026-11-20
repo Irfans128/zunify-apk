@@ -1,0 +1,87 @@
+name: Build ZunifyG Preview APK (Private Dev Artifact)
+
+on:
+  push:
+    branches: [ dev/v3-and-zunifyg ]
+    paths:
+      - 'zunifyg/**'
+      - '.github/workflows/build-zunifyg-test.yml'
+  workflow_dispatch:
+
+jobs:
+  build-zunifyg-apk:
+    name: Compile ZunifyG Ultra-Lite APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter SDK (3.24.5 Stable)
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Initialize ZunifyG Android Wrapper & Restore Configs
+        working-directory: zunifyg
+        run: |
+          mkdir -p /tmp/zunifyg_android_backup
+          cp -r android/* /tmp/zunifyg_android_backup/
+          rm -rf android
+          flutter create --org com.fannz --project-name zunifyg --platforms=android .
+          cp /tmp/zunifyg_android_backup/app/build.gradle android/app/build.gradle
+          cp /tmp/zunifyg_android_backup/app/proguard-rules.pro android/app/proguard-rules.pro
+          cp /tmp/zunifyg_android_backup/app/zunify-release.p12 android/app/zunify-release.p12
+          cp /tmp/zunifyg_android_backup/app/src/main/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          mkdir -p android/app/src/main/kotlin/com/fannz/zunifyg
+          cp /tmp/zunifyg_android_backup/app/src/main/kotlin/com/fannz/zunifyg/*.kt android/app/src/main/kotlin/com/fannz/zunifyg/
+          mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/values
+          cp -r /tmp/zunifyg_android_backup/app/src/main/res/drawable/* android/app/src/main/res/drawable/ || true
+          cp -r /tmp/zunifyg_android_backup/app/src/main/res/values/* android/app/src/main/res/values/ || true
+          cp /tmp/zunifyg_android_backup/settings.gradle android/settings.gradle
+          cp /tmp/zunifyg_android_backup/gradle.properties android/gradle.properties
+          sed -i 's/gradle-.*-all.zip/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
+          rm -rf test
+          flutter pub get
+
+      - name: Generate ZunifyG Launcher Icons
+        working-directory: zunifyg
+        run: |
+          dart run flutter_launcher_icons || true
+
+      - name: Run Dart Static Analysis Check
+        working-directory: zunifyg
+        run: |
+          flutter analyze lib/ --no-fatal-infos --no-fatal-warnings
+
+      - name: Build ZunifyG Ultra-Lite Split-ABI & Universal APK
+        working-directory: zunifyg
+        run: |
+          flutter build apk --release --split-per-abi
+          flutter build apk --release
+
+      - name: Package ZunifyG APKs
+        working-directory: zunifyg
+        run: |
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk ZunifyG-v1.0.0-Lite-arm64-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk ZunifyG-v1.0.0-Lite-arm32-by-Fannz.apk
+          cp build/app/outputs/flutter-apk/app-release.apk ZunifyG-v1.0.0-Universal-by-Fannz.apk
+          ls -lh ZunifyG-*.apk
+
+      - name: Upload ZunifyG Preview APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ZunifyG-v1.0.0-Preview-APKs
+          path: |
+            zunifyg/ZunifyG-v1.0.0-Lite-arm64-by-Fannz.apk
+            zunifyg/ZunifyG-v1.0.0-Lite-arm32-by-Fannz.apk
+            zunifyg/ZunifyG-v1.0.0-Universal-by-Fannz.apk
