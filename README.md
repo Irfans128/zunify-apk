@@ -1,54 +1,64 @@
-# 🎵 Zunify v1.0 — Standalone Aesthetic Music Player
-**Crafted with ❤️ by Fannz** (`com.fannz.zunify`)
+<div align="center">
+  <img src="assets/images/zunify_logo.png" alt="Zunify Logo" width="110" />
+  <h1>Zunify</h1>
+  <p><strong>Standalone Aesthetic Android Music Player</strong></p>
 
-Aplikasi pemutar musik Android **100% Standalone (Tanpa Server / Tanpa Login)** dengan UI Vinyl Minimalis, Lirik Karaoke Sinkron + Terjemahan Bahasa Indonesia Otomatis, Hardware DSP Equalizer, Private Vault Offline Downloader, dan Rapot Mingguan.
-
----
-
-## ✨ Fitur Lengkap Zunify v1.0
-
-1. **100% Standalone & Tanpa Login (`ytmusic_service.dart`)**
-   - Streaming langsung dari YouTube Music publik tanpa butuh akun atau server VPS.
-   - **Algoritma Radio "Up Next"** ala Spotify yang otomatis menyambung lagu berikutnya dengan genre/vibe sejenis.
-2. **Lirik Karaoke Sinkron + Terjemahan Indonesia Pintar (`lyrics_translation_service.dart`)**
-   - Terintegrasi dengan **LRCLIB** untuk lirik ber-timestamp (`.lrc`) yang bergerak otomatis per detik.
-   - Otomatis menerjemahkan lagu berbahasa asing (Inggris, Jepang, Korea, dll) ke **Bahasa Indonesia** di bawah lirik utama.
-   - **Smart Bahasa Indonesia Detector:** Jika lagu aslinya sudah berbahasa Indonesia, baris terjemahan otomatis disembunyikan agar layar lirik tetap bersih!
-3. **Private In-App Offline Downloader (`download_service.dart`)**
-   - Lagu yang di-download tersimpan rapi di dalam **Private Vault internal Zunify** (tidak mengotori File Manager atau aplikasi pemutar musik bawaan HP).
-   - Menyimpan file audio + cover art resolusi tinggi + lirik terjemahan sehingga **lirik tetap muncul saat 100% offline**.
-   - **Toggle Mode Offline** langsung di pojok kanan atas Beranda.
-4. **Audio Quality Selector (Hemat Kuota vs High Quality)**
-   - **96 kbps (Hemat Data):** Irit kuota untuk streaming & download.
-   - **160 kbps Opus/M4A (High Quality):** Suara jernih maksimal untuk earphone/headphone.
-5. **Hardware DSP Equalizer (`MainActivity.kt` & `equalizer_service.dart`)**
-   - Terhubung langsung ke chip audio Android (`Equalizer`, `BassBoost`, `Virtualizer`).
-   - 6 Preset siap pakai (*Normal, Bass Boost 🔥, Pop Aesthetic, Vocal / Lirik Jernih, Rock & Energetic, Electronic / Night*) + 5-Band Custom Slider.
-6. **Import Playlist Spotify & YouTube Music (`playlist_importer_service.dart`)**
-   - Cukup tempel link playlist publik dari **Spotify** (`open.spotify.com/playlist/...`) atau **YouTube Music**, Zunify otomatis mencocokkan semua lagunya ke dalam koleksi lokalmu.
-7. **Sleep Timer & Share Card Lirik Aesthetic (`sleep_timer_sheet.dart` & `share_card_modal.dart`)**
-   - Setel waktu tidur otomatis (*15m, 30m, 45m, 60m*, atau *Selesai Lagu Ini*).
-   - Buat gambar kartu lirik aesthetic ber-watermark **"Zunify • Crafted with ❤️ by Fannz"** untuk dibagikan ke Instagram Story atau WhatsApp.
-8. **Rapot Mingguan Otomatis — Setiap Minggu Jam 18:00 WIB (`rapot_service.dart`)**
-   - Mencatat durasi dengar di database lokal SQLite dan menjadwalkan notifikasi otomatis setiap **Minggu pukul 18:00 WIB** lengkap dengan kartu infografis *Top 5 Lagu, Top Artis, Total Jam Dengar*, dan *Vibe Persona*.
+  <p>
+    <a href="https://github.com/Irfans128/zunify-apk/releases/latest">
+      <img src="https://img.shields.io/badge/Version-v2.0.2-crimson?style=flat-square" alt="Version" />
+    </a>
+    <img src="https://img.shields.io/badge/Platform-Android%207.0%2B-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Platform" />
+    <img src="https://img.shields.io/badge/Flutter-3.24-02569B?style=flat-square&logo=flutter&logoColor=white" alt="Flutter" />
+    <a href="LICENSE">
+      <img src="https://img.shields.io/badge/License-MIT-blue?style=flat-square" alt="License" />
+    </a>
+  </p>
+</div>
 
 ---
 
-## 🚀 Cara Menghasilkan File `.apk` (Siap Bagi ke Teman-Teman)
+## Overview
 
-### Cara 1: Otomatis via GitHub Cloud (Tanpa Install Android Studio di Laptop!)
-Project ini sudah dilengkapi workflow otomatis di `.github/workflows/build-apk.yml`:
-1. Buat repository baru di GitHub (boleh **Private** atau **Public**).
-2. Upload/push seluruh isi folder `zunify` ini ke GitHub:
-   ```bash
-   git init
-   git add .
-   git commit -m "Initial release Zunify v1.0 by Fannz"
-   git branch -M main
-   git remote add origin https://github.com/USERNAME_LU/zunify.git
-   git push -u origin main
-   ```
-3. Buka tab **Actions** di GitHub lu — dalam ~3 menit, GitHub akan selesai meng-compile file **`Zunify-v1.0-by-Fannz.apk`** yang siap lu download dan kirim ke grup WhatsApp temen-temen lu!
+**Zunify** is a standalone, serverless Android music player built with Flutter. Designed for speed, zero login friction, and clean visual aesthetics, it combines high-performance audio playback with synced bilingual lyrics, offline storage, and native Android DSP hardware controls.
 
-### Cara 2: Build Lokal di Windows
-Jika di laptop sudah terpasang Flutter SDK, cukup klik 2x file **`build_apk_windows.bat`**.
+## Key Features
+
+- **Dual Aesthetic Themes** — Switch seamlessly between **Neo-Brutalism** and **Liquid Glass** with 90/120Hz fluid animations.
+- **Standalone & Zero Login** — Stream music directly with an intelligent radio queue engine and multilingual voice search.
+- **Synced Bilingual Lyrics** — Real-time timestamped lyrics with smart automatic Indonesian translation.
+- **Private Offline Vault** — Download tracks, cover art, and lyrics internally for 100% offline playback without cluttering device storage.
+- **Hardware DSP Equalizer** — Native Android Equalizer, Bass Boost, and Virtualizer integration with customizable presets.
+- **3-Tier Audio Quality** — Choose between Data Saver (96 kbps), Normal (128 kbps), and Studio Hi-Fi (160 kbps Opus).
+- **Instant FCM Notifications** — Powered by Firebase Cloud Messaging for zero-battery-drain updates and announcements.
+- **In-App Auto Updater & Weekly Rapot** — Seamless self-updating directly inside the app and weekly listening summaries.
+
+## Download
+
+Get the latest APK directly from the [Releases](https://github.com/Irfans128/zunify-apk/releases/latest) page:
+
+| Variant | Recommended For |
+| :--- | :--- |
+| **`Lite-arm64`** | Most modern Android devices (smaller size, optimized for 64-bit) |
+| **`Universal`** | All Android architectures (arm64, armeabi-v7a, x86_64) |
+
+## Build From Source
+
+### Cloud Build (GitHub Actions)
+This repository includes a pre-configured workflow at `.github/workflows/build-apk.yml` that automatically builds and publishes release APKs on every push to `main`.
+
+### Local Build
+Ensure Flutter SDK (`>= 3.24.0`) and Android SDK are configured, then run:
+```bash
+flutter pub get
+flutter build apk --release --split-per-abi
+```
+
+## License
+
+Distributed under the **MIT License**. See [LICENSE](LICENSE) for more information.
+
+---
+
+<div align="center">
+  <sub>Crafted with ❤️ by <strong>Fannz</strong> (<code>com.fannz.zunify</code>)</sub>
+</div>
