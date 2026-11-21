@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -69,8 +70,6 @@ Future<void> main() async {
     playerProvider.initPreferences(),
   ]);
 
-  await rapotService.init(username: libraryProvider.profile.username);
-
   runApp(
     MultiProvider(
       providers: [
@@ -81,42 +80,65 @@ Future<void> main() async {
       child: ZunifyApp(ytMusicService: ytMusicService),
     ),
   );
+
+  // Initialize timezone DB & weekly notification schedule off the critical launch path
+  unawaited(rapotService.init(username: libraryProvider.profile.username));
 }
 
 class ZunifyApp extends StatelessWidget {
   final YTMusicService ytMusicService;
 
+  static TextTheme? _cachedLightTextTheme;
+  static TextTheme? _cachedDarkTextTheme;
+
   const ZunifyApp({super.key, required this.ytMusicService});
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<ThemeProvider>();
-    final isLight = theme.isLightCanvas;
+    final slice = context.select<ThemeProvider,
+        (bool, Color, Color, Color, Color, Color)>(
+      (t) => (
+        t.isLightCanvas,
+        t.scaffoldBgColor,
+        t.accentColor,
+        t.secondaryAccentColor,
+        t.cardBgColor,
+        t.textPrimary,
+      ),
+    );
+    final isLight = slice.$1;
+    final scaffoldBg = slice.$2;
+    final accent = slice.$3;
+    final secondaryAccent = slice.$4;
+    final cardBg = slice.$5;
+    final textPrimary = slice.$6;
 
     final baseTextTheme = isLight
-        ? ThemeData.light().textTheme
-        : ThemeData.dark().textTheme;
+        ? (_cachedLightTextTheme ??=
+            GoogleFonts.plusJakartaSansTextTheme(ThemeData.light().textTheme))
+        : (_cachedDarkTextTheme ??=
+            GoogleFonts.plusJakartaSansTextTheme(ThemeData.dark().textTheme));
 
     final appTheme = ThemeData(
       brightness: isLight ? Brightness.light : Brightness.dark,
-      scaffoldBackgroundColor: theme.scaffoldBgColor,
-      primaryColor: theme.accentColor,
+      scaffoldBackgroundColor: scaffoldBg,
+      primaryColor: accent,
       colorScheme: ColorScheme(
         brightness: isLight ? Brightness.light : Brightness.dark,
-        primary: theme.accentColor,
+        primary: accent,
         onPrimary: const Color(0xFF111111),
-        secondary: theme.secondaryAccentColor,
+        secondary: secondaryAccent,
         onSecondary: const Color(0xFF111111),
         error: Colors.redAccent,
         onError: Colors.white,
-        surface: theme.cardBgColor,
-        onSurface: theme.textPrimary,
+        surface: cardBg,
+        onSurface: textPrimary,
       ),
-      textTheme: GoogleFonts.plusJakartaSansTextTheme(baseTextTheme).apply(
-        bodyColor: theme.textPrimary,
-        displayColor: theme.textPrimary,
+      textTheme: baseTextTheme.apply(
+        bodyColor: textPrimary,
+        displayColor: textPrimary,
       ),
-      iconTheme: IconThemeData(color: theme.textPrimary),
+      iconTheme: IconThemeData(color: textPrimary),
       useMaterial3: true,
     );
 

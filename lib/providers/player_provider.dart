@@ -152,6 +152,13 @@ class PlayerProvider extends ChangeNotifier {
         _libraryProvider = libraryProvider,
         _themeProvider = themeProvider {
     _audioPlayer = _audioHandler?.player ?? AudioPlayer();
+    _audioHandler?.onPlayCallback = () async {
+      if (_needsInitialLoadForResume && _currentSong != null) {
+        await togglePlayPause();
+      } else {
+        await _audioPlayer.play();
+      }
+    };
     _audioHandler?.onSkipToNextCallback = playNext;
     _audioHandler?.onSkipToPreviousCallback = playPrevious;
     _initAudioListeners();
@@ -503,12 +510,6 @@ class PlayerProvider extends ChangeNotifier {
         _audioPlayer.setVolume(vol.clamp(0.22, 1.0));
       }
     });
-  }
-
-  Future<bool> _resolveEffectiveHighQuality() async {
-    if (!_autoQualityEnabled) return _highQualityAudio;
-    await _refreshNetworkType();
-    return _detectedNetworkType != 'cellular';
   }
 
   Future<void> _refreshNetworkType() async {
@@ -1274,6 +1275,14 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> playPrevious() async {
+    if (_needsInitialLoadForResume) {
+      if (_currentIndex > 0) {
+        await _playAt(_currentIndex - 1);
+      } else if (_currentSong != null) {
+        await _startPlayback(_currentSong!, initialPosition: Duration.zero);
+      }
+      return;
+    }
     if (_audioPlayer.position.inSeconds > 3) {
       await _audioPlayer.seek(Duration.zero);
       return;

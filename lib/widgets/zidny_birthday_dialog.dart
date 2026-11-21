@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/theme_provider.dart';
@@ -20,11 +23,21 @@ Future<void> showZidnyBirthdayIfFirstOpen(BuildContext context) async {
   final notifShown = prefs.getBool(kPrefNotifShown) ?? false;
   if (!notifShown) {
     await prefs.setBool(kPrefNotifShown, true);
+    String? bannerLocalPath;
+    try {
+      final bytes = await rootBundle.load('assets/images/zidny_notif_banner.jpg');
+      final tmp = await getTemporaryDirectory();
+      final f = File('${tmp.path}/zidny_bday_banner.jpg');
+      await f.writeAsBytes(bytes.buffer.asUint8List(), flush: true);
+      bannerLocalPath = f.path;
+    } catch (_) {}
+
     await UpdateService.showSystemPushNotification(
       id: 10122026,
       title: '🎉 Selamat Ulang Tahun, Zidny!',
       body:
           'Barakallahu fi umrik Zidny! Sehat selalu, panjang umur, dan makin sukses dari Fannz & Zunify.',
+      localImagePath: bannerLocalPath,
     );
   }
 
@@ -48,9 +61,9 @@ class _ZidnyBirthdayDialogState extends State<_ZidnyBirthdayDialog> {
   int _page = 0;
 
   static const _photos = [
-    'assets/images/zidny_1.jpg',
-    'assets/images/zidny_2.jpg',
-    'assets/images/zidny_3.jpg',
+    {'path': 'assets/images/zidny_1.jpg', 'alignY': 0.42},
+    {'path': 'assets/images/zidny_2.jpg', 'alignY': -0.10},
+    {'path': 'assets/images/zidny_3.jpg', 'alignY': -0.16},
   ];
 
   @override
@@ -93,9 +106,9 @@ class _ZidnyBirthdayDialogState extends State<_ZidnyBirthdayDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Swipeable 3-Photo Carousel of Zidny
+              // Swipeable 3-Photo Carousel of Zidny (Individually face-centered!)
               SizedBox(
-                height: 290,
+                height: 340,
                 width: double.infinity,
                 child: Stack(
                   fit: StackFit.expand,
@@ -104,11 +117,17 @@ class _ZidnyBirthdayDialogState extends State<_ZidnyBirthdayDialog> {
                       controller: _pageCtrl,
                       itemCount: _photos.length,
                       onPageChanged: (i) => setState(() => _page = i),
-                      itemBuilder: (_, i) => Image.asset(
-                        _photos[i],
-                        fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
-                      ),
+                      itemBuilder: (_, i) {
+                        final item = _photos[i];
+                        return Image.asset(
+                          item['path'] as String,
+                          fit: BoxFit.cover,
+                          alignment: Alignment(
+                            0.0,
+                            (item['alignY'] as double),
+                          ),
+                        );
+                      },
                     ),
                     Positioned(
                       left: 0,

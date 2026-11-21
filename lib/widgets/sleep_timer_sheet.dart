@@ -148,14 +148,14 @@ class SleepTimerSheet extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: isBrutal
                                   ? theme.cardBgColor
-                                  : Colors.white.withOpacity(0.10),
+                                  : theme.subtleFill,
                               borderRadius: BorderRadius.circular(
                                 isBrutal ? 8 : 10,
                               ),
                               border: Border.all(
                                 color: isBrutal
                                     ? theme.brutalBorderColor
-                                    : Colors.white.withOpacity(0.22),
+                                    : theme.dividerColor,
                                 width: isBrutal ? 1.5 : 0.9,
                               ),
                             ),

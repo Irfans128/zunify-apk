@@ -37,48 +37,71 @@ class ZunifySongTile extends StatelessWidget {
     final theme = context.watch<ThemeProvider>();
     final accent = theme.accentColor;
     final isBrutal = theme.isNeoBrutalism;
+    final isIpod = theme.isClassicIpod;
 
     final isCurrent = player.currentSong?.videoId == song.videoId;
     final isFav = library.isFavorite(song.videoId);
     final isDownloaded = library.isDownloaded(song.videoId);
     final downloadProgress = library.activeDownloadProgress[song.videoId];
 
+    // Clean, de-cluttered row styling across all 3 themes (Zero stacked box noise!)
     final BoxDecoration rowDecoration;
-    if (isBrutal) {
+    if (isIpod) {
       rowDecoration = BoxDecoration(
-        color: isCurrent
-            ? Color.lerp(theme.cardBgColor, accent, 0.36)
-            : theme.cardBgColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: theme.brutalBorderColor,
-          width: isCurrent ? 2.2 : 1.8,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: theme.brutalShadowColor,
-            blurRadius: 0,
-            offset: Offset(isCurrent ? 3.5 : 2.5, isCurrent ? 3.5 : 2.5),
-          ),
-        ],
+        color: isCurrent ? accent : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        border: isCurrent
+            ? null
+            : Border(
+                bottom: BorderSide(
+                  color: theme.dividerColor.withOpacity(0.55),
+                  width: 0.7,
+                ),
+              ),
       );
+    } else if (isBrutal) {
+      rowDecoration = isCurrent
+          ? BoxDecoration(
+              color: Color.lerp(theme.cardBgColor, accent, 0.32),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: theme.brutalBorderColor,
+                width: 1.7,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.brutalShadowColor.withOpacity(0.90),
+                  blurRadius: 0,
+                  offset: const Offset(2.5, 2.5),
+                ),
+              ],
+            )
+          : BoxDecoration(
+              color: Colors.transparent,
+              border: Border(
+                bottom: BorderSide(
+                  color: theme.dividerColor.withOpacity(0.55),
+                  width: 0.8,
+                ),
+              ),
+            );
     } else {
       rowDecoration = BoxDecoration(
-        color: isCurrent ? accent.withOpacity(0.13) : Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
-        border: isCurrent
-            ? Border.all(color: accent.withOpacity(0.30), width: 0.9)
-            : null,
+        color: isCurrent ? accent.withOpacity(0.14) : Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
       );
     }
 
-    final activeTitleColor =
-        isBrutal ? const Color(0xFF111111) : (isCurrent ? accent : Colors.white);
+    final Color titleColor = isIpod
+        ? (isCurrent ? Colors.white : theme.textPrimary)
+        : (isBrutal
+            ? (isCurrent ? const Color(0xFF111111) : theme.textPrimary)
+            : (isCurrent ? accent : theme.textPrimary));
 
     return RepaintBoundary(
       child: IosSpringButton(
-        scaleDown: 0.96,
-        borderRadius: isBrutal ? 12 : 16,
+        scaleDown: 0.97,
+        borderRadius: isBrutal ? 13 : (isIpod ? 10 : 14),
         onTap: onTapOverride ??
             () => player.playSong(
                   song,
@@ -91,13 +114,13 @@ class ZunifySongTile extends StatelessWidget {
           playlistIdForRemoval: playlistIdForRemoval,
         ),
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 190),
           curve: Curves.easeOutCubic,
           padding: EdgeInsets.symmetric(
-            horizontal: isBrutal ? 11 : 10,
-            vertical: isBrutal ? 9 : 8,
+            horizontal: isCurrent ? 12 : 6,
+            vertical: 9,
           ),
-          margin: EdgeInsets.only(bottom: isBrutal ? 9 : 4),
+          margin: EdgeInsets.only(bottom: isCurrent ? 6 : 2),
           decoration: rowDecoration,
           child: Row(
             children: [
@@ -108,9 +131,13 @@ class ZunifySongTile extends StatelessWidget {
                     '$rank',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: isCurrent
-                          ? theme.accentText
-                          : (rank! <= 3 ? theme.textPrimary : theme.textMuted),
+                      color: isIpod && isCurrent
+                          ? Colors.white
+                          : (isCurrent
+                              ? theme.accentText
+                              : (rank! <= 3
+                                  ? theme.textPrimary
+                                  : theme.textMuted)),
                       fontWeight:
                           rank! <= 3 ? FontWeight.w900 : FontWeight.w700,
                       fontSize: 13.5,
@@ -120,35 +147,24 @@ class ZunifySongTile extends StatelessWidget {
                 const SizedBox(width: 8),
               ],
 
-              // Cover Art Thumbnail
-              Container(
-                decoration: isBrutal
-                    ? BoxDecoration(
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: theme.brutalBorderColor,
-                          width: 1.6,
-                        ),
-                      )
-                    : null,
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(isBrutal ? 7.5 : 10),
-                  child: CachedNetworkImage(
-                    imageUrl: song.thumbnailUrl,
+              // Cover Art Thumbnail (Clean, unboxed)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(isIpod ? 7 : 10),
+                child: CachedNetworkImage(
+                  imageUrl: song.thumbnailUrl,
+                  width: 48,
+                  height: 48,
+                  memCacheWidth: 144,
+                  fadeInDuration: const Duration(milliseconds: 120),
+                  fit: BoxFit.cover,
+                  errorWidget: (_, __, ___) => Container(
                     width: 48,
                     height: 48,
-                    memCacheWidth: 144,
-                    fadeInDuration: const Duration(milliseconds: 120),
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
-                      width: 48,
-                      height: 48,
-                      color: theme.subtleFill,
-                      child: Icon(
-                        Icons.music_note_rounded,
-                        color: theme.accentText,
-                        size: 22,
-                      ),
+                    color: theme.subtleFill,
+                    child: Icon(
+                      Icons.music_note_rounded,
+                      color: theme.accentText,
+                      size: 22,
                     ),
                   ),
                 ),
@@ -166,9 +182,11 @@ class ZunifySongTile extends StatelessWidget {
                         if (isCurrent) ...[
                           MiniAudioSpectrumBars(
                             isPlaying: player.isPlaying,
-                            color: isBrutal
-                                ? const Color(0xFF111111)
-                                : accent,
+                            color: isIpod
+                                ? Colors.white
+                                : (isBrutal
+                                    ? const Color(0xFF111111)
+                                    : accent),
                             height: 12,
                           ),
                           const SizedBox(width: 6),
@@ -179,14 +197,12 @@ class ZunifySongTile extends StatelessWidget {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: isBrutal && !isCurrent
-                                  ? theme.textPrimary
-                                  : activeTitleColor,
+                              color: titleColor,
                               fontWeight: isCurrent
                                   ? FontWeight.w800
                                   : FontWeight.w700,
-                              fontSize: 14.2,
-                              letterSpacing: -0.2,
+                              fontSize: 14.5,
+                              letterSpacing: -0.25,
                             ),
                           ),
                         ),

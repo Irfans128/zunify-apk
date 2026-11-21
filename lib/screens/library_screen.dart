@@ -132,7 +132,9 @@ void showCreatePlaylistSheet(
                           ),
                     child: Icon(
                       Icons.playlist_add_rounded,
-                      color: isBrutal ? const Color(0xFF111111) : Colors.white,
+                      color: theme.isLightCanvas
+                          ? const Color(0xFF111111)
+                          : Colors.white,
                       size: 21,
                     ),
                   ),
@@ -315,7 +317,12 @@ void showCreatePlaylistSheet(
         ),
       );
     },
-  );
+  ).whenComplete(() {
+    Future.delayed(const Duration(milliseconds: 350), () {
+      nameCtrl.dispose();
+      descCtrl.dispose();
+    });
+  });
 }
 
 class LibraryScreen extends StatefulWidget {
@@ -357,39 +364,55 @@ class _LibraryScreenState extends State<LibraryScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Logical Header: Koleksi + Import Playlist & Buat Baru
+            // Editorial Header: Koleksi + Import Playlist & Buat Baru
             Padding(
-              padding: const EdgeInsets.fromLTRB(18, 12, 18, 12),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 14),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    'Koleksi',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: theme.textPrimary,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'PUSTAKA',
+                        style: TextStyle(
+                          color: theme.accentText,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        'Koleksi',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: theme.textPrimary,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                          height: 1.08,
+                        ),
+                      ),
+                    ],
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      IosGlassPillButton(
+                      IosGlassIconButton(
                         icon: Icons.add_link_rounded,
-                        label: 'Import',
-                        height: 34,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        size: 38,
+                        iconSize: 19,
                         activeColor: accent,
+                        tooltip: 'Import Playlist',
                         onTap: () => showImportPlaylistSheet(context),
                       ),
                       const SizedBox(width: 8),
                       IosGlassPillButton(
                         icon: Icons.add_rounded,
-                        label: 'Buat Baru',
-                        height: 34,
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        label: 'Baru',
+                        height: 36,
+                        padding: const EdgeInsets.symmetric(horizontal: 13),
                         activeColor: accent,
                         isActive: true,
                         onTap: () => showCreatePlaylistSheet(context),
@@ -400,70 +423,44 @@ class _LibraryScreenState extends State<LibraryScreen>
               ),
             ),
 
-            // Segmented Tab Bar
+            // Clean Editorial Typographic Tab Bar (Fixes Classic iPod contrast & removes box clutter!)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: LiquidGlassBox(
-                borderRadius: 20,
-                padding: const EdgeInsets.all(3.5),
-                tintOpacity: 0.08,
-                rimIntensity: 0.34,
-                child: TabBar(
-                  controller: _tabController,
-                  indicator: isBrutal
-                      ? BoxDecoration(
-                          color: accent,
-                          borderRadius: BorderRadius.circular(9),
-                          border: Border.all(
-                            color: theme.brutalBorderColor,
-                            width: 1.8,
-                          ),
-                        )
-                      : BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withOpacity(0.18),
-                              accent.withOpacity(0.24),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.28),
-                            width: 0.9,
-                          ),
-                        ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  labelColor:
-                      isBrutal ? const Color(0xFF111111) : Colors.white,
-                  labelStyle: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12.0,
-                  ),
-                  unselectedLabelColor:
-                      isBrutal ? theme.textSecondary : Colors.white60,
-                  unselectedLabelStyle: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 12.0,
-                  ),
-                  tabs: [
-                    Tab(
-                      height: 34,
-                      text: 'Playlist (${library.playlists.length})',
-                    ),
-                    Tab(
-                      height: 34,
-                      text: 'Diunduh (${library.downloadedSongs.length})',
-                    ),
-                    Tab(
-                      height: 34,
-                      text: 'Disukai (${library.favorites.length})',
-                    ),
-                  ],
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: TabBar(
+                controller: _tabController,
+                isScrollable: false,
+                indicatorColor: accent,
+                indicatorWeight: 2.8,
+                indicatorSize: TabBarIndicatorSize.label,
+                dividerColor: theme.dividerColor.withOpacity(0.6),
+                labelColor: theme.textPrimary,
+                labelStyle: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13.0,
+                  letterSpacing: -0.2,
                 ),
+                unselectedLabelColor: theme.textMuted,
+                unselectedLabelStyle: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+                tabs: [
+                  Tab(
+                    height: 38,
+                    text: 'Playlist (${library.playlists.length})',
+                  ),
+                  Tab(
+                    height: 38,
+                    text: 'Diunduh (${library.downloadedSongs.length})',
+                  ),
+                  Tab(
+                    height: 38,
+                    text: 'Disukai (${library.favorites.length})',
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
 
             Expanded(
               child: TabBarView(
@@ -793,6 +790,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     Expanded(
                       child: CachedNetworkImage(
                         imageUrl: pl.songs[0].thumbnailUrl,
+                        memCacheWidth: 120,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
                             Container(color: theme.subtleFill),
@@ -801,6 +799,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     Expanded(
                       child: CachedNetworkImage(
                         imageUrl: pl.songs[1].thumbnailUrl,
+                        memCacheWidth: 120,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
                             Container(color: theme.subtleFill),
@@ -815,6 +814,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     Expanded(
                       child: CachedNetworkImage(
                         imageUrl: pl.songs[2].thumbnailUrl,
+                        memCacheWidth: 120,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
                             Container(color: theme.subtleFill),
@@ -823,6 +823,7 @@ class _LibraryScreenState extends State<LibraryScreen>
                     Expanded(
                       child: CachedNetworkImage(
                         imageUrl: pl.songs[3].thumbnailUrl,
+                        memCacheWidth: 120,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
                             Container(color: theme.subtleFill),

@@ -109,6 +109,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                         if (profile.bannerUrl.isNotEmpty)
                           CachedNetworkImage(
                             imageUrl: profile.bannerUrl,
+                            memCacheWidth: 720,
                             fit: BoxFit.cover,
                             errorWidget: (_, __, ___) => Container(
                               color: theme.subtleFill,
@@ -358,6 +359,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                               imageUrl: alb.coverUrl,
                                               width: 138,
                                               height: 138,
+                                              memCacheWidth: 340,
                                               fit: BoxFit.cover,
                                               errorWidget: (_, __, ___) =>
                                                   Container(
@@ -461,6 +463,7 @@ class _ArtistProfileScreenState extends State<ArtistProfileScreen> {
                                               imageUrl: sim.avatarUrl,
                                               width: 92,
                                               height: 92,
+                                              memCacheWidth: 240,
                                               fit: BoxFit.cover,
                                               errorWidget: (_, __, ___) =>
                                                   Container(
@@ -647,6 +650,7 @@ class _AlbumDetailScreenState extends State<AlbumDetailScreen> {
                         imageUrl: widget.album.coverUrl,
                         width: 200,
                         height: 200,
+                        memCacheWidth: 500,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(
                           width: 200,

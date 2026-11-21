@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/song_model.dart';
@@ -9,9 +10,14 @@ import '../providers/theme_provider.dart';
 import '../services/ytmusic_service.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/song_tile_widget.dart';
-import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
+import 'theme_studio_screen.dart';
 
+/// Zunify v3.0.0 Editorial Music Magazine Home Screen.
+/// - Clean editorial header with 1-tap Theme Studio shortcut & Wrapped access
+/// - Swipeable full-bleed Hero Recommendation Carousel
+/// - Lightweight typographic mood selector (zero nested box clutter)
+/// - Spacious borderless cover gallery & crisp open tracklist
 class HomeScreen extends StatefulWidget {
   final YTMusicService ytMusicService;
 
@@ -23,16 +29,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   static const List<Map<String, String>> _moods = [
-    {'id': 'Semua', 'label': 'Semua'},
+    {'id': 'Semua', 'label': 'Untukmu'},
     {'id': 'Pop Indo', 'label': 'Pop Indo'},
-    {'id': 'Pop Barat', 'label': 'Pop Barat'},
+    {'id': 'Pop Barat', 'label': 'Barat'},
     {'id': 'Galau', 'label': 'Galau'},
-    {'id': 'Chill', 'label': 'Indie & Chill'},
+    {'id': 'Chill', 'label': 'Chill'},
     {'id': 'K-Pop', 'label': 'K-Pop'},
-    {'id': 'Anime', 'label': 'Anime & J-Pop'},
+    {'id': 'Anime', 'label': 'Anime'},
     {'id': 'Workout', 'label': 'Workout'},
     {'id': 'Fokus', 'label': 'Fokus'},
   ];
+
+  final PageController _heroPageCtrl = PageController(viewportFraction: 0.92);
+  int _heroPage = 0;
 
   String _selectedMood = 'Semua';
   List<ZunifySong> _moodSongs = [];
@@ -46,12 +55,18 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadInitialHomeData();
   }
 
+  @override
+  void dispose() {
+    _heroPageCtrl.dispose();
+    super.dispose();
+  }
+
   String _getTimeGreeting() {
     final hour = DateTime.now().hour;
-    if (hour >= 4 && hour < 11) return 'Selamat Pagi';
-    if (hour >= 11 && hour < 15) return 'Selamat Siang';
-    if (hour >= 15 && hour < 18) return 'Selamat Sore';
-    return 'Selamat Malam';
+    if (hour >= 4 && hour < 11) return 'PAGI';
+    if (hour >= 11 && hour < 15) return 'SIANG';
+    if (hour >= 15 && hour < 18) return 'SORE';
+    return 'MALAM';
   }
 
   Future<void> _loadInitialHomeData() async {
@@ -72,9 +87,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _selectMood(String mood) async {
     if (_selectedMood == mood && _moodSongs.isNotEmpty) return;
+    HapticFeedback.selectionClick();
     setState(() {
       _selectedMood = mood;
       _isLoadingCharts = true;
+      _heroPage = 0;
     });
     final tracks = await widget.ytMusicService.getSongsByMood(mood);
     if (!mounted) return;
@@ -96,6 +113,51 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  List<_HeroEditorialItem> _buildHeroItems({
+    required PlayerProvider player,
+    required LibraryProvider library,
+    required bool isAllTab,
+  }) {
+    final items = <_HeroEditorialItem>[];
+    final seen = <String>{};
+
+    void addItem(ZunifySong s, String kicker, List<ZunifySong> queue) {
+      if (seen.add(s.videoId)) {
+        items.add(_HeroEditorialItem(song: s, kicker: kicker, queue: queue));
+      }
+    }
+
+    if (isAllTab) {
+      if (player.currentSong != null) {
+        addItem(
+          player.currentSong!,
+          'LANJUTKAN DENGAR',
+          player.queue.isNotEmpty ? player.queue : [player.currentSong!],
+        );
+      } else if (library.recentlyPlayed.isNotEmpty) {
+        addItem(
+          library.recentlyPlayed.first,
+          'TERAKHIR DIPUTAR',
+          library.recentlyPlayed,
+        );
+      }
+      if (_moodSongs.isNotEmpty) {
+        addItem(_moodSongs.first, 'PILIHAN EDITOR', _moodSongs);
+      }
+      if (_trendingIndo.isNotEmpty) {
+        addItem(_trendingIndo.first, 'TRENDING INDONESIA', _trendingIndo);
+      }
+      if (_trendingGlobal.isNotEmpty) {
+        addItem(_trendingGlobal.first, 'TOP GLOBAL', _trendingGlobal);
+      }
+    } else {
+      for (final s in _moodSongs.take(4)) {
+        addItem(s, 'MIX ${_selectedMood.toUpperCase()}', _moodSongs);
+      }
+    }
+    return items.take(4).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
@@ -103,50 +165,18 @@ class _HomeScreenState extends State<HomeScreen> {
     final theme = context.watch<ThemeProvider>();
     final accent = theme.accentColor;
     final isBrutal = theme.isNeoBrutalism;
-
+    final isIpod = theme.isClassicIpod;
     final isAllTab = _selectedMood == 'Semua';
 
-    // Build non-overlapping Quick Picks for 'Semua' tab (Recent + Favorites + Extra Charts, distinct from _moodSongs shelf)
-    final shelfIds = _moodSongs.take(8).map((s) => s.videoId).toSet();
-    final quickPicks = <ZunifySong>[];
-    if (isAllTab) {
-      final primaryPool = <ZunifySong>[
-        ...library.recentlyPlayed,
-        ...library.favorites,
-        ..._trendingIndo.skip(5),
-        ..._trendingGlobal.skip(5),
-      ];
-      final seenIds = <String>{};
-      for (final s in primaryPool) {
-        if (library.recentlyPlayed.any((r) => r.videoId == s.videoId) ||
-            library.favorites.any((f) => f.videoId == s.videoId) ||
-            !shelfIds.contains(s.videoId)) {
-          if (seenIds.add(s.videoId)) {
-            quickPicks.add(s);
-            if (quickPicks.length >= 4) break;
-          }
-        }
-      }
-    }
+    final heroItems = _buildHeroItems(
+      player: player,
+      library: library,
+      isAllTab: isAllTab,
+    );
 
-    final hasRecentOrPlaying =
-        player.currentSong != null || library.recentlyPlayed.isNotEmpty;
-    final ZunifySong? heroSong = isAllTab
-        ? (player.currentSong ??
-            (library.recentlyPlayed.isNotEmpty
-                ? library.recentlyPlayed.first
-                : (_moodSongs.isNotEmpty
-                    ? _moodSongs.first
-                    : (_trendingIndo.isNotEmpty ? _trendingIndo.first : null))))
-        : (_moodSongs.isNotEmpty ? _moodSongs.first : null);
-    final String heroBadgeLabel = isAllTab
-        ? (hasRecentOrPlaying ? 'LANJUTKAN DENGAR' : 'SOROTAN UTAMA')
-        : 'MIX $_selectedMood'.toUpperCase();
-    final List<ZunifySong> heroQueue = isAllTab && hasRecentOrPlaying
-        ? (library.recentlyPlayed.isNotEmpty
-            ? library.recentlyPlayed
-            : _moodSongs)
-        : (_moodSongs.isNotEmpty ? _moodSongs : _trendingIndo);
+    final curatedList = isAllTab
+        ? [..._trendingIndo.take(4), ..._trendingGlobal.take(3)]
+        : _moodSongs;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -160,218 +190,209 @@ class _HomeScreenState extends State<HomeScreen> {
             physics: const BouncingScrollPhysics(
               parent: AlwaysScrollableScrollPhysics(),
             ),
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 176),
+            padding: const EdgeInsets.only(top: 10, bottom: 168),
             children: [
-              // 1. Clean Top Header
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  LiquidGlassBox(
-                    width: 42,
-                    height: 42,
-                    borderRadius: 21,
-                    tintColor: accent,
-                    tintOpacity: isBrutal ? 0.65 : 0.22,
-                    rimIntensity: 0.48,
-                    alignment: Alignment.center,
-                    child: Text(
-                      library.profile.username.isNotEmpty
-                          ? library.profile.username[0].toUpperCase()
-                          : 'Z',
-                      style: GoogleFonts.plusJakartaSans(
-                        color:
-                            isBrutal ? const Color(0xFF111111) : Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800,
+              // 1. Editorial Magazine Header + 1-Tap Theme Studio Button
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'SELAMAT ${_getTimeGreeting()}',
+                            style: TextStyle(
+                              color: theme.accentText,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            library.profile.username,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: theme.textPrimary,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.9,
+                              height: 1.08,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getTimeGreeting(),
-                          style: TextStyle(
-                            color: theme.textMuted,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.1,
+                    // 1-Tap Theme Studio Shortcut (Top Right of Home!)
+                    IosGlassIconButton(
+                      icon: Icons.palette_outlined,
+                      size: 38,
+                      iconSize: 19,
+                      activeColor: accent,
+                      isActive: isIpod || isBrutal,
+                      tooltip: 'Studio Tema',
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ThemeStudioScreen(),
                           ),
-                        ),
-                        const SizedBox(height: 1),
-                        Text(
-                          library.profile.username,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: theme.textPrimary,
-                            fontSize: 21,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                            height: 1.15,
-                          ),
-                        ),
-                      ],
+                        );
+                      },
                     ),
-                  ),
-                  IosGlassPillButton(
-                    icon: Icons.auto_awesome_rounded,
-                    label: 'Wrapped',
-                    height: 36,
-                    activeColor: accent,
-                    isActive: true,
-                    onTap: () => _openWeeklyRapotModal(context),
-                  ),
-                  const SizedBox(width: 8),
-                  IosGlassIconButton(
-                    icon: player.offlineModeEnabled
-                        ? Icons.cloud_off_rounded
-                        : Icons.wifi_rounded,
-                    size: 36,
-                    iconSize: 17,
-                    activeColor: accent,
-                    isActive: player.offlineModeEnabled,
-                    tooltip: 'Mode Offline',
-                    onTap: () =>
-                        player.setOfflineMode(!player.offlineModeEnabled),
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    IosGlassIconButton(
+                      icon: Icons.auto_awesome_rounded,
+                      size: 38,
+                      iconSize: 19,
+                      activeColor: accent,
+                      isActive: false,
+                      tooltip: 'Wrapped Mingguan',
+                      onTap: () => _openWeeklyRapotModal(context),
+                    ),
+                    const SizedBox(width: 8),
+                    IosGlassIconButton(
+                      icon: player.offlineModeEnabled
+                          ? Icons.cloud_off_rounded
+                          : Icons.wifi_rounded,
+                      size: 38,
+                      iconSize: 18,
+                      activeColor: accent,
+                      isActive: player.offlineModeEnabled,
+                      tooltip: 'Mode Offline',
+                      onTap: () =>
+                          player.setOfflineMode(!player.offlineModeEnabled),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 18),
 
-              if (player.offlineModeEnabled) ...[
-                _buildOfflineList(library, player, theme, accent),
-              ] else ...[
-                // 2. Mood Filter Capsules
+              if (player.offlineModeEnabled)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: _buildOfflineList(library, player, theme, accent),
+                )
+              else ...[
+                // 2. Ultra-Clean Typographic Mood Tabs (Zero heavy boxes!)
                 SizedBox(
                   height: 36,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
                     itemCount: _moods.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, i) {
+                    separatorBuilder: (_, __) => const SizedBox(width: 18),
+                    itemBuilder: (_, i) {
                       final moodId = _moods[i]['id']!;
-                      final moodLabel = _moods[i]['label']!;
+                      final label = _moods[i]['label']!;
                       final selected = moodId == _selectedMood;
-                      return IosGlassPillButton(
-                        label: moodLabel,
-                        height: 35,
-                        padding: const EdgeInsets.symmetric(horizontal: 15),
-                        activeColor: accent,
-                        isActive: selected,
-                        fontSize: 12.2,
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
                         onTap: () => _selectMood(moodId),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              label,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: selected
+                                    ? theme.textPrimary
+                                    : theme.textMuted,
+                                fontSize: selected ? 15 : 14,
+                                fontWeight: selected
+                                    ? FontWeight.w900
+                                    : FontWeight.w600,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 220),
+                              height: 2.5,
+                              width: selected ? 20 : 0,
+                              decoration: BoxDecoration(
+                                color: accent,
+                                borderRadius: BorderRadius.circular(2),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     },
                   ),
                 ),
                 const SizedBox(height: 16),
 
-                // 3. Hero Spotlight Banner
-                if (heroSong != null) ...[
-                  _buildHeroFeaturedBanner(
-                    heroSong,
-                    heroQueue,
-                    heroBadgeLabel,
-                    player,
-                    theme,
-                    accent,
-                  ),
-                  const SizedBox(height: 20),
-                ],
-
-                // 4A. When a specific Mood is selected: Show dedicated Mood Tracklist cleanly without duplicate shelves
-                if (!isAllTab) ...[
-                  _sectionHeader(
-                    'Daftar Lagu $_selectedMood',
-                    theme: theme,
-                    onPlayAll: _moodSongs.isEmpty
-                        ? null
-                        : () => player.playSong(
-                              _moodSongs.first,
-                              customQueue: _moodSongs,
-                              contextName: 'Mix $_selectedMood',
-                            ),
-                    accent: accent,
-                  ),
-                  const SizedBox(height: 10),
-                  if (_isLoadingCharts)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 44),
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: theme.accentText,
-                        ),
-                      ),
-                    )
-                  else
-                    ..._moodSongs.asMap().entries.map(
-                          (entry) => ZunifySongTile(
-                            song: entry.value,
-                            queueContext: _moodSongs,
-                            contextName: 'Mix $_selectedMood',
-                            rank: entry.key + 1,
+                // 3. Swipeable Full-Bleed Editorial Hero Carousel
+                if (heroItems.isNotEmpty) ...[
+                  SizedBox(
+                    height: 214,
+                    child: PageView.builder(
+                      controller: _heroPageCtrl,
+                      itemCount: heroItems.length,
+                      onPageChanged: (i) => setState(() => _heroPage = i),
+                      itemBuilder: (_, i) {
+                        final item = heroItems[i];
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: _buildEditorialHeroCard(
+                            item: item,
+                            player: player,
+                            theme: theme,
+                            accent: accent,
                           ),
-                        ),
-                ] else ...[
-                  // 4B. Focus-First Minimalist Layout: Only 2 clean, spacious sections
-                  if (quickPicks.isNotEmpty) ...[
-                    _sectionHeader(
-                      library.recentlyPlayed.isNotEmpty
-                          ? 'Terakhir Diputar'
-                          : 'Putar Cepat',
-                      theme: theme,
-                      onPlayAll: () => player.playSong(
-                        quickPicks.first,
-                        customQueue: quickPicks,
-                        contextName: library.recentlyPlayed.isNotEmpty
-                            ? 'Terakhir Diputar'
-                            : 'Putar Cepat',
-                      ),
-                      accent: accent,
-                    ),
-                    const SizedBox(height: 10),
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: quickPicks.length,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        mainAxisSpacing: 10,
-                        crossAxisSpacing: 10,
-                        mainAxisExtent: 60,
-                      ),
-                      itemBuilder: (context, i) {
-                        final song = quickPicks[i];
-                        return _buildQuickPickTile(
-                          song,
-                          player,
-                          theme,
-                          accent,
                         );
                       },
                     ),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // 5. Horizontal Shelf: Pilihan Untukmu (Spacious & Clean)
-                  _sectionHeader(
-                    'Pilihan Untukmu',
-                    theme: theme,
-                    onPlayAll: _moodSongs.isEmpty
-                        ? null
-                        : () => player.playSong(
-                              _moodSongs.first,
-                              customQueue: _moodSongs,
-                              contextName: 'Pilihan Untukmu',
-                            ),
-                    accent: accent,
                   ),
-                  const SizedBox(height: 12),
+                  if (heroItems.length > 1) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        heroItems.length,
+                        (i) => AnimatedContainer(
+                          duration: const Duration(milliseconds: 220),
+                          margin: const EdgeInsets.symmetric(horizontal: 3),
+                          width: _heroPage == i ? 18 : 5,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: _heroPage == i
+                                ? accent
+                                : theme.textMuted.withOpacity(0.35),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 26),
+                ],
+
+                // 4. Clean Spacious Horizontal Cover Gallery (For 'Semua' tab)
+                if (isAllTab) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _editorialSectionHeader(
+                      title: 'Pilihan Hari Ini',
+                      subtitle: 'Kurasi musik sesuai selera',
+                      theme: theme,
+                      accent: accent,
+                      onPlayAll: _moodSongs.isEmpty
+                          ? null
+                          : () => player.playSong(
+                                _moodSongs.first,
+                                customQueue: _moodSongs,
+                                contextName: 'Pilihan Hari Ini',
+                              ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
                   if (_isLoadingCharts)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 36),
@@ -383,54 +404,75 @@ class _HomeScreenState extends State<HomeScreen> {
                     )
                   else
                     SizedBox(
-                      height: 206,
+                      height: 196,
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
-                        itemCount: _moodSongs.length,
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        itemCount: _moodSongs.take(10).length,
                         separatorBuilder: (_, __) => const SizedBox(width: 14),
-                        itemBuilder: (context, idx) {
-                          final song = _moodSongs[idx];
-                          return _squareSongCard(
-                            song,
-                            player,
-                            theme,
-                            accent,
-                          );
-                        },
-                      ),
-                    ),
-                  const SizedBox(height: 26),
-
-                  // 6. Sedang Ramai (Curated Top Hits — Clean Single List)
-                  _sectionHeader(
-                    'Sedang Ramai',
-                    theme: theme,
-                    onPlayAll: _trendingIndo.isEmpty
-                        ? null
-                        : () => player.playSong(
-                              _trendingIndo.first,
-                              customQueue: [
-                                ..._trendingIndo.take(4),
-                                ..._trendingGlobal.take(2),
-                              ],
-                              contextName: 'Sedang Ramai',
-                            ),
-                    accent: accent,
-                  ),
-                  const SizedBox(height: 10),
-                  ...[
-                    ..._trendingIndo.take(4),
-                    ..._trendingGlobal.take(2),
-                  ].asMap().entries.map(
-                        (entry) => ZunifySongTile(
-                          song: entry.value,
-                          queueContext: const [],
-                          contextName: 'Radio ${entry.value.title}',
-                          rank: entry.key + 1,
+                        itemBuilder: (_, idx) => _buildMinimalAlbumCard(
+                          _moodSongs[idx],
+                          player,
+                          theme,
+                          accent,
                         ),
                       ),
+                    ),
+                  const SizedBox(height: 28),
                 ],
+
+                // 5. Open Borderless Tracklist
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _editorialSectionHeader(
+                        title: isAllTab
+                            ? 'Sedang Ramai'
+                            : 'Daftar $_selectedMood',
+                        subtitle: isAllTab
+                            ? 'Lagu paling banyak diputar sekarang'
+                            : 'Langsung putar tanpa jeda',
+                        theme: theme,
+                        accent: accent,
+                        onPlayAll: curatedList.isEmpty
+                            ? null
+                            : () => player.playSong(
+                                  curatedList.first,
+                                  customQueue: curatedList,
+                                  contextName: isAllTab
+                                      ? 'Sedang Ramai'
+                                      : 'Mix $_selectedMood',
+                                ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (_isLoadingCharts && curatedList.isEmpty)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: theme.accentText,
+                            ),
+                          ),
+                        )
+                      else
+                        ...curatedList.asMap().entries.map(
+                              (entry) => ZunifySongTile(
+                                song: entry.value,
+                                queueContext: isAllTab
+                                    ? const []
+                                    : curatedList,
+                                contextName: isAllTab
+                                    ? 'Radio ${entry.value.title}'
+                                    : 'Mix $_selectedMood',
+                                rank: entry.key + 1,
+                              ),
+                            ),
+                    ],
+                  ),
+                ),
               ],
             ],
           ),
@@ -439,500 +481,247 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeroFeaturedBanner(
-    ZunifySong song,
-    List<ZunifySong> mixList,
-    String badgeLabel,
-    PlayerProvider player,
-    ThemeProvider theme,
-    Color accent,
-  ) {
+  Widget _buildEditorialHeroCard({
+    required _HeroEditorialItem item,
+    required PlayerProvider player,
+    required ThemeProvider theme,
+    required Color accent,
+  }) {
     final isBrutal = theme.isNeoBrutalism;
-    final queueToPlay = mixList.isNotEmpty ? mixList : [song];
-    return LiquidGlassBox(
-      borderRadius: 26,
-      padding: const EdgeInsets.all(15),
-      tintColor: accent,
-      tintOpacity: isBrutal ? 0.16 : 0.14,
-      rimIntensity: 0.44,
-      enableShadow: true,
-      onTap: () => player.playSong(
-        song,
-        customQueue: queueToPlay,
-        contextName: badgeLabel,
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            decoration: isBrutal
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: theme.brutalBorderColor,
-                      width: 2.2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: theme.brutalShadowColor,
-                        blurRadius: 0,
-                        offset: const Offset(3.0, 3.0),
-                      ),
-                    ],
-                  )
-                : BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.32),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
-                      ),
-                    ],
-                  ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(isBrutal ? 9.8 : 18),
-              child: CachedNetworkImage(
-                imageUrl: song.highResArtUrl,
-                width: 88,
-                height: 88,
-                memCacheWidth: 260,
-                fadeInDuration: const Duration(milliseconds: 140),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: 88,
-                  height: 88,
-                  color: theme.subtleFill,
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    color: theme.accentText,
-                    size: 30,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: isBrutal ? accent : accent.withOpacity(0.20),
-                    borderRadius: BorderRadius.circular(isBrutal ? 6 : 8),
-                    border: isBrutal
-                        ? Border.all(color: theme.brutalBorderColor, width: 1.5)
-                        : null,
-                  ),
-                  child: Text(
-                    badgeLabel,
-                    style: TextStyle(
-                      color: isBrutal ? const Color(0xFF111111) : accent,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.7,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  song.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.plusJakartaSans(
-                    color: theme.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  song.artist,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: theme.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 11),
-                Padding(
-                  padding: EdgeInsets.only(
-                    right: isBrutal ? 3 : 0,
-                    bottom: isBrutal ? 3 : 0,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: IosGlassPillButton(
-                          icon: Icons.play_arrow_rounded,
-                          label: 'Putar',
-                          height: 34,
-                          expand: true,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          activeColor: accent,
-                          isActive: true,
-                          fontSize: 12,
-                          onTap: () => player.playSong(
-                            song,
-                            customQueue: queueToPlay,
-                            contextName: badgeLabel,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: IosGlassPillButton(
-                          icon: Icons.shuffle_rounded,
-                          label: 'Acak',
-                          height: 34,
-                          expand: true,
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          fontSize: 12,
-                          onTap: () {
-                            final shuffled = List<ZunifySong>.from(queueToPlay)
-                              ..shuffle();
-                            player.playSong(
-                              shuffled.first,
-                              customQueue: shuffled,
-                              contextName: badgeLabel,
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    final isIpod = theme.isClassicIpod;
+    final radius = isBrutal ? 18.0 : (isIpod ? 18.0 : 26.0);
+    final isPlayingThis =
+        player.currentSong?.videoId == item.song.videoId && player.isPlaying;
 
-  Widget _buildQuickPickTile(
-    ZunifySong song,
-    PlayerProvider player,
-    ThemeProvider theme,
-    Color accent,
-  ) {
-    final isCurrent = player.currentSong?.videoId == song.videoId;
-    final isBrutal = theme.isNeoBrutalism;
-    return LiquidGlassBox(
-      borderRadius: 16,
-      padding: const EdgeInsets.all(5),
-      tintColor: isCurrent ? accent : Colors.white,
-      tintOpacity: isCurrent ? 0.22 : 0.08,
-      rimIntensity: isCurrent ? 0.46 : 0.30,
+    return IosSpringButton(
+      scaleDown: 0.97,
+      borderRadius: radius,
       onTap: () => player.playSong(
-        song,
-        customQueue: const [],
-        contextName: 'Radio ${song.title}',
+        item.song,
+        customQueue: item.queue,
+        contextName: item.kicker,
       ),
-      child: Row(
-        children: [
-          Container(
-            decoration: isBrutal
-                ? BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: theme.brutalBorderColor,
-                      width: 1.5,
-                    ),
-                  )
-                : null,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(isBrutal ? 6.5 : 11),
-              child: CachedNetworkImage(
-                imageUrl: song.thumbnailUrl,
-                width: 46,
-                height: 46,
-                memCacheWidth: 150,
-                fadeInDuration: const Duration(milliseconds: 120),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Container(
-                  width: 46,
-                  height: 46,
-                  color: theme.subtleFill,
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    color: theme.accentText,
-                    size: 18,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          border: isBrutal
+              ? Border.all(color: theme.brutalBorderColor, width: 2.0)
+              : Border.all(
+                  color: Colors.white.withOpacity(0.18),
+                  width: 1.0,
+                ),
+          boxShadow: isBrutal
+              ? [
+                  BoxShadow(
+                    color: theme.brutalShadowColor,
+                    offset: const Offset(3.5, 3.5),
                   ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.28),
+                    blurRadius: 18,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Full-Bleed Background Artwork
+            CachedNetworkImage(
+              imageUrl: item.song.highResArtUrl,
+              fit: BoxFit.cover,
+              memCacheWidth: 520,
+              errorWidget: (_, __, ___) => ColoredBox(color: theme.cardBgColor),
+            ),
+            // Smooth Editorial Dark Scrim for High-Contrast Typography
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.15),
+                    Colors.black.withOpacity(0.42),
+                    Colors.black.withOpacity(0.86),
+                  ],
+                  stops: const [0.0, 0.45, 1.0],
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 6),
+            Padding(
+              padding: const EdgeInsets.all(18),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isCurrent ? theme.accentText : theme.textPrimary,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 12.2,
-                      letterSpacing: -0.15,
+                  // Top Editorial Tag
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isBrutal ? accent : Colors.black.withOpacity(0.45),
+                      borderRadius: BorderRadius.circular(8),
+                      border: isBrutal
+                          ? Border.all(color: const Color(0xFF111111), width: 1.4)
+                          : Border.all(color: Colors.white24),
+                    ),
+                    child: Text(
+                      item.kicker,
+                      style: TextStyle(
+                        color: isBrutal ? const Color(0xFF111111) : Colors.white,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.9,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: theme.textMuted,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 10.6,
-                    ),
+                  const Spacer(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              item.song.title,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.plusJakartaSans(
+                                color: Colors.white,
+                                fontSize: 21,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.5,
+                                height: 1.12,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              item.song.artist,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.80),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: accent,
+                          shape: BoxShape.circle,
+                          border: isBrutal
+                              ? Border.all(
+                                  color: const Color(0xFF111111),
+                                  width: 1.8,
+                                )
+                              : null,
+                        ),
+                        child: Icon(
+                          isPlayingThis
+                              ? Icons.pause_rounded
+                              : Icons.play_arrow_rounded,
+                          color: const Color(0xFF111111),
+                          size: 28,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          if (isCurrent)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: MiniAudioSpectrumBars(
-                isPlaying: player.isPlaying,
-                color: theme.accentText,
-                height: 12,
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildOfflineList(
-    LibraryProvider library,
-    PlayerProvider player,
-    ThemeProvider theme,
-    Color accent,
-  ) {
-    final songs = library.downloadedSongs;
-    if (songs.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 80),
-        child: Center(
-          child: Text(
-            'Belum ada lagu tersimpan untuk mode offline.',
-            style: TextStyle(color: theme.textMuted),
-          ),
-        ),
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionHeader(
-          'Tersimpan Offline (${songs.length})',
-          theme: theme,
-          onPlayAll: () => player.playSong(
-            songs.first,
-            customQueue: songs,
-            contextName: 'Tersimpan Offline',
-          ),
-          accent: accent,
-        ),
-        const SizedBox(height: 8),
-        ...songs.map(
-          (s) => ZunifySongTile(song: s, queueContext: songs),
-        ),
-      ],
-    );
-  }
-
-  Widget _sectionHeader(
-    String title, {
-    required ThemeProvider theme,
-    VoidCallback? onPlayAll,
-    required Color accent,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.plusJakartaSans(
-              color: theme.textPrimary,
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
-          ),
-        ),
-        if (onPlayAll != null)
-          IosGlassPillButton(
-            icon: Icons.play_arrow_rounded,
-            label: 'Putar Semua',
-            height: 30,
-            padding: const EdgeInsets.symmetric(horizontal: 11),
-            activeColor: accent,
-            isActive: true,
-            fontSize: 11.2,
-            onTap: onPlayAll,
-          ),
-      ],
-    );
-  }
-
-  Widget _squareSongCard(
+  Widget _buildMinimalAlbumCard(
     ZunifySong song,
     PlayerProvider player,
     ThemeProvider theme,
     Color accent,
   ) {
-    final isCurrent = player.currentSong?.videoId == song.videoId;
     final isBrutal = theme.isNeoBrutalism;
+    final isIpod = theme.isClassicIpod;
+    final isPlaying = player.currentSong?.videoId == song.videoId;
+
     return IosSpringButton(
-      scaleDown: 0.92,
-      borderRadius: isBrutal ? 13 : 18,
+      scaleDown: 0.96,
+      borderRadius: 16,
       onTap: () => player.playSong(
         song,
         customQueue: const [],
         contextName: 'Radio ${song.title}',
       ),
-      onLongPress: () => showSongActionSheet(context, song: song),
       child: SizedBox(
-        width: 144,
+        width: 138,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Stack(
-              children: [
-                Container(
-                  decoration: isBrutal
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(13),
-                          border: Border.all(
-                            color: isCurrent ? accent : theme.brutalBorderColor,
-                            width: 2.2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: theme.brutalShadowColor,
-                              blurRadius: 0,
-                              offset: const Offset(3.5, 3.5),
-                            ),
-                          ],
-                        )
-                      : BoxDecoration(
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: isCurrent
-                                ? accent.withOpacity(0.65)
-                                : Colors.white.withOpacity(0.14),
-                            width: 1.0,
-                          ),
-                        ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(isBrutal ? 10.8 : 17),
-                    child: CachedNetworkImage(
-                      imageUrl: song.highResArtUrl,
-                      width: 144,
-                      height: 144,
-                      memCacheWidth: 360,
-                      fadeInDuration: const Duration(milliseconds: 140),
-                      fit: BoxFit.cover,
-                      errorWidget: (_, __, ___) => Container(
-                        width: 144,
-                        height: 144,
-                        color: theme.subtleFill,
-                        child: Icon(
-                          Icons.music_note_rounded,
-                          color: theme.accentText,
-                        ),
-                      ),
+            Container(
+              width: 138,
+              height: 138,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(isIpod ? 10 : 16),
+                border: isBrutal
+                    ? Border.all(color: theme.brutalBorderColor, width: 1.6)
+                    : null,
+                boxShadow: [
+                  if (isBrutal)
+                    BoxShadow(
+                      color: theme.brutalShadowColor.withOpacity(0.85),
+                      offset: const Offset(2.5, 2.5),
+                    )
+                  else
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
                     ),
-                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: CachedNetworkImage(
+                imageUrl: song.highResArtUrl,
+                fit: BoxFit.cover,
+                memCacheWidth: 280,
+                errorWidget: (_, __, ___) => ColoredBox(
+                  color: theme.cardBgColor,
+                  child: Icon(Icons.music_note_rounded, color: accent),
                 ),
-                Positioned(
-                  right: 8,
-                  bottom: 8,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: isBrutal
-                        ? BoxDecoration(
-                            color: isCurrent ? accent : theme.cardBgColor,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: theme.brutalBorderColor,
-                              width: 1.8,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: theme.brutalShadowColor,
-                                blurRadius: 0,
-                                offset: const Offset(1.8, 1.8),
-                              ),
-                            ],
-                          )
-                        : BoxDecoration(
-                            color: isCurrent
-                                ? accent
-                                : Colors.black.withOpacity(0.54),
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.28),
-                              width: 0.8,
-                            ),
-                          ),
-                    alignment: Alignment.center,
-                    child: isCurrent
-                        ? MiniAudioSpectrumBars(
-                            isPlaying: player.isPlaying,
-                            color: const Color(0xFF111111),
-                            height: 11,
-                          )
-                        : Icon(
-                            Icons.play_arrow_rounded,
-                            color: isBrutal ? theme.textPrimary : Colors.white,
-                            size: 18,
-                          ),
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 9),
             Text(
               song.title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: isCurrent ? theme.accentText : theme.textPrimary,
+              style: GoogleFonts.plusJakartaSans(
+                color: isPlaying ? theme.accentText : theme.textPrimary,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w800,
-                fontSize: 13.2,
-                letterSpacing: -0.15,
+                letterSpacing: -0.2,
               ),
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1.5),
             Text(
               song.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: theme.textSecondary,
+                color: theme.textMuted,
                 fontSize: 11.5,
                 fontWeight: FontWeight.w600,
               ),
@@ -942,4 +731,128 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+
+  Widget _editorialSectionHeader({
+    required String title,
+    required String subtitle,
+    required ThemeProvider theme,
+    required Color accent,
+    VoidCallback? onPlayAll,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.plusJakartaSans(
+                  color: theme.textPrimary,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 11.8,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (onPlayAll != null)
+          GestureDetector(
+            onTap: onPlayAll,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Text(
+                'Putar Semua',
+                style: TextStyle(
+                  color: theme.accentText,
+                  fontSize: 12.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildOfflineList(
+    LibraryProvider library,
+    PlayerProvider player,
+    ThemeProvider theme,
+    Color accent,
+  ) {
+    final downloaded = library.downloadedSongs;
+    if (downloaded.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 64),
+        child: Column(
+          children: [
+            Icon(Icons.cloud_off_rounded, color: theme.textMuted, size: 46),
+            const SizedBox(height: 12),
+            Text(
+              'Mode Offline Aktif',
+              style: GoogleFonts.plusJakartaSans(
+                color: theme.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Belum ada lagu tersimpan. Matikan Mode Offline untuk mengunduh lagu favoritmu.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: theme.textSecondary, fontSize: 13),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _editorialSectionHeader(
+          title: 'Vault Offline (${downloaded.length})',
+          subtitle: 'Siap diputar tanpa koneksi internet',
+          theme: theme,
+          accent: accent,
+          onPlayAll: () => player.playSong(
+            downloaded.first,
+            customQueue: downloaded,
+            contextName: 'Vault Offline',
+          ),
+        ),
+        const SizedBox(height: 12),
+        ...downloaded.map(
+          (song) => ZunifySongTile(
+            song: song,
+            queueContext: downloaded,
+            contextName: 'Vault Offline',
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroEditorialItem {
+  final ZunifySong song;
+  final String kicker;
+  final List<ZunifySong> queue;
+
+  const _HeroEditorialItem({
+    required this.song,
+    required this.kicker,
+    required this.queue,
+  });
 }

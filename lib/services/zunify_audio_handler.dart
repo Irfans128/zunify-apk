@@ -10,6 +10,7 @@ import 'package:just_audio/just_audio.dart';
 class ZunifyAudioHandler extends BaseAudioHandler with SeekHandler {
   final AudioPlayer player = AudioPlayer();
 
+  AsyncCallback? onPlayCallback;
   AsyncCallback? onSkipToNextCallback;
   AsyncCallback? onSkipToPreviousCallback;
 
@@ -66,7 +67,13 @@ class ZunifyAudioHandler extends BaseAudioHandler with SeekHandler {
   }
 
   @override
-  Future<void> play() => player.play();
+  Future<void> play() async {
+    if (onPlayCallback != null) {
+      await onPlayCallback!();
+    } else {
+      await player.play();
+    }
+  }
 
   @override
   Future<void> pause() => player.pause();

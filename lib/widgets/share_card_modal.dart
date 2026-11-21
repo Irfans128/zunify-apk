@@ -705,6 +705,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                         imageUrl: song.highResArtUrl,
                         width: 52,
                         height: 52,
+                        memCacheWidth: 180,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(
                           width: 52,
@@ -945,6 +946,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     imageUrl: song.highResArtUrl,
                     width: 44,
                     height: 44,
+                    memCacheWidth: 160,
                     fit: BoxFit.cover,
                     errorWidget: (_, __, ___) => Container(
                       width: 44,
@@ -1037,6 +1039,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                     imageUrl: song.highResArtUrl,
                     height: 176,
                     width: double.infinity,
+                    memCacheWidth: 540,
                     fit: BoxFit.cover,
                   ),
                   Container(
@@ -1101,6 +1104,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                 imageFilter: ui.ImageFilter.blur(sigmaX: 32, sigmaY: 32),
                 child: CachedNetworkImage(
                   imageUrl: song.highResArtUrl,
+                  memCacheWidth: 540,
                   fit: BoxFit.cover,
                 ),
               ),
@@ -1201,6 +1205,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
                         imageUrl: song.highResArtUrl,
                         width: 54,
                         height: 54,
+                        memCacheWidth: 180,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) => Container(
                           width: 54,

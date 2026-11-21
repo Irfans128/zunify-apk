@@ -219,14 +219,14 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           top: BorderSide(
             color: isBrutal
                 ? theme.brutalBorderColor
-                : Colors.white.withOpacity(0.14),
-            width: isBrutal ? 2.8 : 1.0,
+                : theme.dividerColor,
+            width: isBrutal ? 2.0 : 1.0,
           ),
           left: isBrutal
-              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+              ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
               : BorderSide.none,
           right: isBrutal
-              ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+              ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
               : BorderSide.none,
         ),
       ),
@@ -264,20 +264,23 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
+                              'REPLAY • ${rapot.weekId.toUpperCase()}',
+                              style: TextStyle(
+                                color: theme.accentText,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.3,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
                               'Zunify Wrapped',
                               style: GoogleFonts.plusJakartaSans(
                                 color: theme.textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.4,
-                              ),
-                            ),
-                            Text(
-                              'Replay Mingguan • ${rapot.weekId}',
-                              style: TextStyle(
-                                color: theme.textMuted,
-                                fontSize: 11.2,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 23,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.6,
+                                height: 1.08,
                               ),
                             ),
                           ],

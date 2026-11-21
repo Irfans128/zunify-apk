@@ -70,7 +70,9 @@ void showImportPlaylistSheet(BuildContext context) {
                       alignment: Alignment.center,
                       child: Icon(
                         Icons.playlist_add_check_circle_rounded,
-                        color: isBrutal ? const Color(0xFF111111) : accent,
+                        color: theme.isLightCanvas
+                            ? const Color(0xFF111111)
+                            : accent,
                         size: 22,
                       ),
                     ),
@@ -384,7 +386,9 @@ void showImportPlaylistSheet(BuildContext context) {
         },
       );
     },
-  );
+  ).whenComplete(() {
+    Future.delayed(const Duration(milliseconds: 350), urlController.dispose);
+  });
 }
 
 class SearchScreen extends StatefulWidget {
@@ -1040,28 +1044,44 @@ class _SearchScreenState extends State<SearchScreen> {
       body: SafeArea(
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Clean Header + Single Import Playlist Action (No Duplicate Mic Pill)
+              // Editorial Header + Single Import Playlist Action
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Text(
-                    'Cari',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: theme.textPrimary,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.6,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'JELAJAH',
+                        style: TextStyle(
+                          color: theme.accentText,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        'Cari',
+                        style: GoogleFonts.plusJakartaSans(
+                          color: theme.textPrimary,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.8,
+                          height: 1.08,
+                        ),
+                      ),
+                    ],
                   ),
                   IosGlassPillButton(
                     icon: Icons.add_link_rounded,
-                    label: 'Import Playlist',
-                    height: 34,
+                    label: 'Import',
+                    height: 36,
                     padding: const EdgeInsets.symmetric(horizontal: 13),
                     activeColor: accent,
                     isActive: true,
@@ -1069,7 +1089,7 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
               // Unified Search Input + Integrated YouTube-Style Voice Mic Button
               Row(

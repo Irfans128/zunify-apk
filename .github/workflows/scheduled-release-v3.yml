@@ -27,10 +27,13 @@ jobs:
           git push origin "v3.0.0" --force
 
       - name: Send 1x Zidny Birthday + Update v3.0.0 FCM Push Notification
-        if: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON != '' }}
         env:
           SA_JSON: ${{ secrets.FCM_SERVICE_ACCOUNT_JSON }}
         run: |
+          if [ -z "$SA_JSON" ]; then
+            echo "FCM_SERVICE_ACCOUNT_JSON secret is not set; skipping FCM push."
+            exit 0
+          fi
           node -e '
             const crypto = require("crypto");
             const sa = JSON.parse(process.env.SA_JSON);
@@ -65,7 +68,7 @@ jobs:
                     notification: {
                       title: "🎉 Selamat Ulang Tahun, Zidny! + Zunify v3.0.0",
                       body: "Happy Birthday Zidny dari Fannz! Update Zunify v3.0.0 (Tema Classic iPod, Spotify Resume & ZunifyG) sudah rilis!",
-                      image: "https://raw.githubusercontent.com/Irfans128/zunify-apk/dev/v3-and-zunifyg/assets/images/zidny_1.jpg"
+                      image: "https://raw.githubusercontent.com/Irfans128/zunify-apk/main/assets/images/zidny_notif_banner.jpg"
                     },
                     android: {
                       priority: "high",

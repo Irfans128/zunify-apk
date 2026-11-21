@@ -10,6 +10,7 @@ import '../widgets/equalizer_sheet.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/qris_donation_sheet.dart';
 import '../widgets/update_sheet.dart';
+import 'theme_studio_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -31,7 +32,7 @@ class SettingsScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(isBrutal ? 15 : 22),
           side: isBrutal
               ? BorderSide(color: theme.brutalBorderColor, width: 2.4)
-              : BorderSide(color: Colors.white.withOpacity(0.10)),
+              : BorderSide(color: theme.dividerColor),
         ),
         title: Text(
           'Ubah Nama',
@@ -98,7 +99,9 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
-    );
+    ).whenComplete(() {
+      Future.delayed(const Duration(milliseconds: 350), nameCtrl.dispose);
+    });
   }
 
   @override
@@ -116,15 +119,26 @@ class SettingsScreen extends StatelessWidget {
         bottom: false,
         child: ListView(
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(18, 12, 18, 215),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 196),
           children: [
+            Text(
+              'KONTROL',
+              style: TextStyle(
+                color: theme.accentText,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.4,
+              ),
+            ),
+            const SizedBox(height: 1),
             Text(
               'Pengaturan',
               style: GoogleFonts.plusJakartaSans(
                 color: theme.textPrimary,
-                fontSize: 26,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.6,
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.8,
+                height: 1.08,
               ),
             ),
             const SizedBox(height: 16),
@@ -208,37 +222,101 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // 2. 3-Theme Selector: Liquid Glass, Neo-Brutalism, Classic iPod
-            _sectionLabel('Tema Aplikasi (3 Gaya)', theme),
+            // 2. Prominent Entry to Dedicated Full-Screen "Studio Tema" (No cut-off horizontal strip!)
+            _sectionLabel('Tampilan & Tema', theme),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 112,
-              child: ListView(
-                scrollDirection: Axis.horizontal,
+            LiquidGlassBox(
+              borderRadius: 20,
+              padding: const EdgeInsets.all(14),
+              tintColor: accent,
+              tintOpacity: isBrutal ? 0.16 : 0.10,
+              rimIntensity: 0.42,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ThemeStudioScreen()),
+                );
+              },
+              child: Row(
                 children: [
-                  SizedBox(
-                    width: 152,
-                    child: _buildLiquidGlassThemePreviewCard(
-                      selected: !theme.isNeoBrutalism && !theme.isClassicIpod,
-                      accent: accent,
-                      onTap: () => theme.setUiThemeMode('liquid_glass'),
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(isBrutal ? 0.90 : 0.20),
+                      borderRadius: BorderRadius.circular(13),
+                      border: isBrutal
+                          ? Border.all(color: theme.brutalBorderColor, width: 1.6)
+                          : null,
+                    ),
+                    child: Icon(
+                      theme.isClassicIpod
+                          ? Icons.radio_button_checked_rounded
+                          : (theme.isNeoBrutalism
+                              ? Icons.auto_awesome_mosaic_rounded
+                              : Icons.blur_on_rounded),
+                      color: isBrutal ? const Color(0xFF111111) : accent,
+                      size: 24,
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 152,
-                    child: _buildNeoBrutalismThemePreviewCard(
-                      selected: theme.isNeoBrutalism,
-                      onTap: () => theme.setUiThemeMode('neo_brutalism'),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              'Studio Tema',
+                              style: GoogleFonts.plusJakartaSans(
+                                color: theme.textPrimary,
+                                fontSize: 15.5,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: accent.withOpacity(0.18),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                theme.isClassicIpod
+                                    ? 'Classic iPod'
+                                    : (theme.isNeoBrutalism
+                                        ? 'Neo-Brutalism'
+                                        : 'Liquid Glass'),
+                                style: TextStyle(
+                                  color: theme.accentText,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          'Liquid Glass • Neo-Brutalism • Classic iPod & Warna',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontSize: 11.8,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 152,
-                    child: _buildClassicIpodThemePreviewCard(
-                      selected: theme.isClassicIpod,
-                      onTap: () => theme.setUiThemeMode('classic_ipod'),
-                    ),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    color: theme.textMuted,
+                    size: 16,
                   ),
                 ],
               ),
@@ -626,301 +704,6 @@ class SettingsScreen extends StatelessWidget {
                     ),
                   ],
                 ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Visual Preview Card for iOS Liquid Glass Theme
-  Widget _buildLiquidGlassThemePreviewCard({
-    required bool selected,
-    required Color accent,
-    required VoidCallback onTap,
-  }) {
-    const glassAccent = Color(0xFF5EEAD4);
-    return IosSpringButton(
-      onTap: onTap,
-      borderRadius: 20,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF1A2238),
-              Color(0xFF0D111E),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected
-                ? glassAccent
-                : Colors.white.withOpacity(0.22),
-            width: selected ? 2.0 : 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: selected
-                  ? glassAccent.withOpacity(0.26)
-                  : Colors.black.withOpacity(0.18),
-              blurRadius: selected ? 18 : 10,
-              offset: const Offset(0, 6),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.white.withOpacity(0.24),
-                        glassAccent.withOpacity(0.28),
-                      ],
-                    ),
-                    borderRadius: BorderRadius.circular(11),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.35),
-                    ),
-                  ),
-                  child: const Icon(
-                    Icons.blur_on_rounded,
-                    size: 19,
-                    color: Colors.white,
-                  ),
-                ),
-                if (selected)
-                  const Icon(
-                    Icons.check_circle_rounded,
-                    color: glassAccent,
-                    size: 20,
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Liquid Glass',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.w800,
-                fontSize: 14.5,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Transparan & Blur',
-              style: TextStyle(
-                color: selected ? glassAccent : Colors.white60,
-                fontWeight: FontWeight.w600,
-                fontSize: 11.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Authentic Visual Preview Card for Neo-Brutalism Theme (Cream Paper + Mustard + Solid Black Border & Hard Shadow)
-  Widget _buildNeoBrutalismThemePreviewCard({
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    const brutalCream = Color(0xFFFAF4E6);
-    const brutalMustard = Color(0xFFFAAE2B);
-    const brutalInk = Color(0xFF111111);
-
-    return IosSpringButton(
-      onTap: onTap,
-      borderRadius: 13,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: brutalCream,
-          borderRadius: BorderRadius.circular(13),
-          border: Border.all(
-            color: brutalInk,
-            width: selected ? 2.6 : 2.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: brutalInk,
-              blurRadius: 0,
-              offset: Offset(selected ? 4.5 : 3.2, selected ? 4.5 : 3.2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: brutalMustard,
-                    borderRadius: BorderRadius.circular(9),
-                    border: Border.all(color: brutalInk, width: 1.8),
-                  ),
-                  child: const Icon(
-                    Icons.bolt_rounded,
-                    size: 19,
-                    color: brutalInk,
-                  ),
-                ),
-                if (selected)
-                  Container(
-                    padding: const EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: brutalMustard,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: brutalInk, width: 1.6),
-                    ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      color: brutalInk,
-                      size: 13,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Neo-Brutalism',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: brutalInk,
-                fontWeight: FontWeight.w900,
-                fontSize: 14.5,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Krem & Garis Tegas',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: brutalInk.withOpacity(0.72),
-                fontWeight: FontWeight.w700,
-                fontSize: 11.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Visual Preview Card for Classic iPod Retro Theme
-  Widget _buildClassicIpodThemePreviewCard({
-    required bool selected,
-    required VoidCallback onTap,
-  }) {
-    const ipodSilver = Color(0xFFE7EAEE);
-    const ipodInk = Color(0xFF1E293B);
-    const ipodBlue = Color(0xFF2563EB);
-    return IosSpringButton(
-      onTap: onTap,
-      borderRadius: 16,
-      child: Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFFF3F5F8), ipodSilver],
-          ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: selected ? ipodBlue : const Color(0xFFCBD5E1),
-            width: selected ? 2.2 : 1.2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.10),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 24,
-                  height: 24,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: const Color(0xFF94A3B8), width: 1.4),
-                  ),
-                  child: Center(
-                    child: Container(
-                      width: 8,
-                      height: 8,
-                      decoration: const BoxDecoration(
-                        color: ipodBlue,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                if (selected)
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: const BoxDecoration(
-                      color: ipodBlue,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(
-                      Icons.check_rounded,
-                      color: Colors.white,
-                      size: 13,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Classic iPod',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: ipodInk,
-                fontWeight: FontWeight.w800,
-                fontSize: 14.5,
-                letterSpacing: -0.2,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              'Click Wheel & LCD',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: ipodInk.withOpacity(0.68),
-                fontWeight: FontWeight.w600,
-                fontSize: 11.2,
               ),
             ),
           ],

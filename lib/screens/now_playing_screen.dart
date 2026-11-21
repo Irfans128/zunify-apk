@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../models/lyric_model.dart';
@@ -390,66 +391,54 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               builder: (context, constraints) {
                                 final availableForArt = math
                                     .min(
-                                      constraints.maxWidth - 20,
-                                      constraints.maxHeight - 104,
+                                      constraints.maxWidth - 4,
+                                      constraints.maxHeight - 16,
                                     )
-                                    .clamp(160.0, 294.0);
-                                return Column(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceEvenly,
-                                  children: [
-                                    Stack(
-                                      alignment: Alignment.topRight,
-                                      children: [
-                                        theme.playerCoverStyle == 'vinyl'
-                                            ? VinylDiscWidget(
-                                                imageUrl: song.highResArtUrl,
-                                                localImagePath:
-                                                    song.localArtPath,
-                                                isPlaying: player.isPlaying,
-                                                accentColor: accent,
-                                                size: availableForArt,
-                                              )
-                                            : _buildModern3DAlbumArtwork(
-                                                imageUrl: song.highResArtUrl,
-                                                isPlaying: player.isPlaying,
-                                                accent: accent,
-                                                ambient: ambient,
-                                                theme: theme,
-                                                size: availableForArt,
-                                              ),
-                                        Positioned(
-                                          right: 8,
-                                          top: 8,
-                                          child: IosGlassIconButton(
-                                            icon: theme.playerCoverStyle ==
-                                                    'vinyl'
-                                                ? Icons.crop_square_rounded
-                                                : Icons.album_rounded,
-                                            size: 32,
-                                            iconSize: 15,
-                                            tooltip:
-                                                theme.playerCoverStyle == 'vinyl'
-                                                    ? 'Mode Sampul'
-                                                    : 'Mode Piringan',
-                                            onTap: () =>
-                                                theme.setPlayerCoverStyle(
-                                              theme.playerCoverStyle == 'vinyl'
-                                                  ? 'artwork'
-                                                  : 'vinyl',
+                                    .clamp(220.0, 344.0);
+                                return Center(
+                                  child: Stack(
+                                    alignment: Alignment.topRight,
+                                    children: [
+                                      theme.playerCoverStyle == 'vinyl'
+                                          ? VinylDiscWidget(
+                                              imageUrl: song.highResArtUrl,
+                                              localImagePath: song.localArtPath,
+                                              isPlaying: player.isPlaying,
+                                              accentColor: accent,
+                                              size: availableForArt,
+                                            )
+                                          : _buildModern3DAlbumArtwork(
+                                              imageUrl: song.highResArtUrl,
+                                              isPlaying: player.isPlaying,
+                                              accent: accent,
+                                              ambient: ambient,
+                                              theme: theme,
+                                              size: availableForArt,
                                             ),
+                                      Positioned(
+                                        right: 10,
+                                        top: 10,
+                                        child: IosGlassIconButton(
+                                          icon: theme.playerCoverStyle ==
+                                                  'vinyl'
+                                              ? Icons.crop_square_rounded
+                                              : Icons.album_rounded,
+                                          size: 34,
+                                          iconSize: 16,
+                                          tooltip:
+                                              theme.playerCoverStyle == 'vinyl'
+                                                  ? 'Mode Sampul'
+                                                  : 'Mode Piringan',
+                                          onTap: () =>
+                                              theme.setPlayerCoverStyle(
+                                            theme.playerCoverStyle == 'vinyl'
+                                                ? 'artwork'
+                                                : 'vinyl',
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                    _buildLiveLyricsGlassCard(
-                                      player,
-                                      theme,
-                                      accent,
-                                      song.videoId,
-                                      totalLyricLines,
-                                    ),
-                                  ],
+                                      ),
+                                    ],
+                                  ),
                                 );
                               },
                             ),
@@ -459,6 +448,15 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
 
                 SizedBox(height: 8 * theme.playerSpacingFactor),
 
+                if (_showLyricsView)
+                  _buildFullscreenLyricsBottomBar(
+                    context: context,
+                    song: song,
+                    player: player,
+                    theme: theme,
+                    accent: accent,
+                  )
+                else ...[
                 // Song Title, Artist & Quick Actions (Share + Favorite)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -820,8 +818,9 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
                 const SizedBox(height: 10),
 
-                // Logical 5-Slot Bottom Utility Dock: [Tempo | Equalizer | Timer | Unduh | Antrean]
+                // Logical 2-Slot Bottom Utility Dock: [Alat & Audio | Antrean]
                 utilityDock,
+                ],
               ],
             ),
           ),
@@ -830,6 +829,254 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
+  /// Whisper-thin bottom playback bar shown in Fullscreen Lyrics mode (85% pure lyrics!)
+  Widget _buildFullscreenLyricsBottomBar({
+    required BuildContext context,
+    required dynamic song,
+    required PlayerProvider player,
+    required ThemeProvider theme,
+    required Color accent,
+  }) {
+    final lyrics = player.currentLyrics;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        StreamBuilder<Duration>(
+          stream: player.audioPlayer.positionStream,
+          builder: (_, snap) {
+            final pos = snap.data ?? player.position;
+            final totalMs = player.duration.inMilliseconds;
+            final frac =
+                totalMs > 0 ? (pos.inMilliseconds / totalMs).clamp(0.0, 1.0) : 0.0;
+            return ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: frac,
+                minHeight: 3,
+                backgroundColor: theme.dividerColor,
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: CachedNetworkImage(
+                imageUrl: song.thumbnailUrl,
+                width: 38,
+                height: 38,
+                memCacheWidth: 96,
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => const SizedBox(width: 38, height: 38),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    song.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.plusJakartaSans(
+                      color: theme.textPrimary,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  Text(
+                    song.artist,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: theme.textSecondary,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (lyrics != null && lyrics.shouldShowTranslation) ...[
+              IosGlassIconButton(
+                icon: Icons.translate_rounded,
+                size: 36,
+                iconSize: 17,
+                activeColor: accent,
+                isActive: player.showTranslation,
+                tooltip: 'Terjemahan Indonesia',
+                onTap: () => player.toggleTranslationDisplay(),
+              ),
+              const SizedBox(width: 8),
+            ],
+            IosGlassIconButton(
+              icon: Icons.tune_rounded,
+              size: 36,
+              iconSize: 17,
+              activeColor: accent,
+              tooltip: 'Pengaturan Lirik',
+              onTap: () => _showLyricsSettingsSheet(context, player, theme, accent),
+            ),
+            const SizedBox(width: 8),
+            IosSpringButton(
+              onTap: () => player.togglePlayPause(),
+              borderRadius: 20,
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: accent,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  player.isPlaying
+                      ? Icons.pause_rounded
+                      : Icons.play_arrow_rounded,
+                  color: const Color(0xFF111111),
+                  size: 24,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  void _showLyricsSettingsSheet(
+    BuildContext context,
+    PlayerProvider player,
+    ThemeProvider theme,
+    Color accent,
+  ) {
+    final lyrics = player.currentLyrics;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Consumer2<PlayerProvider, ThemeProvider>(
+        builder: (_, p, t, __) => ZunifySheetContainer(
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 38,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: t.dividerColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Pengaturan Lirik',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: t.textPrimary,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 14),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Icon(Icons.cloud_done_rounded, color: t.accentText),
+                  title: Text(
+                    'Sumber Lirik',
+                    style: TextStyle(
+                      color: t.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    lyrics?.sourceName ?? 'Otomatis',
+                    style: TextStyle(color: t.textSecondary, fontSize: 12),
+                  ),
+                  trailing: Icon(
+                    Icons.chevron_right_rounded,
+                    color: t.textMuted,
+                  ),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showLyricsProviderSheet(context, p);
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: accent,
+                  title: Text(
+                    'Rata Tengah',
+                    style: TextStyle(
+                      color: t.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  subtitle: Text(
+                    'Default rata kiri ala Apple Music',
+                    style: TextStyle(color: t.textSecondary, fontSize: 12),
+                  ),
+                  value: t.lyricsCenterAligned,
+                  onChanged: (v) => t.setLyricsCenterAligned(v),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Text(
+                      'Sinkronisasi Waktu',
+                      style: TextStyle(
+                        color: t.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const Spacer(),
+                    IosGlassPillButton(
+                      label: '-0.25s',
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      onTap: () => p.adjustLyricsOffset(-250),
+                    ),
+                    const SizedBox(width: 6),
+                    GestureDetector(
+                      onTap: () => p.resetLyricsOffset(),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: Text(
+                          '${(p.lyricsOffsetMs / 1000).toStringAsFixed(2)}s',
+                          style: TextStyle(
+                            color: t.accentText,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12.5,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    IosGlassPillButton(
+                      label: '+0.25s',
+                      height: 32,
+                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      onTap: () => p.adjustLyricsOffset(250),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Minimalist Floating Icon Bar ala Apple Music: [ Alat | Unduh | Antrean ]
   Widget _buildUtilityDock({
     required BuildContext context,
     required PlayerProvider player,
@@ -840,50 +1087,186 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required bool isDownloaded,
     required double? downloadProgress,
   }) {
-    final hasActiveTool = player.hasCustomSpeedOrPitch ||
+    final hasActiveAudioTool = player.hasCustomSpeedOrPitch ||
         player.eqEnabled ||
-        player.hasActiveSleepTimer ||
-        isDownloaded;
+        player.hasActiveSleepTimer;
+    final isBrutal = theme.isNeoBrutalism;
+    final isIpod = theme.isClassicIpod;
+    final dividerCol = theme.isLightCanvas
+        ? Colors.black.withOpacity(0.10)
+        : Colors.white.withOpacity(0.14);
 
-    return Row(
-      children: [
-        Expanded(
-          child: IosGlassPillButton(
-            icon: Icons.tune_rounded,
-            label: player.hasActiveSleepTimer
-                ? 'Alat • ${player.formattedRemainingSleepTime}'
-                : (player.eqEnabled
-                    ? 'Alat • EQ Aktif'
-                    : 'Alat & Audio'),
-            height: 40,
-            activeColor: accent,
-            isActive: hasActiveTool,
-            expand: true,
-            fontSize: 12.2,
-            onTap: () => _showAudioToolsSheet(
-              context: context,
-              player: player,
-              library: library,
-              theme: theme,
-              accent: accent,
-              song: song,
+    Widget buildBarIcon({
+      required IconData icon,
+      required VoidCallback onTap,
+      required String tooltip,
+      bool isActive = false,
+      String? badgeText,
+      double? progress,
+    }) {
+      final activeTint = isIpod
+          ? const Color(0xFF2563EB)
+          : (theme.isLightCanvas ? theme.accentText : accent);
+      final fg = isActive ? activeTint : theme.textSecondary;
+
+      return Tooltip(
+        message: tooltip,
+        child: IosSpringButton(
+          borderRadius: 20,
+          onTap: onTap,
+          child: SizedBox(
+            height: 38,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 15),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    clipBehavior: Clip.none,
+                    alignment: Alignment.center,
+                    children: [
+                      if (progress != null)
+                        SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            value: progress > 0 ? progress : null,
+                            strokeWidth: 2.2,
+                            color: activeTint,
+                          ),
+                        )
+                      else
+                        Icon(icon, size: 20.5, color: fg),
+                      if (isActive && progress == null && badgeText == null)
+                        Positioned(
+                          right: -3,
+                          top: -2,
+                          child: Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: activeTint,
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  if (badgeText != null) ...[
+                    const SizedBox(width: 5),
+                    Text(
+                      badgeText,
+                      style: TextStyle(
+                        color: fg,
+                        fontSize: 11.2,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
+                        fontFeatures: const [ui.FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: IosGlassPillButton(
-            icon: Icons.queue_music_rounded,
-            label: 'Antrean (${player.upcomingCount})',
-            height: 40,
-            activeColor: accent,
-            isActive: false,
-            expand: true,
-            fontSize: 12.2,
-            onTap: () => _showQueueBottomSheet(context, player),
+      );
+    }
+
+    final barContent = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 1. Audio Tools (EQ, Tempo & Pitch, Sleep Timer)
+        buildBarIcon(
+          icon: Icons.tune_rounded,
+          tooltip: 'Alat Audio',
+          isActive: hasActiveAudioTool,
+          badgeText: player.hasActiveSleepTimer
+              ? player.formattedRemainingSleepTime
+              : null,
+          onTap: () => _showAudioToolsSheet(
+            context: context,
+            player: player,
+            library: library,
+            theme: theme,
+            accent: accent,
+            song: song,
           ),
         ),
+        Container(width: 0.8, height: 16, color: dividerCol),
+        // 2. Direct One-Tap Offline Download
+        buildBarIcon(
+          icon: isDownloaded
+              ? Icons.download_done_rounded
+              : Icons.arrow_downward_rounded,
+          tooltip: isDownloaded ? 'Tersimpan Offline' : 'Unduh Offline',
+          isActive: isDownloaded || downloadProgress != null,
+          progress: downloadProgress,
+          onTap: () {
+            if (!isDownloaded && downloadProgress == null) {
+              HapticFeedback.lightImpact();
+              library.downloadSong(song, highQuality: true);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  duration: const Duration(seconds: 1),
+                  backgroundColor: accent,
+                  content: const Text(
+                    'Mengunduh lagu untuk offline...',
+                    style: TextStyle(
+                      color: Color(0xFF111111),
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              );
+            }
+          },
+        ),
+        Container(width: 0.8, height: 16, color: dividerCol),
+        // 3. Playback Queue
+        buildBarIcon(
+          icon: Icons.queue_music_rounded,
+          tooltip: 'Antrean',
+          badgeText: player.upcomingCount > 0 ? '${player.upcomingCount}' : null,
+          onTap: () => _showQueueBottomSheet(context, player),
+        ),
       ],
+    );
+
+    return Center(
+      child: isIpod
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: theme.isLightCanvas
+                    ? Colors.white.withOpacity(0.72)
+                    : const Color(0xFF1C1F28).withOpacity(0.90),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: theme.isLightCanvas
+                      ? const Color(0xFFCBD5E1)
+                      : const Color(0xFF333846),
+                  width: 1.0,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(
+                      theme.isLightCanvas ? 0.08 : 0.35,
+                    ),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: barContent,
+            )
+          : LiquidGlassBox(
+              borderRadius: isBrutal ? 14 : 24,
+              tintOpacity: isBrutal ? 0.0 : 0.10,
+              rimIntensity: 0.42,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              child: barContent,
+            ),
     );
   }
 
@@ -902,6 +1285,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         builder: (_, p, lib, __) {
           final isDl = lib.isDownloaded(song.videoId);
           final dlProg = lib.activeDownloadProgress[song.videoId];
+          final divider = Divider(
+            height: 1,
+            thickness: 0.6,
+            indent: 52,
+            color: theme.dividerColor,
+          );
           return ZunifySheetContainer(
             child: SafeArea(
               top: false,
@@ -911,7 +1300,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 children: [
                   Center(
                     child: Container(
-                      width: 38,
+                      width: 36,
                       height: 4,
                       margin: const EdgeInsets.only(bottom: 14),
                       decoration: BoxDecoration(
@@ -920,90 +1309,98 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                       ),
                     ),
                   ),
-                  Text(
-                    'Alat & Audio',
-                    style: GoogleFonts.plusJakartaSans(
-                      color: theme.textPrimary,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    child: Text(
+                      'Alat Audio',
+                      style: GoogleFonts.plusJakartaSans(
+                        color: theme.textPrimary,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 14),
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 10,
-                    crossAxisSpacing: 10,
-                    childAspectRatio: 2.3,
-                    children: [
-                      _toolTile(
-                        icon: Icons.speed_rounded,
-                        title: 'Tempo & Pitch',
-                        sub: p.hasCustomSpeedOrPitch
-                            ? p.speedPitchModeLabel
-                            : 'Normal 1.0x',
-                        active: p.hasCustomSpeedOrPitch,
-                        theme: theme,
-                        accent: accent,
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          _showSpeedPitchStudioSheet(context, p);
-                        },
-                      ),
-                      _toolTile(
-                        icon: Icons.equalizer_rounded,
-                        title: 'Equalizer DSP',
-                        sub: p.eqEnabled ? p.selectedEqPresetName : 'Mati',
-                        active: p.eqEnabled,
-                        theme: theme,
-                        accent: accent,
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          showModalBottomSheet(
-                            context: context,
-                            isScrollControlled: true,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const EqualizerSheet(),
-                          );
-                        },
-                      ),
-                      _toolTile(
-                        icon: Icons.bedtime_outlined,
-                        title: 'Sleep Timer',
-                        sub: p.hasActiveSleepTimer
-                            ? p.formattedRemainingSleepTime
-                            : 'Tidak aktif',
-                        active: p.hasActiveSleepTimer,
-                        theme: theme,
-                        accent: accent,
-                        onTap: () {
-                          Navigator.pop(ctx);
-                          showModalBottomSheet(
-                            context: context,
-                            backgroundColor: Colors.transparent,
-                            builder: (_) => const SleepTimerSheet(),
-                          );
-                        },
-                      ),
-                      _toolTile(
-                        icon: isDl
-                            ? Icons.download_done_rounded
-                            : Icons.download_rounded,
-                        title: isDl ? 'Tersimpan' : 'Unduh Offline',
-                        sub: dlProg != null
-                            ? '${(dlProg * 100).toStringAsFixed(0)}%'
-                            : (isDl ? 'Siap putar offline' : 'Simpan lagu'),
-                        active: isDl,
-                        theme: theme,
-                        accent: accent,
-                        onTap: () {
-                          if (!isDl && dlProg == null) {
-                            lib.downloadSong(song, highQuality: true);
-                          }
-                        },
-                      ),
-                    ],
+                  const SizedBox(height: 12),
+                  LiquidGlassBox(
+                    borderRadius: theme.isNeoBrutalism ? 14 : 20,
+                    tintOpacity: theme.isNeoBrutalism ? 0.0 : 0.06,
+                    rimIntensity: 0.34,
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _toolRow(
+                          icon: Icons.speed_rounded,
+                          title: 'Tempo & Pitch',
+                          status: p.hasCustomSpeedOrPitch
+                              ? p.speedPitchModeLabel
+                              : '1.0x',
+                          active: p.hasCustomSpeedOrPitch,
+                          theme: theme,
+                          accent: accent,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            _showSpeedPitchStudioSheet(context, p);
+                          },
+                        ),
+                        divider,
+                        _toolRow(
+                          icon: Icons.equalizer_rounded,
+                          title: 'Equalizer DSP',
+                          status: p.eqEnabled ? p.selectedEqPresetName : 'Mati',
+                          active: p.eqEnabled,
+                          theme: theme,
+                          accent: accent,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => const EqualizerSheet(),
+                            );
+                          },
+                        ),
+                        divider,
+                        _toolRow(
+                          icon: Icons.bedtime_outlined,
+                          title: 'Sleep Timer',
+                          status: p.hasActiveSleepTimer
+                              ? p.formattedRemainingSleepTime
+                              : 'Mati',
+                          active: p.hasActiveSleepTimer,
+                          theme: theme,
+                          accent: accent,
+                          onTap: () {
+                            Navigator.pop(ctx);
+                            showModalBottomSheet(
+                              context: context,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => const SleepTimerSheet(),
+                            );
+                          },
+                        ),
+                        divider,
+                        _toolRow(
+                          icon: isDl
+                              ? Icons.download_done_rounded
+                              : Icons.arrow_downward_rounded,
+                          title: isDl ? 'Tersimpan Offline' : 'Unduh Offline',
+                          status: dlProg != null
+                              ? '${(dlProg * 100).toStringAsFixed(0)}%'
+                              : (isDl ? 'Aktif' : 'Simpan'),
+                          active: isDl || dlProg != null,
+                          theme: theme,
+                          accent: accent,
+                          onTap: () {
+                            if (!isDl && dlProg == null) {
+                              lib.downloadSong(song, highQuality: true);
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1014,274 +1411,71 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     );
   }
 
-  Widget _toolTile({
+  Widget _toolRow({
     required IconData icon,
     required String title,
-    required String sub,
+    required String status,
     required bool active,
     required ThemeProvider theme,
     required Color accent,
     required VoidCallback onTap,
   }) {
-    return LiquidGlassBox(
-      borderRadius: 16,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      tintColor: active ? accent : null,
-      tintOpacity: active ? 0.18 : 0.08,
-      onTap: onTap,
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            color: active ? theme.accentText : theme.textPrimary,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: theme.textPrimary,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Text(
-                  sub,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: active ? theme.accentText : theme.textMuted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    final activeTint = theme.isClassicIpod
+        ? const Color(0xFF2563EB)
+        : (theme.isLightCanvas ? theme.accentText : accent);
 
-  /// Live Lyrics Preview Card below Artwork
-  Widget _buildLiveLyricsGlassCard(
-    PlayerProvider player,
-    ThemeProvider theme,
-    Color accent,
-    String videoId,
-    int totalLyricLines,
-  ) {
-    final lyrics = player.currentLyrics;
-    final isLoading = player.isLoadingLyrics;
-    final isBrutal = theme.isNeoBrutalism;
-
-    return LiquidGlassBox(
-      borderRadius: 20,
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      tintOpacity: 0.08,
-      rimIntensity: 0.36,
+    return InkWell(
       onTap: () {
-        setState(() {
-          _showLyricsView = true;
-          _userScrollingLyrics = false;
-          _lastScrolledLyricIdx = -99;
-        });
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          _scrollToActiveLyric(
-            videoId,
-            player.activeLyricIndex,
-            totalLyricLines,
-            force: true,
-          );
-        });
+        HapticFeedback.selectionClick();
+        onTap();
       },
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              MiniAudioSpectrumBars(
-                isPlaying: player.isPlaying,
-                color: theme.accentText,
-                height: 11,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: active
+                    ? activeTint.withOpacity(0.16)
+                    : theme.subtleFill,
+                shape: BoxShape.circle,
               ),
-              const SizedBox(width: 6),
-              Text(
-                'LIRIK LANGSUNG',
-                style: TextStyle(
-                  color: theme.accentText,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                ),
+              child: Icon(
+                icon,
+                color: active ? activeTint : theme.textSecondary,
+                size: 17.5,
               ),
-              const Spacer(),
-              if (lyrics != null &&
-                  lyrics.lines.length > 1 &&
-                  lyrics.shouldShowTranslation)
-                GestureDetector(
-                  onTap: () => player.toggleTranslationDisplay(),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: player.showTranslation
-                          ? accent
-                          : theme.subtleFill,
-                      borderRadius: BorderRadius.circular(isBrutal ? 6 : 8),
-                      border: isBrutal
-                          ? Border.all(
-                              color: theme.brutalBorderColor,
-                              width: 1.4,
-                            )
-                          : null,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.translate_rounded,
-                          color: player.showTranslation
-                              ? const Color(0xFF111111)
-                              : theme.textSecondary,
-                          size: 10.5,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          player.isTranslatingLyrics
-                              ? 'Proses...'
-                              : 'Terjemahkan',
-                          style: TextStyle(
-                            color: player.showTranslation
-                                ? const Color(0xFF111111)
-                                : theme.textSecondary,
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              Icon(
-                Icons.open_in_full_rounded,
-                color: theme.textMuted,
-                size: 12,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          if (isLoading)
-            Text(
-              'Memuat lirik sinkron...',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: theme.textSecondary, fontSize: 12.5),
-            )
-          else if (lyrics == null || lyrics.lines.isEmpty)
-            Text(
-              '♪ Instrumental / Lirik belum tersedia ♪',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: theme.textMuted, fontSize: 12.5),
-            )
-          else
-            Builder(
-              builder: (context) {
-                final rawIdx = player.activeLyricIndex;
-                final isIntro = rawIdx < 0;
-                final idx = rawIdx.clamp(0, lyrics.lines.length - 1);
-                final activeLine = lyrics.lines[idx];
-                final nextLine = !isIntro && idx + 1 < lyrics.lines.length
-                    ? lyrics.lines[idx + 1]
-                    : null;
-
-                return AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 220),
-                  transitionBuilder: (child, anim) =>
-                      FadeTransition(opacity: anim, child: child),
-                  child: Column(
-                    key: ValueKey('preview_${rawIdx}_${player.showTranslation}'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isIntro
-                            ? '•  •  •'
-                            : (activeLine.originalText.isEmpty ||
-                                    activeLine.originalText.contains('•')
-                                ? '•  •  •'
-                                : activeLine.originalText),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: GoogleFonts.plusJakartaSans(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (!isIntro &&
-                          player.showTranslation &&
-                          lyrics.shouldShowTranslation &&
-                          activeLine.translatedIndoText != null &&
-                          activeLine.translatedIndoText!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          activeLine.translatedIndoText!,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.dmSans(
-                            color: theme.accentText,
-                            fontSize: 12,
-                            fontStyle: FontStyle.italic,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ] else if (isIntro) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          activeLine.originalText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: theme.textMuted,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ] else if (nextLine != null &&
-                          nextLine.originalText.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          nextLine.originalText,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: GoogleFonts.plusJakartaSans(
-                            color: theme.textMuted,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                );
-              },
             ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: theme.textPrimary,
+                  fontSize: 13.8,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            Text(
+              status,
+              style: TextStyle(
+                color: active ? activeTint : theme.textMuted,
+                fontSize: 12.2,
+                fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: theme.textMuted.withOpacity(0.65),
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1322,132 +1516,7 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     return Column(
       key: const ValueKey('bitchord_lyrics_view'),
       children: [
-        // Uniform 32px Lyrics Toolbar
-        Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                if (lyrics.shouldShowTranslation) ...[
-                  IosGlassPillButton(
-                    icon: Icons.translate_rounded,
-                    label: player.isTranslatingLyrics
-                        ? 'Proses...'
-                        : 'Terjemahkan',
-                    height: 32,
-                    padding: const EdgeInsets.symmetric(horizontal: 11),
-                    activeColor: accent,
-                    isActive: player.showTranslation,
-                    fontSize: 11.2,
-                    onTap: () => player.toggleTranslationDisplay(),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-
-                // Sumber Lirik Switcher Pill
-                IosGlassPillButton(
-                  icon: Icons.cloud_done_rounded,
-                  label: lyrics.sourceName.replaceAll(' Synced', ''),
-                  height: 32,
-                  padding: const EdgeInsets.symmetric(horizontal: 11),
-                  activeColor: accent,
-                  fontSize: 11.2,
-                  onTap: () => _showLyricsProviderSheet(context, player),
-                ),
-                const SizedBox(width: 6),
-
-                // 1-Tap Lyric Alignment Toggle
-                IosGlassIconButton(
-                  icon: theme.lyricsCenterAligned
-                      ? Icons.format_align_center_rounded
-                      : Icons.format_align_left_rounded,
-                  size: 32,
-                  iconSize: 15,
-                  activeColor: accent,
-                  isActive: theme.lyricsCenterAligned,
-                  onTap: () =>
-                      theme.setLyricsCenterAligned(!theme.lyricsCenterAligned),
-                ),
-                const SizedBox(width: 6),
-
-                // Sync Offset Pill (-0.25s / +0.25s)
-                LiquidGlassBox(
-                  height: 32,
-                  borderRadius: 16,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  tintOpacity: 0.08,
-                  rimIntensity: 0.30,
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IosSpringButton(
-                        scaleDown: 0.84,
-                        borderRadius: 10,
-                        onTap: () => player.adjustLyricsOffset(-250),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            '-0.25s',
-                            style: TextStyle(
-                              color: theme.textSecondary,
-                              fontSize: 10.8,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                      IosSpringButton(
-                        scaleDown: 0.84,
-                        borderRadius: 10,
-                        onTap: () => player.resetLyricsOffset(),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            '${(player.lyricsOffsetMs / 1000).toStringAsFixed(2)}s',
-                            style: TextStyle(
-                              color: player.lyricsOffsetMs == 0
-                                  ? theme.textMuted
-                                  : theme.accentText,
-                              fontSize: 10.8,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                      IosSpringButton(
-                        scaleDown: 0.84,
-                        borderRadius: 10,
-                        onTap: () => player.adjustLyricsOffset(250),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 5,
-                            vertical: 4,
-                          ),
-                          child: Text(
-                            '+0.25s',
-                            style: TextStyle(
-                              color: theme.textSecondary,
-                              fontSize: 10.8,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+        // Zero clutter above lyrics! Controls moved cleanly to bottom bar & iPod status bar.
 
         // Synced Lyrics Viewport
         Expanded(
@@ -1522,39 +1591,14 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     nextTimestamp: nextTimestamp,
                                   );
 
-                            // Same-RGB fade base prevents dark/black RGB interpolation ("hitam2")
-                            // and constant border width prevents layout height jumps on scroll.
+                            // Zero card boxes behind lyric lines! Pure Apple Music & Viral Brat typography.
                             final isIpod = theme.isClassicIpod;
-                            final Color activeCardBase = isIpod
-                                ? Colors.transparent
-                                : (isBrutal
-                                    ? Color.lerp(theme.cardBgColor, accent, 0.24)!
-                                    : Colors.white);
-                            final Color cardFill = isIpod
-                                ? Colors.transparent
-                                : activeCardBase.withOpacity(
-                                    isActive ? (isBrutal ? 1.0 : 0.11) : 0.0,
-                                  );
-                            final Color borderBase = isIpod
-                                ? Colors.transparent
-                                : (isBrutal
-                                    ? Color.lerp(
-                                        accent,
-                                        theme.brutalBorderColor,
-                                        0.45,
-                                      )!
-                                    : Colors.white);
-                            final Color borderColor = isIpod
-                                ? Colors.transparent
-                                : borderBase.withOpacity(
-                                    isActive ? (isBrutal ? 0.88 : 0.16) : 0.0,
-                                  );
 
                             Widget lyricContentWidget = AnimatedScale(
                               scale: isActive
-                                  ? 1.03
-                                  : (distance == 1 ? 0.95 : 0.91),
-                              alignment: theme.lyricsCenterAligned
+                                  ? 1.04
+                                  : (distance == 1 ? 0.94 : 0.90),
+                              alignment: (isIpod || theme.lyricsCenterAligned)
                                   ? Alignment.center
                                   : Alignment.centerLeft,
                               duration: theme.animDuration(280),
@@ -1562,12 +1606,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                               child: lineBody,
                             );
 
-                            // Apple Music-style soft blur depth on distant lines in Liquid Glass
-                            if (!isBrutal && !isIpod && !isActive && distance >= 2) {
+                            // Viral TikTok Brat soft-blur in Classic iPod OR Apple Music depth blur in Liquid Glass / Neo-Brutalism
+                            if (isIpod) {
                               lyricContentWidget = ImageFiltered(
                                 imageFilter: ui.ImageFilter.blur(
-                                  sigmaX: distance >= 3 ? 1.8 : 1.1,
-                                  sigmaY: distance >= 3 ? 1.8 : 1.1,
+                                  sigmaX: isActive ? 0.65 : 1.15,
+                                  sigmaY: isActive ? 0.65 : 1.15,
+                                ),
+                                child: lyricContentWidget,
+                              );
+                            } else if (!isActive && distance >= 2) {
+                              lyricContentWidget = ImageFiltered(
+                                imageFilter: ui.ImageFilter.blur(
+                                  sigmaX: distance >= 3 ? 2.4 : 1.4,
+                                  sigmaY: distance >= 3 ? 2.4 : 1.4,
                                 ),
                                 child: lyricContentWidget,
                               );
@@ -1581,31 +1633,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   _lineHeights[idx] = h;
                                 }
                               },
-                              child: IosSpringButton(
-                                scaleDown: 0.96,
-                                borderRadius: isBrutal ? 13 : 18,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
                                 onTap: () {
                                   setState(() => _userScrollingLyrics = false);
                                   player.seekTo(line.timestamp);
                                 },
-                                child: AnimatedContainer(
-                                  duration: theme.animDuration(260),
-                                  curve: Curves.easeOutCubic,
-                                  margin:
-                                      const EdgeInsets.symmetric(vertical: 3),
-                                  padding: const EdgeInsets.symmetric(
-                                    vertical: 11,
-                                    horizontal: 14,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: cardFill,
-                                    borderRadius: BorderRadius.circular(
-                                      isBrutal ? 13 : 18,
-                                    ),
-                                    border: Border.all(
-                                      color: borderColor,
-                                      width: isBrutal ? 1.6 : (isIpod ? 0.0 : 1.0),
-                                    ),
+                                child: Padding(
+                                  padding: EdgeInsets.symmetric(
+                                    vertical: isIpod ? 12 : 14,
+                                    horizontal: isIpod ? 14 : 6,
                                   ),
                                   child: lyricContentWidget,
                                 ),
@@ -1884,33 +1921,34 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
     required Duration nextTimestamp,
   }) {
     final isIpod = theme.isClassicIpod;
+    final effectiveCenter = isIpod ? true : centerAligned;
     final displayText =
         isIpod ? line.originalText.toLowerCase() : line.originalText;
     final words = line.words;
-    final fgColor = isIpod ? const Color(0xFF111111) : theme.textPrimary;
-    final unsungColor = fgColor.withOpacity(isIpod ? 0.28 : 0.36);
+    final fgColor = isIpod ? const Color(0xFF0A0A0A) : theme.textPrimary;
+    final unsungColor = fgColor.withOpacity(isIpod ? 0.25 : 0.34);
 
     final baseStyle = isIpod
         ? TextStyle(
             fontFamily: 'sans-serif',
             color: fgColor,
-            fontSize: 22.0 * fontScale,
-            fontWeight: FontWeight.w800,
-            height: 1.20,
-            letterSpacing: -0.75,
+            fontSize: 25.0 * fontScale,
+            fontWeight: FontWeight.w700,
+            height: 1.12,
+            letterSpacing: -0.95,
           )
         : GoogleFonts.plusJakartaSans(
             color: fgColor,
-            fontSize: 23.0 * fontScale,
+            fontSize: 27.5 * fontScale,
             fontWeight: FontWeight.w800,
-            height: 1.30,
-            letterSpacing: -0.45,
+            height: 1.24,
+            letterSpacing: -0.65,
           );
     final crossAlign =
-        centerAligned ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+        effectiveCenter ? CrossAxisAlignment.center : CrossAxisAlignment.start;
     final wrapAlign =
-        centerAligned ? WrapAlignment.center : WrapAlignment.start;
-    final textAlign = centerAligned ? TextAlign.center : TextAlign.left;
+        effectiveCenter ? WrapAlignment.center : WrapAlignment.start;
+    final textAlign = effectiveCenter ? TextAlign.center : TextAlign.left;
 
     if (!isActive) {
       final dimmedStyle = baseStyle.copyWith(
@@ -1935,18 +1973,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
             else
               Text(displayText, textAlign: textAlign),
             if (translatedText != null && translatedText.isNotEmpty) ...[
-              const SizedBox(height: 5),
+              const SizedBox(height: 6),
               Text(
-                translatedText,
+                isIpod ? translatedText.toLowerCase() : translatedText,
                 textAlign: textAlign,
-                style: GoogleFonts.dmSans(
-                  color: theme.textSecondary.withOpacity(
-                    (inactiveOpacity * 1.15).clamp(0.18, 0.90),
+                style: GoogleFonts.plusJakartaSans(
+                  color: (isIpod
+                          ? const Color(0xFF6B7280)
+                          : theme.textSecondary)
+                      .withOpacity(
+                    (inactiveOpacity * 0.95).clamp(0.14, 0.65),
                   ),
                   fontSize: 14.2 * fontScale,
-                  fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w600,
-                  height: 1.28,
+                  fontWeight: FontWeight.w500,
+                  height: 1.3,
                 ),
               ),
             ],
@@ -2025,16 +2065,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 ),
               ),
             if (translatedText != null && translatedText.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 isIpod ? translatedText.toLowerCase() : translatedText,
                 textAlign: textAlign,
-                style: GoogleFonts.dmSans(
-                  color: isIpod ? const Color(0xFF4B5563) : theme.accentText,
-                  fontSize: 14.5 * fontScale,
-                  fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
+                style: GoogleFonts.plusJakartaSans(
+                  color: isIpod
+                      ? const Color(0xFF6B7280)
+                      : (theme.isLightCanvas
+                          ? const Color(0xFF4B5563)
+                          : Colors.white.withOpacity(0.74)),
+                  fontSize: 15.0 * fontScale,
+                  fontWeight: FontWeight.w600,
+                  height: 1.32,
+                  letterSpacing: -0.15,
                 ),
               ),
             ],
@@ -2467,93 +2511,12 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
           label,
           style: TextStyle(
             color: selected
-                ? (isBrutal ? const Color(0xFF111111) : Colors.white)
+                ? (theme.isLightCanvas ? const Color(0xFF111111) : Colors.white)
                 : theme.textSecondary,
             fontSize: 12,
             fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
             height: 1.1,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _dockIcon({
-    required IconData icon,
-    required String label,
-    required bool active,
-    required ThemeProvider theme,
-    required Color accent,
-    required VoidCallback onTap,
-    String? badgeText,
-  }) {
-    final isBrutal = theme.isNeoBrutalism;
-    final activeFg = theme.accentText;
-    return IosSpringButton(
-      scaleDown: 0.84,
-      borderRadius: 16,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                AnimatedScale(
-                  scale: active ? 1.08 : 1.0,
-                  duration: const Duration(milliseconds: 220),
-                  curve: Curves.easeOutBack,
-                  child: Icon(
-                    icon,
-                    color: active ? activeFg : theme.textSecondary,
-                    size: 20,
-                  ),
-                ),
-                if (badgeText != null)
-                  Positioned(
-                    right: -10,
-                    top: -4,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 4.5,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: accent,
-                        borderRadius: BorderRadius.circular(8),
-                        border: isBrutal
-                            ? Border.all(
-                                color: theme.brutalBorderColor,
-                                width: 1.2,
-                              )
-                            : null,
-                      ),
-                      child: Text(
-                        badgeText,
-                        style: const TextStyle(
-                          color: Color(0xFF111111),
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 3),
-            Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: active ? activeFg : theme.textMuted,
-                fontSize: 10,
-                fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-              ),
-            ),
-          ],
         ),
       ),
     );
