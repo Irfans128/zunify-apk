@@ -123,7 +123,7 @@ class _HomeScreenState extends State<HomeScreen> {
             !shelfIds.contains(s.videoId)) {
           if (seenIds.add(s.videoId)) {
             quickPicks.add(s);
-            if (quickPicks.length >= 6) break;
+            if (quickPicks.length >= 4) break;
           }
         }
       }
@@ -317,19 +317,19 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                 ] else ...[
-                  // 4B. 'Semua' Tab: Logical Non-Overlapping Sections
+                  // 4B. Focus-First Minimalist Layout: Only 2 clean, spacious sections
                   if (quickPicks.isNotEmpty) ...[
                     _sectionHeader(
                       library.recentlyPlayed.isNotEmpty
                           ? 'Terakhir Diputar'
-                          : 'Dengarkan Cepat',
+                          : 'Putar Cepat',
                       theme: theme,
                       onPlayAll: () => player.playSong(
                         quickPicks.first,
                         customQueue: quickPicks,
                         contextName: library.recentlyPlayed.isNotEmpty
                             ? 'Terakhir Diputar'
-                            : 'Dengarkan Cepat',
+                            : 'Putar Cepat',
                       ),
                       accent: accent,
                     ),
@@ -341,8 +341,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       gridDelegate:
                           const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        mainAxisSpacing: 9,
-                        crossAxisSpacing: 9,
+                        mainAxisSpacing: 10,
+                        crossAxisSpacing: 10,
                         mainAxisExtent: 60,
                       ),
                       itemBuilder: (context, i) {
@@ -355,19 +355,19 @@ class _HomeScreenState extends State<HomeScreen> {
                         );
                       },
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
                   ],
 
-                  // 5. Horizontal Shelf: Rekomendasi Untukmu
+                  // 5. Horizontal Shelf: Pilihan Untukmu (Spacious & Clean)
                   _sectionHeader(
-                    'Rekomendasi Untukmu',
+                    'Pilihan Untukmu',
                     theme: theme,
                     onPlayAll: _moodSongs.isEmpty
                         ? null
                         : () => player.playSong(
                               _moodSongs.first,
                               customQueue: _moodSongs,
-                              contextName: 'Rekomendasi Untukmu',
+                              contextName: 'Pilihan Untukmu',
                             ),
                     accent: accent,
                   ),
@@ -400,47 +400,29 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
                     ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 26),
 
-                  // 6. Populer di Indonesia
+                  // 6. Sedang Ramai (Curated Top Hits — Clean Single List)
                   _sectionHeader(
-                    'Populer di Indonesia',
+                    'Sedang Ramai',
                     theme: theme,
                     onPlayAll: _trendingIndo.isEmpty
                         ? null
                         : () => player.playSong(
                               _trendingIndo.first,
-                              customQueue: _trendingIndo,
-                              contextName: 'Populer di Indonesia',
+                              customQueue: [
+                                ..._trendingIndo.take(4),
+                                ..._trendingGlobal.take(2),
+                              ],
+                              contextName: 'Sedang Ramai',
                             ),
                     accent: accent,
                   ),
-                  const SizedBox(height: 8),
-                  ..._trendingIndo.take(5).toList().asMap().entries.map(
-                        (entry) => ZunifySongTile(
-                          song: entry.value,
-                          queueContext: const [],
-                          contextName: 'Radio ${entry.value.title}',
-                          rank: entry.key + 1,
-                        ),
-                      ),
-                  const SizedBox(height: 22),
-
-                  // 7. Top Global
-                  _sectionHeader(
-                    'Top Global',
-                    theme: theme,
-                    onPlayAll: _trendingGlobal.isEmpty
-                        ? null
-                        : () => player.playSong(
-                              _trendingGlobal.first,
-                              customQueue: _trendingGlobal,
-                              contextName: 'Top Global',
-                            ),
-                    accent: accent,
-                  ),
-                  const SizedBox(height: 8),
-                  ..._trendingGlobal.take(5).toList().asMap().entries.map(
+                  const SizedBox(height: 10),
+                  ...[
+                    ..._trendingIndo.take(4),
+                    ..._trendingGlobal.take(2),
+                  ].asMap().entries.map(
                         (entry) => ZunifySongTile(
                           song: entry.value,
                           queueContext: const [],

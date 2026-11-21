@@ -167,37 +167,18 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
               ),
             ),
 
-            // Floating Bottom Stack: Never pushed up by keyboard (`resizeToAvoidBottomInset: false`)
+            // Unified Dynamic Floating Dock (Mini-Player + Navigation in 1 Capsule)
             Positioned(
               left: 12,
               right: 12,
               bottom: MediaQuery.viewPaddingOf(context).bottom + 8,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (hasCurrentSong) ...[
-                    RepaintBoundary(
-                      child: Consumer2<PlayerProvider, LibraryProvider>(
-                        builder: (ctx, player, library, _) {
-                          if (player.currentSong == null) {
-                            return const SizedBox.shrink();
-                          }
-                          return _buildFloatingMiniPlayer(
-                            ctx,
-                            player,
-                            library,
-                            theme,
-                            accent,
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                  RepaintBoundary(
-                    child: _buildBitChordFloatingTabBar(theme, accent),
-                  ),
-                ],
+              child: RepaintBoundary(
+                child: _buildUnifiedDynamicDock(
+                  context: context,
+                  theme: theme,
+                  accent: accent,
+                  hasCurrentSong: hasCurrentSong,
+                ),
               ),
             ),
           ],
@@ -206,7 +187,374 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  /// Floating Tab Bar (Liquid Glass Capsule & Authentic Neo-Brutalist Sticker Bar)
+  /// Unified Dynamic Floating Dock (Live-Lyric Mini-Player + Slim Navigation)
+  Widget _buildUnifiedDynamicDock({
+    required BuildContext context,
+    required ThemeProvider theme,
+    required Color accent,
+    required bool hasCurrentSong,
+  }) {
+    final isBrutal = theme.isNeoBrutalism;
+    final isIpod = theme.isClassicIpod;
+
+    return LiquidGlassBox(
+      borderRadius: isBrutal ? 16 : (isIpod ? 18 : 28),
+      tintColor: (isBrutal || isIpod) ? Colors.white : theme.playerAmbientColor,
+      tintOpacity: 0.16,
+      rimIntensity: 0.48,
+      enableBlur: true,
+      enableShadow: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (hasCurrentSong)
+            Consumer2<PlayerProvider, LibraryProvider>(
+              builder: (ctx, player, library, _) {
+                if (player.currentSong == null) {
+                  return const SizedBox.shrink();
+                }
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildDockMiniPlayerContent(
+                      ctx,
+                      player,
+                      library,
+                      theme,
+                      accent,
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: isBrutal ? 1.5 : 0.8,
+                      color: isBrutal
+                          ? theme.brutalBorderColor.withOpacity(0.25)
+                          : theme.dividerColor,
+                    ),
+                  ],
+                );
+              },
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+            child: _buildSlimNavRow(theme, accent),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSlimNavRow(ThemeProvider theme, Color accent) {
+    final isBrutal = theme.isNeoBrutalism;
+    final isIpod = theme.isClassicIpod;
+    const items = [
+      {'icon': Icons.home_rounded, 'label': 'Beranda'},
+      {'icon': Icons.search_rounded, 'label': 'Cari'},
+      {'icon': Icons.library_music_rounded, 'label': 'Koleksi'},
+      {'icon': Icons.tune_rounded, 'label': 'Pengaturan'},
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final tabWidth = constraints.maxWidth / items.length;
+        return Stack(
+          alignment: Alignment.centerLeft,
+          children: [
+            AnimatedPositioned(
+              duration: theme.animDuration(260),
+              curve: Curves.easeOutBack,
+              left: _selectedIndex * tabWidth,
+              top: 0,
+              bottom: 0,
+              width: tabWidth,
+              child: DecoratedBox(
+                decoration: isBrutal
+                    ? BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(11),
+                        border: Border.all(
+                          color: theme.brutalBorderColor,
+                          width: 1.7,
+                        ),
+                      )
+                    : isIpod
+                        ? BoxDecoration(
+                            color: accent.withOpacity(0.14),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: accent.withOpacity(0.45),
+                              width: 1.0,
+                            ),
+                          )
+                        : BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Colors.white.withOpacity(0.18),
+                                accent.withOpacity(0.26),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.32),
+                              width: 1.0,
+                            ),
+                          ),
+              ),
+            ),
+            Row(
+              children: List.generate(items.length, (idx) {
+                final selected = _selectedIndex == idx;
+                final icon = items[idx]['icon'] as IconData;
+                final label = items[idx]['label'] as String;
+
+                final Color activeFg = isBrutal
+                    ? const Color(0xFF111111)
+                    : (isIpod ? accent : accent);
+                final Color activeLabelFg = isBrutal
+                    ? const Color(0xFF111111)
+                    : (isIpod ? theme.textPrimary : Colors.white);
+                final Color inactiveIconFg = (isBrutal || isIpod)
+                    ? theme.textSecondary
+                    : Colors.white60;
+                final Color inactiveLabelFg = (isBrutal || isIpod)
+                    ? theme.textMuted
+                    : Colors.white54;
+
+                return Expanded(
+                  child: IosSpringButton(
+                    scaleDown: 0.88,
+                    borderRadius: isBrutal ? 11 : 22,
+                    onTap: () => setState(() => _selectedIndex = idx),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            icon,
+                            color: selected ? activeFg : inactiveIconFg,
+                            size: 19,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: selected
+                                  ? activeLabelFg
+                                  : inactiveLabelFg,
+                              fontSize: 10,
+                              fontWeight:
+                                  selected ? FontWeight.w800 : FontWeight.w600,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String? _activeLiveLyricLine(PlayerProvider player) {
+    final lyrics = player.currentLyrics;
+    final idx = player.activeLyricIndex;
+    if (lyrics == null || idx < 0 || idx >= lyrics.lines.length) return null;
+    final txt = lyrics.lines[idx].originalText.trim();
+    if (txt.isEmpty || txt.contains('♪')) return null;
+    return txt;
+  }
+
+  Widget _buildDockMiniPlayerContent(
+    BuildContext context,
+    PlayerProvider player,
+    LibraryProvider library,
+    ThemeProvider theme,
+    Color accent,
+  ) {
+    final song = player.currentSong!;
+    final isBrutal = theme.isNeoBrutalism;
+    final liveLyric = _activeLiveLyricLine(player);
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onHorizontalDragEnd: (details) {
+        final vx = details.primaryVelocity ?? 0.0;
+        if (vx < -280) {
+          player.playNext();
+        } else if (vx > 280) {
+          player.playPrevious();
+        }
+      },
+      onTap: () {
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            transitionDuration: theme.animDuration(300),
+            reverseTransitionDuration: theme.animDuration(240),
+            pageBuilder: (_, __, ___) => const NowPlayingScreen(),
+            transitionsBuilder: (_, anim, __, child) {
+              final slideCurve = CurvedAnimation(
+                parent: anim,
+                curve: Curves.easeOutQuart,
+                reverseCurve: Curves.easeInCubic,
+              );
+              return SlideTransition(
+                position: Tween<Offset>(
+                  begin: const Offset(0, 0.94),
+                  end: Offset.zero,
+                ).animate(slideCurve),
+                child: RepaintBoundary(child: child),
+              );
+            },
+          ),
+        );
+      },
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(10, 8, 8, 6),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(isBrutal ? 8 : 11),
+                  child: CachedNetworkImage(
+                    imageUrl: song.highResArtUrl,
+                    width: 40,
+                    height: 40,
+                    memCacheWidth: 110,
+                    fadeInDuration: const Duration(milliseconds: 120),
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      width: 40,
+                      height: 40,
+                      color: theme.subtleFill,
+                      child: Icon(
+                        Icons.music_note_rounded,
+                        color: theme.accentText,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          MiniAudioSpectrumBars(
+                            isPlaying: player.isPlaying,
+                            color: theme.accentText,
+                            height: 10,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: theme.textPrimary,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 13,
+                                letterSpacing: -0.2,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 1.5),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 220),
+                        child: Text(
+                          liveLyric ?? song.artist,
+                          key: ValueKey<String>(liveLyric ?? song.artist),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: liveLyric != null
+                                ? theme.accentText
+                                : theme.textSecondary,
+                            fontSize: 11.2,
+                            fontWeight: liveLyric != null
+                                ? FontWeight.w700
+                                : FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (player.isLoadingTrack)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: theme.accentText,
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  )
+                else
+                  IconButton(
+                    icon: Icon(
+                      player.isPlaying
+                          ? Icons.pause_rounded
+                          : Icons.play_arrow_rounded,
+                      color: theme.textPrimary,
+                      size: 26,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => player.togglePlayPause(),
+                  ),
+                IconButton(
+                  icon: Icon(
+                    Icons.skip_next_rounded,
+                    color: theme.textSecondary,
+                    size: 23,
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  onPressed: () => player.playNext(),
+                ),
+              ],
+            ),
+          ),
+          // Ultra-thin live progress bar
+          StreamBuilder<Duration>(
+            stream: player.audioPlayer.positionStream,
+            builder: (context, snapshot) {
+              final pos = snapshot.data ?? player.position;
+              final totalMs = player.duration.inMilliseconds;
+              final progress = totalMs > 0
+                  ? (pos.inMilliseconds / totalMs).clamp(0.0, 1.0)
+                  : 0.0;
+              return LinearProgressIndicator(
+                value: progress,
+                minHeight: 2.0,
+                backgroundColor: Colors.transparent,
+                valueColor: AlwaysStoppedAnimation<Color>(accent),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Legacy Floating Tab Bar kept for reference (unused)
   Widget _buildBitChordFloatingTabBar(ThemeProvider theme, Color accent) {
     final isBrutal = theme.isNeoBrutalism;
     const items = [

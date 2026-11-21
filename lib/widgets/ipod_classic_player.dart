@@ -207,13 +207,11 @@ class _IpodClassicPlayerState extends State<IpodClassicPlayer> {
                         ),
                       ),
 
-                      // Screen Body: Artwork+Meta OR Synced Lyrics
+                      // Screen Body: Artwork+Meta OR Brat White-Screen Synced Lyrics
                       Expanded(
                         child: widget.showLyrics
                             ? Container(
-                                color: isDarkIpod
-                                    ? const Color(0xFF0E1117)
-                                    : const Color(0xFF161A23),
+                                color: Colors.white,
                                 child: widget.lyricsBuilder,
                               )
                             : Padding(
