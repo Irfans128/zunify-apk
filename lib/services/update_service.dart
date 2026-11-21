@@ -16,6 +16,9 @@ class UpdateInfo {
   final int apkSizeBytes;
   final String releasePageUrl;
   final DateTime? publishedAt;
+  final String? zunifyGUrl;
+  final String? zunifyGName;
+  final int zunifyGSizeBytes;
 
   const UpdateInfo({
     required this.version,
@@ -25,12 +28,32 @@ class UpdateInfo {
     required this.apkSizeBytes,
     required this.releasePageUrl,
     this.publishedAt,
+    this.zunifyGUrl,
+    this.zunifyGName,
+    this.zunifyGSizeBytes = 0,
   });
 
   String get sizeLabel {
     if (apkSizeBytes <= 0) return '';
     return '${(apkSizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
+
+  bool get hasZunifyG => zunifyGUrl != null && zunifyGUrl!.isNotEmpty;
+
+  String get zunifyGSizeLabel {
+    if (zunifyGSizeBytes <= 0) return '';
+    return '${(zunifyGSizeBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  UpdateInfo asZunifyGDownload() => UpdateInfo(
+        version: 'ZunifyG-$version',
+        changelog: changelog,
+        apkUrl: zunifyGUrl ?? apkUrl,
+        apkName: zunifyGName ?? 'ZunifyG-v1.0.0-Lite-arm64-by-Fannz.apk',
+        apkSizeBytes: zunifyGSizeBytes,
+        releasePageUrl: releasePageUrl,
+        publishedAt: publishedAt,
+      );
 }
 
 /// Serverless in-app updater & system status-bar notification service
@@ -353,16 +376,45 @@ class UpdateService {
             .toList(),
       };
 
+  Future<UpdateInfo?> fetchLatestReleaseInfo() async {
+    try {
+      final res = await http
+          .get(
+            Uri.parse(
+              'https://api.github.com/repos/$kUpdateRepo/releases/latest',
+            ),
+            headers: const {
+              'Accept': 'application/vnd.github+json',
+              'User-Agent': 'Zunify-Updater',
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+      if (res.statusCode == 200) {
+        final release =
+            jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+        return _parseRelease(release);
+      }
+    } catch (_) {}
+    return null;
+  }
+
   UpdateInfo? _parseRelease(Map<String, dynamic> r) {
     final tag = (r['tag_name'] ?? '').toString();
     if (tag.isEmpty) return null;
-    final assets = ((r['assets'] as List<dynamic>?) ?? [])
+    final allApks = ((r['assets'] as List<dynamic>?) ?? [])
         .cast<Map<String, dynamic>>()
         .where((a) => (a['name'] ?? '').toString().endsWith('.apk'))
+        .toList();
+    if (allApks.isEmpty) return null;
+
+    final assets = allApks
+        .where((a) => !(a['name'] ?? '').toString().startsWith('ZunifyG-'))
         .toList();
     if (assets.isEmpty) return null;
 
     final isArm64 = Platform.version.contains('arm64');
+    final isArm32 = Platform.version.contains('arm') && !isArm64;
+
     Map<String, dynamic>? pick;
     if (isArm64) {
       pick = assets.firstWhere(
@@ -377,6 +429,31 @@ class UpdateService {
       );
     }
 
+    // Match ZunifyG asset in the same GitHub Release
+    final zgAssets = allApks
+        .where((a) => (a['name'] ?? '').toString().startsWith('ZunifyG-'))
+        .toList();
+    Map<String, dynamic>? zgPick;
+    if (zgAssets.isNotEmpty) {
+      if (isArm64) {
+        zgPick = zgAssets.firstWhere(
+          (a) => a['name'].toString().contains('Lite-arm64'),
+          orElse: () => <String, dynamic>{},
+        );
+      } else if (isArm32) {
+        zgPick = zgAssets.firstWhere(
+          (a) => a['name'].toString().contains('Lite-arm32'),
+          orElse: () => <String, dynamic>{},
+        );
+      }
+      if (zgPick == null || zgPick.isEmpty) {
+        zgPick = zgAssets.firstWhere(
+          (a) => a['name'].toString().contains('Universal'),
+          orElse: () => zgAssets.first,
+        );
+      }
+    }
+
     return UpdateInfo(
       version: tag.replaceFirst(RegExp(r'^v'), ''),
       changelog: (r['body'] ?? '').toString().trim(),
@@ -385,6 +462,9 @@ class UpdateService {
       apkSizeBytes: (pick['size'] as num?)?.toInt() ?? 0,
       releasePageUrl: (r['html_url'] ?? '').toString(),
       publishedAt: DateTime.tryParse((r['published_at'] ?? '').toString()),
+      zunifyGUrl: zgPick?['browser_download_url']?.toString(),
+      zunifyGName: zgPick?['name']?.toString(),
+      zunifyGSizeBytes: (zgPick?['size'] as num?)?.toInt() ?? 0,
     );
   }
 }

@@ -5,6 +5,7 @@ import '../app_version.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
+import '../services/update_service.dart';
 import '../widgets/equalizer_sheet.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/qris_donation_sheet.dart';
@@ -207,26 +208,40 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // 2. 2-Theme Selector: Liquid Glass vs Neo-Brutalism
-            _sectionLabel('Tema Aplikasi', theme),
+            // 2. 3-Theme Selector: Liquid Glass, Neo-Brutalism, Classic iPod
+            _sectionLabel('Tema Aplikasi (3 Gaya)', theme),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _buildLiquidGlassThemePreviewCard(
-                    selected: !theme.isNeoBrutalism,
-                    accent: accent,
-                    onTap: () => theme.setUiThemeMode('liquid_glass'),
+            SizedBox(
+              height: 112,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  SizedBox(
+                    width: 152,
+                    child: _buildLiquidGlassThemePreviewCard(
+                      selected: !theme.isNeoBrutalism && !theme.isClassicIpod,
+                      accent: accent,
+                      onTap: () => theme.setUiThemeMode('liquid_glass'),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildNeoBrutalismThemePreviewCard(
-                    selected: theme.isNeoBrutalism,
-                    onTap: () => theme.setUiThemeMode('neo_brutalism'),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 152,
+                    child: _buildNeoBrutalismThemePreviewCard(
+                      selected: theme.isNeoBrutalism,
+                      onTap: () => theme.setUiThemeMode('neo_brutalism'),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 152,
+                    child: _buildClassicIpodThemePreviewCard(
+                      selected: theme.isClassicIpod,
+                      onTap: () => theme.setUiThemeMode('classic_ipod'),
+                    ),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 18),
 
@@ -460,6 +475,92 @@ class SettingsScreen extends StatelessWidget {
                       fontSize: 11.5,
                       onTap: () => runManualUpdateCheck(context),
                     ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // ZunifyG Companion App Card (Ultra-Lite Gaming Edition)
+            LiquidGlassBox(
+              borderRadius: 20,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              tintColor: const Color(0xFF00E676),
+              tintOpacity: isBrutal ? 0.14 : 0.08,
+              rimIntensity: 0.36,
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00E676).withOpacity(0.16),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: const Icon(
+                      Icons.bolt_rounded,
+                      color: Color(0xFF00E676),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ZunifyG • Ultra-Lite',
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Versi super ringan khusus HP kentang & gaming',
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IosGlassPillButton(
+                    icon: Icons.download_rounded,
+                    label: 'Unduh',
+                    height: 33,
+                    padding: const EdgeInsets.symmetric(horizontal: 11),
+                    activeColor: const Color(0xFF00E676),
+                    isActive: true,
+                    fontSize: 11.5,
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      messenger.showSnackBar(
+                        const SnackBar(
+                          duration: Duration(seconds: 1),
+                          content: Text('Mengambil link ZunifyG...'),
+                        ),
+                      );
+                      final info =
+                          await UpdateService().fetchLatestReleaseInfo();
+                      if (!context.mounted) return;
+                      messenger.hideCurrentSnackBar();
+                      if (info == null || !info.hasZunifyG) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'ZunifyG belum tersedia atau koneksi gagal.',
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+                      await showUpdateSheet(context, info.asZunifyGDownload());
+                    },
                   ),
                 ],
               ),
@@ -717,6 +818,108 @@ class SettingsScreen extends StatelessWidget {
               style: TextStyle(
                 color: brutalInk.withOpacity(0.72),
                 fontWeight: FontWeight.w700,
+                fontSize: 11.2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Visual Preview Card for Classic iPod Retro Theme
+  Widget _buildClassicIpodThemePreviewCard({
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    const ipodSilver = Color(0xFFE7EAEE);
+    const ipodInk = Color(0xFF1E293B);
+    const ipodBlue = Color(0xFF2563EB);
+    return IosSpringButton(
+      onTap: onTap,
+      borderRadius: 16,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFF3F5F8), ipodSilver],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? ipodBlue : const Color(0xFFCBD5E1),
+            width: selected ? 2.2 : 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.10),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFF94A3B8), width: 1.4),
+                  ),
+                  child: Center(
+                    child: Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: ipodBlue,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                if (selected)
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: ipodBlue,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check_rounded,
+                      color: Colors.white,
+                      size: 13,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Classic iPod',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: ipodInk,
+                fontWeight: FontWeight.w800,
+                fontSize: 14.5,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Click Wheel & LCD',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: ipodInk.withOpacity(0.68),
+                fontWeight: FontWeight.w600,
                 fontSize: 11.2,
               ),
             ),

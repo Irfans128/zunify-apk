@@ -73,21 +73,23 @@ class _UpdateSheetState extends State<UpdateSheet> {
   String? _error;
   String? _downloadedPath;
 
-  Future<void> _startUpdate() async {
+  Future<void> _startDownloadTarget(UpdateInfo target) async {
     setState(() {
       _downloading = true;
       _error = null;
       _progress = 0;
     });
     try {
-      final path = _downloadedPath ??
-          await _service.downloadApk(
-            widget.info,
-            onProgress: (p) {
-              if (mounted) setState(() => _progress = p);
-            },
-          );
-      _downloadedPath = path;
+      final isMain = target.apkUrl == widget.info.apkUrl;
+      final path = (isMain && _downloadedPath != null)
+          ? _downloadedPath!
+          : await _service.downloadApk(
+              target,
+              onProgress: (p) {
+                if (mounted) setState(() => _progress = p);
+              },
+            );
+      if (isMain) _downloadedPath = path;
       if (!mounted) return;
       setState(() => _downloading = false);
       final ok = await _service.installApk(path);
@@ -105,6 +107,8 @@ class _UpdateSheetState extends State<UpdateSheet> {
       });
     }
   }
+
+  Future<void> _startUpdate() => _startDownloadTarget(widget.info);
 
   List<String> _changelogLines() {
     final raw = widget.info.changelog;
@@ -314,6 +318,33 @@ class _UpdateSheetState extends State<UpdateSheet> {
                 ),
               ),
             ),
+            if (info.hasZunifyG) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF00E676),
+                    side: const BorderSide(color: Color(0xFF00E676), width: 1.4),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(isBrutal ? 11 : 14),
+                    ),
+                  ),
+                  onPressed: _downloading
+                      ? null
+                      : () => _startDownloadTarget(info.asZunifyGDownload()),
+                  icon: const Icon(Icons.bolt_rounded, size: 19),
+                  label: Text(
+                    'Download ZunifyG (HP Kentang / Gaming${info.zunifyGSizeLabel.isNotEmpty ? ' • ${info.zunifyGSizeLabel}' : ''})',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.8,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 6),
             Row(
               children: [

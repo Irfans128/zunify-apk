@@ -13,6 +13,7 @@ import '../widgets/permissions_sheet.dart';
 import '../widgets/update_sheet.dart';
 import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
+import '../widgets/zidny_birthday_dialog.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
 import 'now_playing_screen.dart';
@@ -67,9 +68,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 
   Future<void> _checkBackgroundUpdate() async {
-    await Future.delayed(const Duration(milliseconds: 2200));
+    await Future.delayed(const Duration(milliseconds: 1800));
     if (!mounted) return;
     if (!context.read<LibraryProvider>().hasCompletedOnboarding) return;
+    await showZidnyBirthdayIfFirstOpen(context);
+    if (!mounted) return;
     final updater = UpdateService();
     try {
       final info = await updater.checkForUpdate(manual: false);

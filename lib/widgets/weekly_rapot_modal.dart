@@ -51,8 +51,14 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
     super.didChangeDependencies();
     if (!_didInitPosterTheme) {
       _didInitPosterTheme = true;
-      final isSaweriaApp = context.read<ThemeProvider>().isNeoBrutalism;
-      _selectedThemeIndex = isSaweriaApp ? 1 : 0;
+      final t = context.read<ThemeProvider>();
+      if (t.isNeoBrutalism) {
+        _selectedThemeIndex = 1;
+      } else if (t.isClassicIpod) {
+        _selectedThemeIndex = 6;
+      } else {
+        _selectedThemeIndex = 0;
+      }
     }
   }
 
@@ -131,6 +137,12 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
           Color(0xFF1C140C),
           Color(0xFF090807),
         ];
+      case 6: // Classic iPod (Slate Steel Dark LCD)
+        return const [
+          Color(0xFF1E293B),
+          Color(0xFF0F172A),
+          Color(0xFF090D16),
+        ];
       default: // iOS Liquid Glass
         return [
           dynamicAccent.withOpacity(0.36),
@@ -152,6 +164,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         return const Color(0xFF66BB6A);
       case 5:
         return const Color(0xFFFFD54F);
+      case 6:
+        return const Color(0xFF38BDF8);
       default:
         return dynamicAccent;
     }
@@ -169,6 +183,8 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
         return const Color(0xFF26A69A);
       case 5:
         return const Color(0xFFFFAB91);
+      case 6:
+        return const Color(0xFF94A3B8);
       default:
         return dynamicSecondary;
     }
@@ -1037,6 +1053,7 @@ class _WeeklyRapotModalState extends State<WeeklyRapotModal> {
       '🔮 Lavender Dream',
       '🍃 Matcha Sage',
       '✨ Champagne Gold',
+      '🎧 Classic iPod',
     ];
 
     return Column(

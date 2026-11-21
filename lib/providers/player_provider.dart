@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 import 'package:audio_service/audio_service.dart';
@@ -127,6 +128,12 @@ class PlayerProvider extends ChangeNotifier {
   // Listening Tracker for Weekly Rapot
   DateTime? _trackPlayStartedAt;
 
+  // Spotify-Style Persistent Resume Playback State
+  static const String _kPrefResumeState = 'zunify_resume_playback_v3';
+  Duration _savedResumePos = Duration.zero;
+  bool _needsInitialLoadForResume = false;
+  DateTime _lastSavedResumeAt = DateTime.fromMillisecondsSinceEpoch(0);
+
   PlayerProvider({
     ZunifyAudioHandler? audioHandler,
     required YTMusicService ytMusicService,
@@ -155,7 +162,8 @@ class PlayerProvider extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   AudioPlayer get audioPlayer => _audioPlayer;
   YTMusicService get ytMusicService => _ytMusicService;
-  Duration get position => _audioPlayer.position;
+  Duration get position =>
+      _needsInitialLoadForResume ? _savedResumePos : _audioPlayer.position;
   Duration get duration =>
       _audioPlayer.duration ??
       Duration(seconds: _currentSong?.durationSeconds ?? 240);
@@ -290,7 +298,75 @@ class PlayerProvider extends ChangeNotifier {
     _recentHistoryIds
       ..clear()
       ..addAll(prefs.getStringList('recent_history_ids') ?? const []);
+
+    // Restore Spotify-style last played song, queue & exact position
+    final rawResume = prefs.getString(_kPrefResumeState);
+    if (rawResume != null && rawResume.isNotEmpty) {
+      try {
+        final data = jsonDecode(rawResume) as Map<String, dynamic>;
+        final rawQueue = (data['queue'] as List<dynamic>?) ?? const [];
+        final restoredQueue = rawQueue
+            .whereType<Map>()
+            .map((m) => ZunifySong.fromMap(Map<String, dynamic>.from(m)))
+            .toList();
+        final idx = ((data['index'] as num?)?.toInt() ?? 0);
+        final posMs = ((data['posMs'] as num?)?.toInt() ?? 0).clamp(0, 86400000);
+        final ctxName = (data['contextName'] ?? '').toString();
+
+        if (restoredQueue.isNotEmpty && idx >= 0 && idx < restoredQueue.length) {
+          _queue = restoredQueue;
+          _sources = List.filled(restoredQueue.length, QueueSource.context);
+          _currentIndex = idx;
+          _currentSong = restoredQueue[idx];
+          _contextName = ctxName;
+          _savedResumePos = Duration(milliseconds: posMs);
+          _needsInitialLoadForResume = true;
+          if (_currentSong!.highResArtUrl.isNotEmpty) {
+            unawaited(
+              _themeProvider.updateDynamicColorFromImage(
+                CachedNetworkImageProvider(_currentSong!.highResArtUrl),
+              ),
+            );
+          }
+          unawaited(_loadLyricsForSong(_currentSong!));
+        }
+      } catch (_) {}
+    }
+
     notifyListeners();
+  }
+
+  Future<void> _persistResumeState({bool force = false}) async {
+    if (_currentSong == null || _queue.isEmpty) return;
+    final now = DateTime.now();
+    if (!force && now.difference(_lastSavedResumeAt).inSeconds < 8) return;
+    _lastSavedResumeAt = now;
+    try {
+      // Keep resume payload lean (window of max 25 songs around currentIndex)
+      const maxSave = 25;
+      int start = 0;
+      int end = _queue.length;
+      if (_queue.length > maxSave) {
+        start = (_currentIndex - 6).clamp(0, _queue.length - maxSave);
+        end = (start + maxSave).clamp(0, _queue.length);
+      }
+      final sliced = _queue.sublist(start, end);
+      final adjIndex = (_currentIndex - start).clamp(0, sliced.length - 1);
+      final posMs = _needsInitialLoadForResume
+          ? _savedResumePos.inMilliseconds
+          : _audioPlayer.position.inMilliseconds;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _kPrefResumeState,
+        jsonEncode({
+          'index': adjIndex,
+          'posMs': posMs,
+          'contextName': _contextName,
+          'queue': sliced.map((s) => s.toMap()).toList(),
+        }),
+      );
+    } catch (_) {}
   }
 
   void _initAudioListeners() {
@@ -311,6 +387,9 @@ class PlayerProvider extends ChangeNotifier {
       _updateActiveLyricLine(pos);
       _handleCrossfadeTick(pos);
       _checkSleepTimerDeadline(fromStream: true);
+      if (_audioPlayer.playing) {
+        unawaited(_persistResumeState());
+      }
     });
 
     _audioPlayer.playerStateStream.listen((state) {
@@ -920,8 +999,13 @@ class PlayerProvider extends ChangeNotifier {
     await _startPlayback(_queue[index]);
   }
 
-  Future<void> _startPlayback(ZunifySong song) async {
+  Future<void> _startPlayback(
+    ZunifySong song, {
+    Duration? initialPosition,
+  }) async {
     _flushListenLog();
+    _needsInitialLoadForResume = false;
+    _savedResumePos = Duration.zero;
     final token = ++_playToken;
 
     _isLoadingTrack = true;
@@ -1026,9 +1110,15 @@ class PlayerProvider extends ChangeNotifier {
         unawaited(_audioPlayer.setSpeed(_playbackSpeed));
         unawaited(_audioPlayer.setPitch(_playbackPitch));
       }
+      if (initialPosition != null && initialPosition > Duration.zero) {
+        try {
+          await _audioPlayer.seek(initialPosition);
+        } catch (_) {}
+      }
       notifyListeners();
       unawaited(_audioPlayer.play());
       unawaited(_libraryProvider.addToRecentlyPlayed(song));
+      unawaited(_persistResumeState(force: true));
 
       _prefetchNext();
       _maybeFillAutoplay();
@@ -1134,8 +1224,14 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> togglePlayPause() async {
+    if (_needsInitialLoadForResume && _currentSong != null) {
+      final resumeAt = _savedResumePos;
+      await _startPlayback(_currentSong!, initialPosition: resumeAt);
+      return;
+    }
     if (_audioPlayer.playing) {
       await _audioPlayer.pause();
+      unawaited(_persistResumeState(force: true));
     } else {
       await _audioPlayer.play();
     }
@@ -1192,6 +1288,12 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> seekTo(Duration position) async {
+    if (_needsInitialLoadForResume) {
+      _savedResumePos = position;
+      notifyListeners();
+      unawaited(_persistResumeState(force: true));
+      return;
+    }
     _crossfadeTriggeredForCurrent = false;
     _isCrossfadingHandoff = false;
     if (!_isSleepFadingOut) {

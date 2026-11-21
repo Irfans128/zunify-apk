@@ -10,6 +10,7 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/theme_provider.dart';
 import '../widgets/equalizer_sheet.dart';
+import '../widgets/ipod_classic_player.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/share_card_modal.dart';
 import '../widgets/sleep_timer_sheet.dart';
@@ -210,6 +211,55 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
         totalLyricLines,
       );
     });
+
+    final utilityDock = _buildUtilityDock(
+      context: context,
+      player: player,
+      library: library,
+      theme: theme,
+      accent: accent,
+      song: song,
+      isDownloaded: isDownloaded,
+      downloadProgress: downloadProgress,
+    );
+
+    if (theme.isClassicIpod) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBgColor,
+        body: IpodClassicPlayer(
+          song: song,
+          player: player,
+          theme: theme,
+          showLyrics: _showLyricsView,
+          onToggleLyrics: () {
+            setState(() {
+              _showLyricsView = !_showLyricsView;
+              _userScrollingLyrics = false;
+              _lastScrolledLyricIdx = -99;
+            });
+            if (_showLyricsView) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                _scrollToActiveLyric(
+                  song.videoId,
+                  player.activeLyricIndex,
+                  totalLyricLines,
+                  force: true,
+                );
+              });
+            }
+          },
+          onMenuTap: () => Navigator.pop(context),
+          lyricsBuilder: _buildBitChordLyricsView(
+            song.videoId,
+            player,
+            theme,
+            accent,
+          ),
+          utilityRow: utilityDock,
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBgColor,
@@ -770,117 +820,130 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                 const SizedBox(height: 10),
 
                 // Logical 5-Slot Bottom Utility Dock: [Tempo | Equalizer | Timer | Unduh | Antrean]
-                LiquidGlassBox(
-                  borderRadius: 24,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 6,
-                    vertical: 8,
-                  ),
-                  tintOpacity: 0.09,
-                  rimIntensity: 0.38,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _dockIcon(
-                          icon: Icons.speed_rounded,
-                          label: player.hasCustomSpeedOrPitch
-                              ? player.speedPitchModeLabel
-                              : 'Tempo',
-                          active: player.hasCustomSpeedOrPitch,
-                          theme: theme,
-                          accent: accent,
-                          onTap: () => _showSpeedPitchStudioSheet(
-                            context,
-                            player,
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: _dockIcon(
-                          icon: Icons.equalizer_rounded,
-                          label: 'Equalizer',
-                          active: player.eqEnabled,
-                          theme: theme,
-                          accent: accent,
-                          onTap: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (_) => const EqualizerSheet(),
-                            );
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: _dockIcon(
-                          icon: player.hasActiveSleepTimer
-                              ? Icons.bedtime_rounded
-                              : Icons.bedtime_outlined,
-                          label: player.hasActiveSleepTimer
-                              ? player.formattedRemainingSleepTime
-                              : 'Timer',
-                          active: player.hasActiveSleepTimer,
-                          theme: theme,
-                          accent: accent,
-                          onTap: () {
-                            showModalBottomSheet(
-                              context: context,
-                              backgroundColor: Colors.transparent,
-                              builder: (_) => const SleepTimerSheet(),
-                            );
-                          },
-                        ),
-                      ),
-                      Expanded(
-                        child: downloadProgress != null
-                            ? Center(
-                                child: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    value: downloadProgress,
-                                    color: theme.accentText,
-                                    strokeWidth: 2.2,
-                                  ),
-                                ),
-                              )
-                            : _dockIcon(
-                                icon: isDownloaded
-                                    ? Icons.download_done_rounded
-                                    : Icons.download_outlined,
-                                label: isDownloaded ? 'Tersimpan' : 'Unduh',
-                                active: isDownloaded,
-                                theme: theme,
-                                accent: accent,
-                                onTap: () {
-                                  if (!isDownloaded) {
-                                    library.downloadSong(
-                                      song,
-                                      highQuality: true,
-                                    );
-                                  }
-                                },
-                              ),
-                      ),
-                      Expanded(
-                        child: _dockIcon(
-                          icon: Icons.queue_music_rounded,
-                          label: 'Antrean',
-                          badgeText: '${player.upcomingCount}',
-                          active: false,
-                          theme: theme,
-                          accent: accent,
-                          onTap: () => _showQueueBottomSheet(context, player),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                utilityDock,
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildUtilityDock({
+    required BuildContext context,
+    required PlayerProvider player,
+    required LibraryProvider library,
+    required ThemeProvider theme,
+    required Color accent,
+    required dynamic song,
+    required bool isDownloaded,
+    required double? downloadProgress,
+  }) {
+    return LiquidGlassBox(
+      borderRadius: 24,
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 8,
+      ),
+      tintOpacity: 0.09,
+      rimIntensity: 0.38,
+      child: Row(
+        children: [
+          Expanded(
+            child: _dockIcon(
+              icon: Icons.speed_rounded,
+              label: player.hasCustomSpeedOrPitch
+                  ? player.speedPitchModeLabel
+                  : 'Tempo',
+              active: player.hasCustomSpeedOrPitch,
+              theme: theme,
+              accent: accent,
+              onTap: () => _showSpeedPitchStudioSheet(
+                context,
+                player,
+              ),
+            ),
+          ),
+          Expanded(
+            child: _dockIcon(
+              icon: Icons.equalizer_rounded,
+              label: 'Equalizer',
+              active: player.eqEnabled,
+              theme: theme,
+              accent: accent,
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const EqualizerSheet(),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: _dockIcon(
+              icon: player.hasActiveSleepTimer
+                  ? Icons.bedtime_rounded
+                  : Icons.bedtime_outlined,
+              label: player.hasActiveSleepTimer
+                  ? player.formattedRemainingSleepTime
+                  : 'Timer',
+              active: player.hasActiveSleepTimer,
+              theme: theme,
+              accent: accent,
+              onTap: () {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  builder: (_) => const SleepTimerSheet(),
+                );
+              },
+            ),
+          ),
+          Expanded(
+            child: downloadProgress != null
+                ? Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        value: downloadProgress,
+                        color: theme.accentText,
+                        strokeWidth: 2.2,
+                      ),
+                    ),
+                  )
+                : _dockIcon(
+                    icon: isDownloaded
+                        ? Icons.download_done_rounded
+                        : Icons.download_outlined,
+                    label: isDownloaded ? 'Tersimpan' : 'Unduh',
+                    active: isDownloaded,
+                    theme: theme,
+                    accent: accent,
+                    onTap: () {
+                      if (!isDownloaded) {
+                        library.downloadSong(
+                          song,
+                          highQuality: true,
+                        );
+                      }
+                    },
+                  ),
+          ),
+          Expanded(
+            child: _dockIcon(
+              icon: Icons.queue_music_rounded,
+              label: 'Antrean',
+              badgeText: '${player.upcomingCount}',
+              active: false,
+              theme: theme,
+              accent: accent,
+              onTap: () => _showQueueBottomSheet(context, player),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1340,20 +1403,20 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             // Same-RGB fade base prevents dark/black RGB interpolation ("hitam2")
                             // and constant border width prevents layout height jumps on scroll.
                             final Color activeCardBase = isBrutal
-                                ? Color.lerp(theme.cardBgColor, accent, 0.34)!
+                                ? Color.lerp(theme.cardBgColor, accent, 0.24)!
                                 : Colors.white;
                             final Color cardFill = activeCardBase.withOpacity(
-                              isActive ? (isBrutal ? 1.0 : 0.08) : 0.0,
+                              isActive ? (isBrutal ? 1.0 : 0.11) : 0.0,
                             );
                             final Color borderBase = isBrutal
                                 ? Color.lerp(
                                     accent,
                                     theme.brutalBorderColor,
-                                    0.55,
+                                    0.45,
                                   )!
                                 : Colors.white;
                             final Color borderColor = borderBase.withOpacity(
-                              isActive ? (isBrutal ? 0.90 : 0.14) : 0.0,
+                              isActive ? (isBrutal ? 0.88 : 0.16) : 0.0,
                             );
 
                             return _MeasuredLyricItem(
@@ -1392,8 +1455,8 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   ),
                                   child: AnimatedScale(
                                     scale: isActive
-                                        ? 1.0
-                                        : (distance == 1 ? 0.96 : 0.93),
+                                        ? 1.03
+                                        : (distance == 1 ? 0.95 : 0.91),
                                     alignment: theme.lyricsCenterAligned
                                         ? Alignment.center
                                         : Alignment.centerLeft,

@@ -248,9 +248,67 @@ class LiquidGlassBox extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
     final isBrutal = theme.isNeoBrutalism;
+    final isIpod = theme.isClassicIpod;
     final baseTint = tintColor ?? Colors.white;
     final effectiveAlignment = alignment ??
         ((width != null || height != null) ? Alignment.center : null);
+
+    if (isIpod) {
+      final hasCustomTint = tintColor != null && tintColor != Colors.white;
+      final baseCard = theme.cardBgColor;
+      final fillBg = hasCustomTint
+          ? Color.lerp(
+              baseCard,
+              baseTint,
+              theme.isLightCanvas ? 0.14 : 0.22,
+            )!
+          : baseCard;
+      final ipodRadius = borderRadius.clamp(10.0, 16.0);
+      Widget ipodCard = Container(
+        width: width,
+        height: height,
+        margin: margin,
+        decoration: BoxDecoration(
+          color: fillBg,
+          borderRadius: BorderRadius.circular(ipodRadius),
+          border: Border.all(
+            color: theme.ipodWheelBorder,
+            width: 1.1,
+          ),
+          boxShadow: boxShadow ??
+              [
+                BoxShadow(
+                  color: Colors.black.withOpacity(theme.isLightCanvas ? 0.05 : 0.25),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(math.max(0, ipodRadius - 1.1)),
+          child: Container(
+            alignment: effectiveAlignment,
+            padding: padding ?? EdgeInsets.zero,
+            child: child,
+          ),
+        ),
+      );
+      if (onTap != null && enableSpring) {
+        return IosSpringButton(
+          onTap: onTap,
+          scaleDown: scaleDown,
+          borderRadius: ipodRadius,
+          child: ipodCard,
+        );
+      } else if (onTap != null) {
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: ipodCard,
+        );
+      }
+      return ipodCard;
+    }
 
     if (isBrutal) {
       final hasCustomTint = tintColor != null && tintColor != Colors.white;
@@ -260,8 +318,8 @@ class LiquidGlassBox extends StatelessWidget {
               baseCard,
               baseTint,
               theme.isLightCanvas
-                  ? (tintOpacity * 1.55).clamp(0.16, 0.44)
-                  : (tintOpacity * 1.35).clamp(0.14, 0.36),
+                  ? (tintOpacity * 1.45).clamp(0.14, 0.38)
+                  : (tintOpacity * 1.25).clamp(0.12, 0.32),
             )!
           : baseCard;
 
@@ -270,9 +328,9 @@ class LiquidGlassBox extends StatelessWidget {
               (width! - height!).abs() < 2.0 &&
               borderRadius >= width! * 0.45)
           ? 12.0
-          : borderRadius.clamp(10.0, 14.0);
+          : borderRadius.clamp(12.0, 16.0);
 
-      final shadowOffset = enableShadow ? 4.5 : 3.5;
+      final shadowOffset = enableShadow ? 3.4 : 2.5;
 
       Widget brutalCard = Container(
         width: width,
@@ -283,19 +341,19 @@ class LiquidGlassBox extends StatelessWidget {
           borderRadius: BorderRadius.circular(brutalRadius),
           border: Border.all(
             color: theme.brutalBorderColor,
-            width: 2.2,
+            width: 1.8,
           ),
           boxShadow: boxShadow ??
               [
                 BoxShadow(
-                  color: theme.brutalShadowColor,
+                  color: theme.brutalShadowColor.withOpacity(0.92),
                   blurRadius: 0,
                   offset: Offset(shadowOffset, shadowOffset),
                 ),
               ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(math.max(0, brutalRadius - 2.2)),
+          borderRadius: BorderRadius.circular(math.max(0, brutalRadius - 1.8)),
           child: Container(
             alignment: effectiveAlignment,
             padding: padding ?? EdgeInsets.zero,
@@ -342,12 +400,12 @@ class LiquidGlassBox extends StatelessWidget {
             begin: const Alignment(-0.94, -0.96),
             end: const Alignment(0.94, 0.96),
             colors: [
-              Colors.white.withOpacity((tintOpacity + 0.125).clamp(0.0, 0.48)),
+              Colors.white.withOpacity((tintOpacity + 0.085).clamp(0.0, 0.42)),
               Color.lerp(Colors.white, prismPrimary, 0.55)!
-                  .withOpacity((tintOpacity + 0.055).clamp(0.0, 0.38)),
+                  .withOpacity((tintOpacity + 0.045).clamp(0.0, 0.34)),
               prismSecondary
-                  .withOpacity((tintOpacity + 0.035).clamp(0.0, 0.32)),
-              prismPrimary.withOpacity((tintOpacity + 0.085).clamp(0.0, 0.42)),
+                  .withOpacity((tintOpacity + 0.030).clamp(0.0, 0.30)),
+              prismPrimary.withOpacity((tintOpacity + 0.075).clamp(0.0, 0.38)),
             ],
             stops: const [0.0, 0.36, 0.74, 1.0],
           ),
@@ -455,25 +513,58 @@ class IosGlassIconButton extends StatelessWidget {
     final theme = context.watch<ThemeProvider>();
     final accent = activeColor ?? theme.accentColor;
 
-    if (theme.isNeoBrutalism) {
-      final fill = isActive ? accent : theme.cardBgColor;
-      final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
+    if (theme.isClassicIpod) {
+      final fill = isActive ? accent : theme.ipodWheelBg;
+      final fg = isActive ? Colors.white : theme.textPrimary;
       Widget btn = IosSpringButton(
         onTap: onTap,
-        borderRadius: 11,
+        scaleDown: 0.90,
+        borderRadius: size / 2,
         child: Container(
           width: size,
           height: size,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: fill,
-            borderRadius: BorderRadius.circular(11),
-            border: Border.all(color: theme.brutalBorderColor, width: 2.0),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: isActive ? accent : theme.ipodWheelBorder,
+              width: 1.1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: theme.brutalShadowColor,
+                color: Colors.black.withOpacity(theme.isLightCanvas ? 0.06 : 0.25),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: iconSize, color: fg),
+        ),
+      );
+      if (tooltip != null) return Tooltip(message: tooltip!, child: btn);
+      return btn;
+    }
+
+    if (theme.isNeoBrutalism) {
+      final fill = isActive ? accent : theme.cardBgColor;
+      final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
+      Widget btn = IosSpringButton(
+        onTap: onTap,
+        borderRadius: 12,
+        child: Container(
+          width: size,
+          height: size,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: theme.brutalBorderColor, width: 1.7),
+            boxShadow: [
+              BoxShadow(
+                color: theme.brutalShadowColor.withOpacity(0.90),
                 blurRadius: 0,
-                offset: const Offset(2.8, 2.8),
+                offset: const Offset(2.2, 2.2),
               ),
             ],
           ),
@@ -549,14 +640,13 @@ class IosGlassPillButton extends StatelessWidget {
     final theme = context.watch<ThemeProvider>();
     final accent = activeColor ?? theme.accentColor;
 
-    if (theme.isNeoBrutalism) {
-      final fill = isActive
-          ? accent
-          : (theme.isLightCanvas ? const Color(0xFFFFFDF7) : theme.cardBgColor);
-      final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
+    if (theme.isClassicIpod) {
+      final fill = isActive ? accent : theme.cardBgColor;
+      final fg = isActive ? Colors.white : theme.textPrimary;
       return IosSpringButton(
         onTap: onTap,
-        borderRadius: 10,
+        scaleDown: 0.94,
+        borderRadius: height / 2,
         child: Container(
           width: expand ? double.infinity : null,
           height: height,
@@ -564,13 +654,61 @@ class IosGlassPillButton extends StatelessWidget {
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: fill,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: theme.brutalBorderColor, width: 1.9),
+            borderRadius: BorderRadius.circular(height / 2),
+            border: Border.all(
+              color: isActive ? accent : theme.ipodWheelBorder,
+              width: 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (icon != null) ...[
+                Icon(icon, size: fontSize + 2.2, color: fg),
+                const SizedBox(width: 5),
+              ],
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (theme.isNeoBrutalism) {
+      final fill = isActive
+          ? accent
+          : (theme.isLightCanvas ? const Color(0xFFFFFDF7) : theme.cardBgColor);
+      final fg = isActive ? const Color(0xFF111111) : theme.textPrimary;
+      return IosSpringButton(
+        onTap: onTap,
+        borderRadius: 11,
+        child: Container(
+          width: expand ? double.infinity : null,
+          height: height,
+          padding: padding,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: fill,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(color: theme.brutalBorderColor, width: 1.7),
             boxShadow: [
               BoxShadow(
-                color: theme.brutalShadowColor,
+                color: theme.brutalShadowColor.withOpacity(0.90),
                 blurRadius: 0,
-                offset: const Offset(2.4, 2.4),
+                offset: const Offset(2.0, 2.0),
               ),
             ],
           ),
@@ -677,6 +815,22 @@ class ZunifySheetContainer extends StatelessWidget {
     final theme = context.watch<ThemeProvider>();
     final isBrutal = theme.isNeoBrutalism;
 
+    if (theme.isClassicIpod) {
+      return Container(
+        height: height,
+        constraints: constraints,
+        padding: padding,
+        decoration: BoxDecoration(
+          color: theme.sheetBgColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          border: Border(
+            top: BorderSide(color: theme.ipodWheelBorder, width: 1.2),
+          ),
+        ),
+        child: child,
+      );
+    }
+
     if (isBrutal) {
       return Container(
         height: height,
@@ -684,11 +838,11 @@ class ZunifySheetContainer extends StatelessWidget {
         padding: padding,
         decoration: BoxDecoration(
           color: theme.sheetBgColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(18)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           border: Border(
-            top: BorderSide(color: theme.brutalBorderColor, width: 2.8),
-            left: BorderSide(color: theme.brutalBorderColor, width: 2.2),
-            right: BorderSide(color: theme.brutalBorderColor, width: 2.2),
+            top: BorderSide(color: theme.brutalBorderColor, width: 2.2),
+            left: BorderSide(color: theme.brutalBorderColor, width: 1.8),
+            right: BorderSide(color: theme.brutalBorderColor, width: 1.8),
           ),
         ),
         child: child,
@@ -910,11 +1064,11 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
     _syncTickerState();
   }
 
-  void _syncTickerState({bool? isBrutalOverride}) {
+  void _syncTickerState({bool? isStaticOverride}) {
     if (!mounted) return;
-    final isBrutal =
-        isBrutalOverride ?? context.read<ThemeProvider>().isNeoBrutalism;
-    final shouldAnimate = _appResumed && !isBrutal;
+    final t = context.read<ThemeProvider>();
+    final isStatic = isStaticOverride ?? (t.isNeoBrutalism || t.isClassicIpod);
+    final shouldAnimate = _appResumed && !isStatic;
     if (shouldAnimate && !_controller.isAnimating) {
       _controller.repeat();
     } else if (!shouldAnimate && _controller.isAnimating) {
@@ -933,6 +1087,8 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
   Widget build(BuildContext context) {
     final isBrutal =
         context.select<ThemeProvider, bool>((t) => t.isNeoBrutalism);
+    final isIpod =
+        context.select<ThemeProvider, bool>((t) => t.isClassicIpod);
     final isLight =
         context.select<ThemeProvider, bool>((t) => t.isLightCanvas);
     final blurMult =
@@ -940,12 +1096,40 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
     final animSpeed = context
         .select<ThemeProvider, double>((t) => t.animationSpeedMultiplier);
 
-    _syncTickerState(isBrutalOverride: isBrutal);
+    _syncTickerState(isStaticOverride: isBrutal || isIpod);
 
     final effectiveIntensity =
-        (widget.intensity * (0.72 + 0.48 * blurMult)).clamp(0.24, 0.88);
+        (widget.intensity * (0.64 + 0.42 * blurMult)).clamp(0.20, 0.74);
     final blurSigma = (44.0 * blurMult).clamp(20.0, 54.0);
     final speedFactor = (1.0 / animSpeed).clamp(0.55, 1.45);
+
+    if (isIpod) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isLight
+                    ? const [
+                        Color(0xFFF1F4F8),
+                        Color(0xFFE7EAEE),
+                        Color(0xFFDCE1E7),
+                      ]
+                    : const [
+                        Color(0xFF171920),
+                        Color(0xFF101115),
+                        Color(0xFF0A0B0E),
+                      ],
+              ),
+            ),
+          ),
+          widget.child,
+        ],
+      );
+    }
 
     if (isBrutal) {
       return Stack(
@@ -1019,9 +1203,9 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        widget.baseColor.withOpacity(0.10),
-                        widget.baseColor.withOpacity(0.38),
-                        widget.baseColor.withOpacity(0.70),
+                        widget.baseColor.withOpacity(0.20),
+                        widget.baseColor.withOpacity(0.44),
+                        widget.baseColor.withOpacity(0.76),
                       ],
                       stops: const [0.0, 0.52, 1.0],
                     ),

@@ -81,9 +81,16 @@ class ThemeProvider extends ChangeNotifier {
       primary: Color(0xFF34D399),
       secondary: Color(0xFF60A5FA),
     ),
+    ZunifyAccentPreset(
+      id: 'ipod_steel',
+      name: 'iPod Classic Blue',
+      subtitle: 'Biru ikonik retro LCD',
+      primary: Color(0xFF2563EB),
+      secondary: Color(0xFF64748B),
+    ),
   ];
 
-  /// 2 Core Visual Themes: 'liquid_glass' | 'neo_brutalism'
+  /// 3 Core Visual Themes: 'liquid_glass' | 'neo_brutalism' | 'classic_ipod'
   String _uiThemeMode = 'liquid_glass';
   String _selectedPresetId = 'ios_liquid';
   bool _oledPureBlack = false;
@@ -105,8 +112,9 @@ class ThemeProvider extends ChangeNotifier {
 
   String get uiThemeMode => _uiThemeMode;
   bool get isNeoBrutalism => _uiThemeMode == 'neo_brutalism';
+  bool get isClassicIpod => _uiThemeMode == 'classic_ipod';
   bool get isSaweriaTheme => isNeoBrutalism; // Compatibility alias
-  bool get isLightCanvas => isNeoBrutalism && !_oledPureBlack;
+  bool get isLightCanvas => (isNeoBrutalism || isClassicIpod) && !_oledPureBlack;
 
   String get selectedPresetId => _selectedPresetId;
   bool get oledPureBlack => _oledPureBlack;
@@ -125,8 +133,9 @@ class ThemeProvider extends ChangeNotifier {
     return Duration(milliseconds: scaled);
   }
 
-  double get glassBlurSigma =>
-      isNeoBrutalism ? 0.0 : (24.0 * _blurIntensity).clamp(10.0, 30.0);
+  double get glassBlurSigma => (isNeoBrutalism || isClassicIpod)
+      ? 0.0
+      : (24.0 * _blurIntensity).clamp(10.0, 30.0);
 
   double get playerSpacingFactor {
     switch (_playerSpacingMode) {
@@ -194,6 +203,11 @@ class ThemeProvider extends ChangeNotifier {
 
   // --- Semantic Theme Tokens ---
   Color get scaffoldBgColor {
+    if (isClassicIpod) {
+      return _oledPureBlack
+          ? const Color(0xFF101115) // Matte Black iPod Classic
+          : const Color(0xFFE7EAEE); // Brushed Silver iPod Chassis
+    }
     if (isNeoBrutalism) {
       return _oledPureBlack
           ? const Color(0xFF16171D)
@@ -203,16 +217,33 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   Color get cardBgColor {
+    if (isClassicIpod) {
+      return _oledPureBlack
+          ? const Color(0xFF191B22)
+          : const Color(0xFFF7F9FC);
+    }
     if (isLightCanvas) return const Color(0xFFFFFDF8);
     if (isNeoBrutalism) return const Color(0xFF232530);
     return _oledPureBlack ? const Color(0xFF0B0D13) : const Color(0xFF121622);
   }
 
   Color get sheetBgColor {
+    if (isClassicIpod) {
+      return _oledPureBlack
+          ? const Color(0xFF14161C)
+          : const Color(0xFFECEFF3);
+    }
     if (isLightCanvas) return const Color(0xFFFAF4E6);
     if (isNeoBrutalism) return const Color(0xFF1D1F29);
     return _oledPureBlack ? const Color(0xFF0B0D14) : const Color(0xFF101420);
   }
+
+  Color get ipodWheelBg =>
+      isLightCanvas ? const Color(0xFFFFFFFF) : const Color(0xFF1F222B);
+  Color get ipodWheelBorder =>
+      isLightCanvas ? const Color(0xFFD0D5DD) : const Color(0xFF343846);
+  Color get ipodCenterBtnBg =>
+      isLightCanvas ? const Color(0xFFE2E6EC) : const Color(0xFF12141A);
 
   Color get textPrimary =>
       isLightCanvas ? const Color(0xFF111111) : Colors.white;
@@ -271,15 +302,19 @@ class ThemeProvider extends ChangeNotifier {
     final normalized = mode == 'saweria' ? 'neo_brutalism' : mode;
     _uiThemeMode = normalized;
     if (normalized == 'neo_brutalism') {
-      // Ensure Neo-Brutalism defaults to authentic warm cream + punchy amber
       if (_oledPureBlack) {
         _oledPureBlack = false;
       }
-      if (_selectedPresetId == 'ios_liquid') {
+      if (_selectedPresetId == 'ios_liquid' || _selectedPresetId == 'ipod_steel') {
         _selectedPresetId = 'brutal_amber';
       }
+    } else if (normalized == 'classic_ipod') {
+      if (_oledPureBlack) {
+        _oledPureBlack = false;
+      }
+      _selectedPresetId = 'ipod_steel';
     } else if (normalized == 'liquid_glass' &&
-        _selectedPresetId == 'brutal_amber') {
+        (_selectedPresetId == 'brutal_amber' || _selectedPresetId == 'ipod_steel')) {
       _selectedPresetId = 'ios_liquid';
     }
     notifyListeners();
