@@ -1,19 +1,13 @@
 import 'package:audio_service/audio_service.dart';
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
-/// Ultra-lightweight MediaSession handler for ZunifyG.
-/// Configured with `handleInterruptions: false` and `handleAudioSessionActivation: false`
-/// so mobile games (MLBB, PUBG, Free Fire, etc.) can play game audio seamlessly
-/// alongside background music without Android auto-pausing ZunifyG.
+/// Ultra-stable MediaSession & Notification Handler for ZunifyG.
+/// Renders SkipToPrevious, Play/Pause, SkipToNext, and Seekbar in Android
+/// notification shade & lockscreen reliably without force close.
 class LiteAudioHandler extends BaseAudioHandler with SeekHandler {
-  final AudioPlayer player = AudioPlayer(
-    handleInterruptions: false,
-    handleAudioSessionActivation: false,
-  );
+  final AudioPlayer player = AudioPlayer();
 
-  bool gamingMixMode = true;
   AsyncCallback? onNextCallback;
   AsyncCallback? onPreviousCallback;
 
@@ -26,31 +20,6 @@ class LiteAudioHandler extends BaseAudioHandler with SeekHandler {
         mediaItem.add(cur.copyWith(duration: dur));
       }
     });
-    _setupAudioSession();
-  }
-
-  Future<void> _setupAudioSession() async {
-    try {
-      final session = await AudioSession.instance;
-      await session.configure(
-        const AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playback,
-          avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.mixWithOthers,
-          androidAudioAttributes: AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.music,
-            usage: AndroidAudioUsage.media,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-          androidWillPauseWhenDucked: false,
-        ),
-      );
-      session.interruptionEventStream.listen((event) {
-        if (gamingMixMode) return;
-        if (event.begin && player.playing) {
-          player.pause();
-        }
-      });
-    } catch (_) {}
   }
 
   void updateTrack(MediaItem item) {
@@ -69,6 +38,8 @@ class LiteAudioHandler extends BaseAudioHandler with SeekHandler {
         ],
         systemActions: const {
           MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
           MediaAction.skipToPrevious,
           MediaAction.skipToNext,
           MediaAction.playPause,

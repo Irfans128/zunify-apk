@@ -44,8 +44,10 @@ jobs:
           mkdir -p android/app/src/main/kotlin/com/fannz/zunifyg
           cp /tmp/zunifyg_android_backup/app/src/main/kotlin/com/fannz/zunifyg/*.kt android/app/src/main/kotlin/com/fannz/zunifyg/
           mkdir -p android/app/src/main/res/drawable
+          mkdir -p android/app/src/main/res/raw
           mkdir -p android/app/src/main/res/values
           cp -r /tmp/zunifyg_android_backup/app/src/main/res/drawable/* android/app/src/main/res/drawable/ || true
+          cp -r /tmp/zunifyg_android_backup/app/src/main/res/raw/* android/app/src/main/res/raw/ || true
           cp -r /tmp/zunifyg_android_backup/app/src/main/res/values/* android/app/src/main/res/values/ || true
           cp /tmp/zunifyg_android_backup/settings.gradle android/settings.gradle
           cp /tmp/zunifyg_android_backup/gradle.properties android/gradle.properties
@@ -66,8 +68,8 @@ jobs:
       - name: Build ZunifyG Ultra-Lite Split-ABI & Universal APK
         working-directory: zunifyg
         run: |
-          flutter build apk --release --split-per-abi
-          flutter build apk --release
+          flutter build apk --release --split-per-abi --obfuscate --split-debug-info=build/debug-info
+          flutter build apk --release --obfuscate --split-debug-info=build/debug-info-uni
 
       - name: Package ZunifyG APKs
         working-directory: zunifyg

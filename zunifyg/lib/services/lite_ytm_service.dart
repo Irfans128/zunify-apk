@@ -25,8 +25,8 @@ class _CachedStream {
   bool get isValid => DateTime.now().isBefore(expiresAt);
 }
 
-/// Ultra-lean YouTube Music InnerTube engine for ZunifyG.
-/// Zero bloat: ONLY Search, Smart Radio Algorithm (RDAMVM), & Direct Audio Stream.
+/// Ultra-lean InnerTube Engine for ZunifyG.
+/// Only Search + Spotify-style Radio Algorithm (`RDAMVM` / `RD`) + Audio Stream.
 class LiteYtmService {
   static const _searchUrl =
       'https://music.youtube.com/youtubei/v1/search?prettyPrint=false';
@@ -47,7 +47,6 @@ class LiteYtmService {
   String? _visitorData;
   DateTime? _visitorFetchedAt;
 
-  // Tightly bounded caches so RAM stays ultra-low on potato phones
   final Map<String, _CachedStream> _streamCache = {};
   final Map<String, List<LiteSong>> _searchCache = {};
 
@@ -98,7 +97,6 @@ class LiteYtmService {
 
   String _compactThumb(String url) {
     if (url.contains('googleusercontent.com') || url.contains('ggpht.com')) {
-      // Request tiny 120x120 square thumbnail to save RAM & mobile bandwidth while gaming
       return url.replaceAll(RegExp(r'=w\d+-h\d+.*'), '=w120-h120-l80-rj');
     }
     return url;
@@ -132,7 +130,10 @@ class LiteYtmService {
     }
     final sub = subtitle.toLowerCase();
     if (sub.contains('ditonton') ||
+        sub.contains('tayangan') ||
         sub.contains('views') ||
+        sub.contains('jt x') ||
+        sub.contains('rb x') ||
         sub.contains('podcast') ||
         sub.contains('episode')) {
       return true;
@@ -142,6 +143,8 @@ class LiteYtmService {
     final q = rawQuery.toLowerCase();
     const junk = [
       'full album',
+      'kompilasi',
+      'compilation',
       '1 jam',
       '1 hour',
       'nonstop',
@@ -155,8 +158,8 @@ class LiteYtmService {
     return false;
   }
 
-  /// Fast Songs-only search
-  Future<List<LiteSong>> searchSongs(String query, {int limit = 18}) async {
+  /// Fast Songs-Only search
+  Future<List<LiteSong>> searchSongs(String query, {int limit = 20}) async {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return const [];
 
@@ -356,26 +359,6 @@ class LiteYtmService {
     }
   }
 
-  /// Quick preset feed for the Home tab (Gaming / Mood categories)
-  Future<List<LiteSong>> getCategorySongs(String category) async {
-    switch (category) {
-      case 'Gaming':
-        return searchSongs('Phonk EDM Gaming Hype Music NCS', limit: 16);
-      case 'Pop Indo':
-        return searchSongs('Tulus Bernadya Mahalini Juicy Luicy Lagu', limit: 16);
-      case 'Pop Barat':
-        return searchSongs('Bruno Mars The Weeknd Billie Eilish Hits', limit: 16);
-      case 'Galau':
-        return searchSongs('Lagu Galau Indonesia Pop Terbaru', limit: 16);
-      case 'Chill':
-        return searchSongs('Hindia Pamungkas Lofi Chill Acoustic', limit: 16);
-      case 'Anime':
-        return searchSongs('YOASOBI Kenshi Yonezu Anime Opening Hits', limit: 16);
-      default:
-        return searchSongs(category, limit: 16);
-    }
-  }
-
   void _extractPanelVideos(dynamic node, List<Map<String, dynamic>> out) {
     if (node is Map<String, dynamic>) {
       final wrapper = node['playlistPanelVideoWrapperRenderer'];
@@ -403,10 +386,11 @@ class LiteYtmService {
   Future<void> _fetchRadioBatch({
     required String videoId,
     required String playlistId,
+    required String tunerMode,
     required String fallbackArtist,
     required Set<String> seen,
     required List<LiteSong> results,
-    int maxResults = 24,
+    int maxResults = 36,
   }) async {
     if (results.length >= maxResults) return;
     try {
@@ -433,7 +417,7 @@ class LiteYtmService {
               'params': 'wAEB',
               'isAudioOnly': true,
               'enablePersistentPlaylistPanel': true,
-              'tunerSettingValue': 'AUTOMIX_SETTING_NORMAL',
+              'tunerSettingValue': tunerMode,
               'context': {'client': client},
             }),
           )
@@ -514,10 +498,11 @@ class LiteYtmService {
     } catch (_) {}
   }
 
-  /// Smart Auto-Radio Algorithm (Spotify-style genre/vibe queue via RDAMVM)
-  Future<List<LiteSong>> getRadioNext(
+  /// Spotify-style Genre / Mood Radio Engine (`RDAMVM` + `RD` AutoMix Graph)
+  Future<List<LiteSong>> getRadioRecommendations(
     LiteSong seed, {
     Set<String> excludeIds = const {},
+    String tunerMode = 'AUTOMIX_SETTING_NORMAL',
   }) async {
     final seen = <String>{seed.videoId, ...excludeIds};
     final out = <LiteSong>[];
@@ -525,30 +510,29 @@ class LiteYtmService {
     await _fetchRadioBatch(
       videoId: seed.videoId,
       playlistId: 'RDAMVM${seed.videoId}',
+      tunerMode: tunerMode,
       fallbackArtist: seed.artist,
       seen: seen,
       results: out,
-      maxResults: 24,
+      maxResults: 36,
     );
 
-    if (out.length < 6) {
+    if (out.length < 8) {
       await _fetchRadioBatch(
         videoId: seed.videoId,
         playlistId: 'RD${seed.videoId}',
+        tunerMode: 'AUTOMIX_SETTING_NORMAL',
         fallbackArtist: seed.artist,
         seen: seen,
         results: out,
-        maxResults: 24,
+        maxResults: 36,
       );
     }
 
     return out;
   }
 
-  /// Direct audio stream resolver (VISIONOS InnerTube) with 3 quality tiers:
-  /// - 'low': ~48-64 kbps (Ultra Hemat / Gaming Ping Aman)
-  /// - 'standard': ~96-128 kbps (Normal)
-  /// - 'high': ~160+ kbps (Tinggi)
+  /// Direct audio stream resolver (VISIONOS InnerTube) with 3 quality tiers
   Future<LiteAudioStream?> resolveStream(
     String videoId, {
     String qualityTier = 'low',

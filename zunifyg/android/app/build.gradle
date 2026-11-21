@@ -44,6 +44,19 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
+    packagingOptions {
+        resources {
+            excludes += [
+                'META-INF/*.kotlin_module',
+                'META-INF/LICENSE*',
+                'META-INF/NOTICE*',
+                'META-INF/DEPENDENCIES',
+                'DebugProbesKt.bin',
+                'kotlin-tooling-metadata.json'
+            ]
+        }
+    }
 }
 
 flutter {

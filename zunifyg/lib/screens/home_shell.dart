@@ -4,14 +4,14 @@ import '../app_version.dart';
 import '../models/lite_song.dart';
 import '../state/zunifyg_controller.dart';
 
-// Ultra-flat Gaming Dark Palette (Zero GPU blur, OLED friendly)
-const Color _kBg = Color(0xFF0B0C10);
-const Color _kSurface = Color(0xFF14161D);
-const Color _kSurfaceAlt = Color(0xFF1C1F29);
-const Color _kBorder = Color(0xFF252A37);
+// Crisp AMOLED Ultra-Light Palette (Zero GPU blur, zero shadow bloat)
+const Color _kBg = Color(0xFF09090B);
+const Color _kCard = Color(0xFF131318);
+const Color _kCardAlt = Color(0xFF1C1C24);
+const Color _kBorder = Color(0xFF23232D);
 const Color _kAccent = Color(0xFF00E676);
-const Color _kText = Color(0xFFF3F4F6);
-const Color _kTextSub = Color(0xFF9CA3AF);
+const Color _kText = Color(0xFFF4F4F5);
+const Color _kTextSub = Color(0xFF8E8E98);
 
 class HomeShell extends StatefulWidget {
   final ZunifyGController controller;
@@ -23,22 +23,8 @@ class HomeShell extends StatefulWidget {
 }
 
 class _HomeShellState extends State<HomeShell> {
-  int _tabIndex = 0;
+  int _tabIndex = 0; // 0 = Cari, 1 = Playlist
 
-  // Home tab state
-  static const _categories = [
-    'Gaming',
-    'Pop Indo',
-    'Pop Barat',
-    'Galau',
-    'Chill',
-    'Anime',
-  ];
-  String _selectedCategory = 'Gaming';
-  List<LiteSong> _homeSongs = [];
-  bool _loadingHome = true;
-
-  // Search tab state
   final TextEditingController _searchCtrl = TextEditingController();
   Timer? _suggestDebounce;
   List<String> _suggestions = [];
@@ -48,29 +34,10 @@ class _HomeShellState extends State<HomeShell> {
   ZunifyGController get _c => widget.controller;
 
   @override
-  void initState() {
-    super.initState();
-    _loadCategory(_selectedCategory);
-  }
-
-  @override
   void dispose() {
     _suggestDebounce?.cancel();
     _searchCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _loadCategory(String cat) async {
-    setState(() {
-      _selectedCategory = cat;
-      _loadingHome = true;
-    });
-    final list = await _c.ytm.getCategorySongs(cat);
-    if (!mounted) return;
-    setState(() {
-      _homeSongs = list;
-      _loadingHome = false;
-    });
   }
 
   void _onSearchChanged(String val) {
@@ -83,7 +50,7 @@ class _HomeShellState extends State<HomeShell> {
       }
     });
     if (trimmed.isEmpty) return;
-    _suggestDebounce = Timer(const Duration(milliseconds: 280), () async {
+    _suggestDebounce = Timer(const Duration(milliseconds: 260), () async {
       final list = await _c.ytm.getSuggestions(trimmed);
       if (!mounted) return;
       setState(() => _suggestions = list);
@@ -108,10 +75,10 @@ class _HomeShellState extends State<HomeShell> {
     });
   }
 
-  void _openQualityModal() {
+  void _openQualitySheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _kSurface,
+      backgroundColor: _kCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -125,7 +92,7 @@ class _HomeShellState extends State<HomeShell> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Kualitas & Mode Gaming',
+                  'Kualitas & Algoritma',
                   style: TextStyle(
                     color: _kText,
                     fontSize: 16,
@@ -133,59 +100,41 @@ class _HomeShellState extends State<HomeShell> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                _qualityOption(
+                _qualityRow(
                   ctx,
                   tier: 'low',
-                  title: 'Hemat / Ping Aman (~64 kbps)',
-                  subtitle: 'Paling ringan & irit kuota saat push rank',
+                  title: 'Hemat • ~64 kbps',
+                  subtitle: 'Paling ringan, ping game aman & file download kecil',
                 ),
                 const SizedBox(height: 8),
-                _qualityOption(
+                _qualityRow(
                   ctx,
                   tier: 'standard',
-                  title: 'Normal (~128 kbps)',
-                  subtitle: 'Seimbang antara jernih & stabilitas ping',
+                  title: 'Normal • ~128 kbps',
+                  subtitle: 'Suara jernih seimbang & kuota irit',
                 ),
                 const SizedBox(height: 8),
-                _qualityOption(
+                _qualityRow(
                   ctx,
                   tier: 'high',
-                  title: 'Tinggi (~160 kbps)',
-                  subtitle: 'Suara paling jernih (butuh koneksi stabil)',
+                  title: 'Tinggi • ~160 kbps',
+                  subtitle: 'Detail maksimal (disarankan saat pakai Wi-Fi)',
                 ),
-                const Divider(color: _kBorder, height: 24),
+                const Divider(color: _kBorder, height: 22),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   activeColor: _kAccent,
                   title: const Text(
-                    'Mode Mix Game',
+                    'Algoritma Radio (Ala Spotify)',
                     style: TextStyle(
                       color: _kText,
-                      fontSize: 14,
+                      fontSize: 13.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
                   subtitle: const Text(
-                    'Musik tidak auto-pause saat suara game muncul',
-                    style: TextStyle(color: _kTextSub, fontSize: 12),
-                  ),
-                  value: _c.gamingMixMode,
-                  onChanged: (_) => _c.toggleGamingMixMode(),
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  activeColor: _kAccent,
-                  title: const Text(
-                    'Algoritma Auto-Radio',
-                    style: TextStyle(
-                      color: _kText,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  subtitle: const Text(
-                    'Otomatis lanjut ke lagu se-vibe tanpa keluar game',
-                    style: TextStyle(color: _kTextSub, fontSize: 12),
+                    'Otomatis sambung lagu se-vibe saat antrean habis',
+                    style: TextStyle(color: _kTextSub, fontSize: 11.5),
                   ),
                   value: _c.autoRadioEnabled,
                   onChanged: (_) => _c.toggleAutoRadio(),
@@ -198,13 +147,13 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  Widget _qualityOption(
+  Widget _qualityRow(
     BuildContext ctx, {
     required String tier,
     required String title,
     required String subtitle,
   }) {
-    final selected = _c.qualityTier == tier;
+    final sel = _c.qualityTier == tier;
     return InkWell(
       borderRadius: BorderRadius.circular(12),
       onTap: () {
@@ -214,19 +163,16 @@ class _HomeShellState extends State<HomeShell> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? _kAccent.withOpacity(0.14) : _kSurfaceAlt,
+          color: sel ? _kAccent.withOpacity(0.12) : _kCardAlt,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? _kAccent : _kBorder,
-            width: selected ? 1.5 : 1,
-          ),
+          border: Border.all(color: sel ? _kAccent : _kBorder),
         ),
         child: Row(
           children: [
             Icon(
-              selected ? Icons.radio_button_checked : Icons.radio_button_off,
-              color: selected ? _kAccent : _kTextSub,
-              size: 20,
+              sel ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+              color: sel ? _kAccent : _kTextSub,
+              size: 19,
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -236,14 +182,14 @@ class _HomeShellState extends State<HomeShell> {
                   Text(
                     title,
                     style: TextStyle(
-                      color: selected ? _kAccent : _kText,
-                      fontWeight: FontWeight.w700,
+                      color: sel ? _kAccent : _kText,
                       fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   Text(
                     subtitle,
-                    style: const TextStyle(color: _kTextSub, fontSize: 11.5),
+                    style: const TextStyle(color: _kTextSub, fontSize: 11),
                   ),
                 ],
               ),
@@ -254,10 +200,10 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  void _openAddToPlaylistModal(LiteSong song) {
+  void _openAddToPlaylist(LiteSong song) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _kSurface,
+      backgroundColor: _kCard,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
       ),
@@ -274,7 +220,7 @@ class _HomeShellState extends State<HomeShell> {
                   children: [
                     const Expanded(
                       child: Text(
-                        'Tambah ke Playlist',
+                        'Simpan ke Playlist',
                         style: TextStyle(
                           color: _kText,
                           fontSize: 15.5,
@@ -285,7 +231,7 @@ class _HomeShellState extends State<HomeShell> {
                     TextButton.icon(
                       onPressed: () {
                         Navigator.pop(ctx);
-                        _showCreatePlaylistDialog(songToAutoAdd: song);
+                        _showCreatePlaylistDialog(songToAdd: song);
                       },
                       icon: const Icon(Icons.add, color: _kAccent, size: 18),
                       label: const Text(
@@ -295,18 +241,17 @@ class _HomeShellState extends State<HomeShell> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 6),
                 if (_c.playlists.isEmpty)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Text(
-                      'Belum ada playlist. Klik "+ Baru" untuk membuat.',
+                      'Belum ada playlist. Tap "+ Baru" untuk membuat.',
                       style: TextStyle(color: _kTextSub, fontSize: 13),
                     ),
                   )
                 else
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 280),
+                    constraints: const BoxConstraints(maxHeight: 260),
                     child: ListView.builder(
                       shrinkWrap: true,
                       itemCount: _c.playlists.length,
@@ -316,7 +261,7 @@ class _HomeShellState extends State<HomeShell> {
                         return ListTile(
                           dense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                          leading: const Icon(Icons.queue_music, color: _kAccent),
+                          leading: const Icon(Icons.queue_music_rounded, color: _kAccent),
                           title: Text(
                             pl.name,
                             style: const TextStyle(
@@ -332,17 +277,17 @@ class _HomeShellState extends State<HomeShell> {
                               ? const Icon(Icons.check, color: _kAccent, size: 18)
                               : null,
                           onTap: () async {
-                            final added = await _c.addSongToPlaylist(pl.id, song);
+                            final ok = await _c.addSongToPlaylist(pl.id, song);
                             if (ctx.mounted) Navigator.pop(ctx);
                             if (mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
                                   duration: const Duration(seconds: 1),
-                                  backgroundColor: _kSurfaceAlt,
+                                  backgroundColor: _kCardAlt,
                                   content: Text(
-                                    added
+                                    ok
                                         ? 'Ditambahkan ke "${pl.name}"'
-                                        : 'Lagu sudah ada di "${pl.name}"',
+                                        : 'Sudah ada di "${pl.name}"',
                                     style: const TextStyle(color: _kText),
                                   ),
                                 ),
@@ -361,25 +306,25 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  void _showCreatePlaylistDialog({LiteSong? songToAutoAdd}) {
-    final nameCtrl = TextEditingController();
+  void _showCreatePlaylistDialog({LiteSong? songToAdd}) {
+    final ctrl = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _kSurface,
+        backgroundColor: _kCard,
         title: const Text(
-          'Buat Playlist Baru',
+          'Playlist Baru',
           style: TextStyle(color: _kText, fontSize: 16, fontWeight: FontWeight.w800),
         ),
         content: TextField(
-          controller: nameCtrl,
+          controller: ctrl,
           autofocus: true,
           style: const TextStyle(color: _kText),
           decoration: InputDecoration(
-            hintText: 'Contoh: Push Rank MLBB',
+            hintText: 'Contoh: Push Rank',
             hintStyle: const TextStyle(color: _kTextSub),
             filled: true,
-            fillColor: _kSurfaceAlt,
+            fillColor: _kCardAlt,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: const BorderSide(color: _kBorder),
@@ -397,17 +342,123 @@ class _HomeShellState extends State<HomeShell> {
               foregroundColor: Colors.black,
             ),
             onPressed: () async {
-              final name = nameCtrl.text.trim();
+              final name = ctrl.text.trim();
               if (name.isEmpty) return;
               await _c.createPlaylist(name);
-              if (songToAutoAdd != null && _c.playlists.isNotEmpty) {
-                await _c.addSongToPlaylist(_c.playlists.first.id, songToAutoAdd);
+              if (songToAdd != null && _c.playlists.isNotEmpty) {
+                await _c.addSongToPlaylist(_c.playlists.first.id, songToAdd);
               }
               if (ctx.mounted) Navigator.pop(ctx);
             },
-            child: const Text('Simpan', style: TextStyle(fontWeight: FontWeight.w800)),
+            child: const Text('Buat', style: TextStyle(fontWeight: FontWeight.w800)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _openOfflineSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: _kBg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.78,
+        maxChildSize: 0.92,
+        minChildSize: 0.45,
+        builder: (_, scrollCtrl) => ListenableBuilder(
+          listenable: _c,
+          builder: (_, __) {
+            final songs = _c.downloadedSongs;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 14, 10),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.offline_pin_rounded, color: _kAccent, size: 22),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Lagu Offline',
+                              style: TextStyle(
+                                color: _kText,
+                                fontSize: 16.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            Text(
+                              '${songs.length} lagu siap putar tanpa kuota',
+                              style: const TextStyle(color: _kTextSub, fontSize: 11.5),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (songs.isNotEmpty)
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _kAccent,
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          onPressed: () {
+                            _c.playSong(songs.first, queueList: songs);
+                            Navigator.pop(ctx);
+                          },
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                          label: const Text(
+                            'Putar',
+                            style: TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const Divider(color: _kBorder, height: 1),
+                Expanded(
+                  child: songs.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'Belum ada lagu tersimpan.\nTap ikon download di lagu mana saja.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: _kTextSub, fontSize: 13),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: scrollCtrl,
+                          itemCount: songs.length,
+                          itemBuilder: (_, i) {
+                            final s = songs[i];
+                            return _SongRow(
+                              song: s,
+                              controller: _c,
+                              onTap: () => _c.playSong(s, queueList: songs),
+                              trailing: IconButton(
+                                icon: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  color: _kTextSub,
+                                  size: 20,
+                                ),
+                                onPressed: () => _c.deleteDownload(s.videoId),
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -438,7 +489,7 @@ class _HomeShellState extends State<HomeShell> {
             return Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 12, 10),
+                  padding: const EdgeInsets.fromLTRB(16, 14, 14, 10),
                   child: Row(
                     children: [
                       Expanded(
@@ -474,7 +525,7 @@ class _HomeShellState extends State<HomeShell> {
                             _c.playSong(pl.songs.first, queueList: pl.songs);
                             Navigator.pop(ctx);
                           },
-                          icon: const Icon(Icons.play_arrow, size: 18),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
                           label: const Text(
                             'Putar',
                             style: TextStyle(fontWeight: FontWeight.w800),
@@ -488,7 +539,7 @@ class _HomeShellState extends State<HomeShell> {
                   child: pl.songs.isEmpty
                       ? const Center(
                           child: Text(
-                            'Belum ada lagu di playlist ini.\nCari lagu lalu tap ikon "+" untuk menambahkan.',
+                            'Playlist masih kosong.\nCari lagu lalu tap ikon "+" untuk menambahkan.',
                             textAlign: TextAlign.center,
                             style: TextStyle(color: _kTextSub, fontSize: 13),
                           ),
@@ -498,12 +549,13 @@ class _HomeShellState extends State<HomeShell> {
                           itemCount: pl.songs.length,
                           itemBuilder: (_, i) {
                             final song = pl.songs[i];
-                            return _songTile(
-                              song,
+                            return _SongRow(
+                              song: song,
+                              controller: _c,
                               onTap: () => _c.playSong(song, queueList: pl.songs),
                               trailing: IconButton(
                                 icon: const Icon(
-                                  Icons.delete_outline,
+                                  Icons.remove_circle_outline,
                                   color: _kTextSub,
                                   size: 20,
                                 ),
@@ -522,7 +574,7 @@ class _HomeShellState extends State<HomeShell> {
     );
   }
 
-  void _openFullPlayer() {
+  void _openPlayerSheet() {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -530,149 +582,10 @@ class _HomeShellState extends State<HomeShell> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => _CompactPlayerSheet(
+      builder: (_) => _NowPlayingSheet(
         controller: _c,
-        onAddToPlaylist: _openAddToPlaylistModal,
+        onAddToPlaylist: _openAddToPlaylist,
       ),
-    );
-  }
-
-  Widget _songTile(
-    LiteSong song, {
-    required VoidCallback onTap,
-    Widget? trailing,
-  }) {
-    final isActive = _c.currentSong?.videoId == song.videoId;
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 44,
-                height: 44,
-                color: _kSurfaceAlt,
-                child: song.thumbnailUrl.isNotEmpty
-                    ? Image.network(
-                        song.thumbnailUrl,
-                        width: 44,
-                        height: 44,
-                        fit: BoxFit.cover,
-                        cacheWidth: 96,
-                        cacheHeight: 96,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.music_note,
-                          color: _kTextSub,
-                          size: 20,
-                        ),
-                      )
-                    : const Icon(Icons.music_note, color: _kTextSub, size: 20),
-              ),
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isActive ? _kAccent : _kText,
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${song.artist} • ${song.formattedDuration}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _kTextSub, fontSize: 11.5),
-                  ),
-                ],
-              ),
-            ),
-            trailing ??
-                IconButton(
-                  icon: const Icon(Icons.playlist_add, color: _kTextSub, size: 21),
-                  tooltip: 'Tambah ke Playlist',
-                  onPressed: () => _openAddToPlaylistModal(song),
-                ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHomeTab() {
-    return Column(
-      children: [
-        SizedBox(
-          height: 44,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            itemCount: _categories.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (_, i) {
-              final cat = _categories[i];
-              final sel = cat == _selectedCategory;
-              return GestureDetector(
-                onTap: () => _loadCategory(cat),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: sel ? _kAccent : _kSurface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: sel ? _kAccent : _kBorder),
-                  ),
-                  child: Text(
-                    cat,
-                    style: TextStyle(
-                      color: sel ? Colors.black : _kText,
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        Expanded(
-          child: _loadingHome
-              ? const Center(
-                  child: CircularProgressIndicator(color: _kAccent, strokeWidth: 2.5),
-                )
-              : _homeSongs.isEmpty
-                  ? Center(
-                      child: TextButton.icon(
-                        onPressed: () => _loadCategory(_selectedCategory),
-                        icon: const Icon(Icons.refresh, color: _kAccent),
-                        label: const Text(
-                          'Muat ulang daftar lagu',
-                          style: TextStyle(color: _kText),
-                        ),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _homeSongs.length,
-                      itemBuilder: (_, i) {
-                        final s = _homeSongs[i];
-                        return _songTile(
-                          s,
-                          onTap: () => _c.playSong(s, queueList: _homeSongs),
-                        );
-                      },
-                    ),
-        ),
-      ],
     );
   }
 
@@ -680,7 +593,7 @@ class _HomeShellState extends State<HomeShell> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          padding: const EdgeInsets.fromLTRB(14, 6, 14, 8),
           child: TextField(
             controller: _searchCtrl,
             style: const TextStyle(color: _kText, fontSize: 14),
@@ -689,11 +602,11 @@ class _HomeShellState extends State<HomeShell> {
             onSubmitted: _runSearch,
             decoration: InputDecoration(
               hintText: 'Cari lagu atau artis...',
-              hintStyle: const TextStyle(color: _kTextSub),
-              prefixIcon: const Icon(Icons.search, color: _kTextSub, size: 20),
+              hintStyle: const TextStyle(color: _kTextSub, fontSize: 13.5),
+              prefixIcon: const Icon(Icons.search_rounded, color: _kTextSub, size: 20),
               suffixIcon: _searchCtrl.text.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.close, color: _kTextSub, size: 18),
+                      icon: const Icon(Icons.close_rounded, color: _kTextSub, size: 18),
                       onPressed: () {
                         _searchCtrl.clear();
                         _onSearchChanged('');
@@ -701,18 +614,18 @@ class _HomeShellState extends State<HomeShell> {
                     )
                   : null,
               filled: true,
-              fillColor: _kSurface,
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              fillColor: _kCard,
+              contentPadding: const EdgeInsets.symmetric(vertical: 11),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: _kBorder),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: _kBorder),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 borderSide: const BorderSide(color: _kAccent),
               ),
             ),
@@ -731,9 +644,9 @@ class _HomeShellState extends State<HomeShell> {
                         return ListTile(
                           dense: true,
                           leading: const Icon(
-                            Icons.search,
+                            Icons.north_west_rounded,
                             color: _kTextSub,
-                            size: 18,
+                            size: 17,
                           ),
                           title: Text(
                             sug,
@@ -748,369 +661,431 @@ class _HomeShellState extends State<HomeShell> {
                           itemCount: _searchResults.length,
                           itemBuilder: (_, i) {
                             final s = _searchResults[i];
-                            return _songTile(
-                              s,
+                            return _SongRow(
+                              song: s,
+                              controller: _c,
                               onTap: () => _c.playSong(s),
+                              onAddToPlaylist: () => _openAddToPlaylist(s),
                             );
                           },
                         )
-                      : _c.searchHistory.isNotEmpty
-                          ? ListView(
-                              padding: const EdgeInsets.symmetric(horizontal: 14),
+                      : ListenableBuilder(
+                          listenable: _c,
+                          builder: (_, __) {
+                            final history = _c.searchHistory;
+                            return ListView(
+                              padding: const EdgeInsets.fromLTRB(14, 4, 14, 16),
                               children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    const Text(
-                                      'Riwayat Pencarian',
-                                      style: TextStyle(
-                                        color: _kTextSub,
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    TextButton(
-                                      onPressed: _c.clearSearchHistory,
-                                      child: const Text(
-                                        'Hapus',
+                                if (history.isNotEmpty) ...[
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      const Text(
+                                        'Pencarian Terakhir',
                                         style: TextStyle(
-                                          color: _kAccent,
+                                          color: _kTextSub,
                                           fontSize: 12,
+                                          fontWeight: FontWeight.w700,
                                         ),
                                       ),
-                                    ),
-                                  ],
-                                ),
-                                ..._c.searchHistory.map(
-                                  (h) => ListTile(
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: const Icon(
-                                      Icons.history,
-                                      color: _kTextSub,
-                                      size: 18,
-                                    ),
-                                    title: Text(
-                                      h,
-                                      style: const TextStyle(
-                                        color: _kText,
-                                        fontSize: 13.5,
+                                      TextButton(
+                                        onPressed: _c.clearSearchHistory,
+                                        child: const Text(
+                                          'Bersihkan',
+                                          style: TextStyle(
+                                            color: _kAccent,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                    onTap: () => _runSearch(h),
+                                    ],
+                                  ),
+                                  Wrap(
+                                    spacing: 8,
+                                    runSpacing: 8,
+                                    children: history
+                                        .map(
+                                          (h) => ActionChip(
+                                            backgroundColor: _kCard,
+                                            side: const BorderSide(color: _kBorder),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(18),
+                                            ),
+                                            label: Text(
+                                              h,
+                                              style: const TextStyle(
+                                                color: _kText,
+                                                fontSize: 12.5,
+                                              ),
+                                            ),
+                                            onPressed: () => _runSearch(h),
+                                          ),
+                                        )
+                                        .toList(),
+                                  ),
+                                  const SizedBox(height: 22),
+                                ],
+                                Container(
+                                  padding: const EdgeInsets.all(14),
+                                  decoration: BoxDecoration(
+                                    color: _kCard,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(color: _kBorder),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 38,
+                                        height: 38,
+                                        decoration: BoxDecoration(
+                                          color: _kAccent.withOpacity(0.14),
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: const Icon(
+                                          Icons.bolt_rounded,
+                                          color: _kAccent,
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Mode Gaming Ultra-Ringan',
+                                              style: TextStyle(
+                                                color: _kText,
+                                                fontSize: 13.5,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            SizedBox(height: 2),
+                                            Text(
+                                              'Cari 1 lagu, algoritma radio otomatis mutar lanjutannya tanpa bikin game berat.',
+                                              style: TextStyle(
+                                                color: _kTextSub,
+                                                fontSize: 11.5,
+                                                height: 1.35,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
-                            )
-                          : const Center(
-                              child: Text(
-                                'Ketik judul lagu untuk mulai memutar',
-                                style: TextStyle(color: _kTextSub, fontSize: 13),
-                              ),
-                            ),
+                            );
+                          },
+                        ),
         ),
       ],
     );
   }
 
   Widget _buildPlaylistTab() {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _kAccent,
-                side: const BorderSide(color: _kAccent),
-                padding: const EdgeInsets.symmetric(vertical: 11),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+    return ListenableBuilder(
+      listenable: _c,
+      builder: (_, __) => ListView(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 16),
+        children: [
+          // Offline Downloaded Vault Card
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: _openOfflineSheet,
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: _kCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _kAccent.withOpacity(0.4)),
               ),
-              onPressed: _showCreatePlaylistDialog,
-              icon: const Icon(Icons.add, size: 19),
-              label: const Text(
-                'Buat Playlist Baru',
-                style: TextStyle(fontWeight: FontWeight.w800),
-              ),
-            ),
-          ),
-        ),
-        Expanded(
-          child: _c.playlists.isEmpty
-              ? const Center(
-                  child: Text(
-                    'Belum ada playlist lokal.\nBuat playlist favoritmu buat nemenin push rank!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _kTextSub, fontSize: 13),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _c.playlists.length,
-                  itemBuilder: (_, i) {
-                    final pl = _c.playlists[i];
-                    return ListTile(
-                      leading: Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: _kSurfaceAlt,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _kBorder),
-                        ),
-                        child: const Icon(Icons.queue_music, color: _kAccent),
-                      ),
-                      title: Text(
-                        pl.name,
-                        style: const TextStyle(
-                          color: _kText,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '${pl.songs.length} lagu',
-                        style: const TextStyle(color: _kTextSub, fontSize: 12),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (pl.songs.isNotEmpty)
-                            IconButton(
-                              icon: const Icon(
-                                Icons.play_circle_fill,
-                                color: _kAccent,
-                                size: 28,
-                              ),
-                              onPressed: () =>
-                                  _c.playSong(pl.songs.first, queueList: pl.songs),
-                            ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.delete_outline,
-                              color: _kTextSub,
-                              size: 20,
-                            ),
-                            onPressed: () => _c.deletePlaylist(pl.id),
-                          ),
-                        ],
-                      ),
-                      onTap: () => _openPlaylistDetail(pl.id),
-                    );
-                  },
-                ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMiniPlayer() {
-    final song = _c.currentSong;
-    if (song == null) return const SizedBox.shrink();
-
-    return GestureDetector(
-      onTap: _openFullPlayer,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(10, 4, 10, 6),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: _kSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _kBorder),
-        ),
-        child: Row(
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: 40,
-                height: 40,
-                color: _kSurfaceAlt,
-                child: song.thumbnailUrl.isNotEmpty
-                    ? Image.network(
-                        song.thumbnailUrl,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.cover,
-                        cacheWidth: 96,
-                        cacheHeight: 96,
-                        errorBuilder: (_, __, ___) => const Icon(
-                          Icons.music_note,
-                          color: _kAccent,
-                          size: 18,
-                        ),
-                      )
-                    : const Icon(Icons.music_note, color: _kAccent, size: 18),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
+              child: Row(
                 children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _kText,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _kAccent.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.offline_pin_rounded,
+                      color: _kAccent,
+                      size: 24,
                     ),
                   ),
-                  Text(
-                    '${song.artist} • ${_c.activeBitrateKbps}k',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: _kTextSub, fontSize: 11),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Lagu Offline (Terdownload)',
+                          style: TextStyle(
+                            color: _kText,
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${_c.downloadedSongs.length} lagu • 0 kuota saat main game',
+                          style: const TextStyle(color: _kTextSub, fontSize: 12),
+                        ),
+                      ],
+                    ),
                   ),
+                  const Icon(Icons.chevron_right_rounded, color: _kTextSub),
                 ],
               ),
             ),
-            if (_c.isLoading)
-              const Padding(
-                padding: EdgeInsets.all(10),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    color: _kAccent,
-                    strokeWidth: 2,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Playlist Saya',
+                  style: TextStyle(
+                    color: _kText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-              )
-            else
-              IconButton(
-                icon: Icon(
-                  _c.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                  color: _kAccent,
-                  size: 28,
+              ),
+              TextButton.icon(
+                onPressed: _showCreatePlaylistDialog,
+                icon: const Icon(Icons.add_rounded, color: _kAccent, size: 19),
+                label: const Text(
+                  'Buat Baru',
+                  style: TextStyle(
+                    color: _kAccent,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-                onPressed: _c.togglePlayPause,
               ),
-            IconButton(
-              icon: const Icon(
-                Icons.skip_next_rounded,
-                color: _kText,
-                size: 24,
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (_c.playlists.isEmpty)
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 16),
+              decoration: BoxDecoration(
+                color: _kCard,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: _kBorder),
               ),
-              onPressed: _c.playNext,
+              child: const Text(
+                'Belum ada playlist.\nTap "+ Buat Baru" untuk kumpulkan lagu favoritmu.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: _kTextSub, fontSize: 12.5, height: 1.4),
+              ),
+            )
+          else
+            ..._c.playlists.map(
+              (pl) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _openPlaylistDetail(pl.id),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: _kCard,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: _kBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: _kCardAlt,
+                            borderRadius: BorderRadius.circular(9),
+                          ),
+                          child: const Icon(
+                            Icons.queue_music_rounded,
+                            color: _kAccent,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                pl.name,
+                                style: const TextStyle(
+                                  color: _kText,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                '${pl.songs.length} lagu',
+                                style: const TextStyle(
+                                  color: _kTextSub,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (pl.songs.isNotEmpty)
+                          IconButton(
+                            icon: const Icon(
+                              Icons.play_circle_fill_rounded,
+                              color: _kAccent,
+                              size: 28,
+                            ),
+                            onPressed: () =>
+                                _c.playSong(pl.songs.first, queueList: pl.songs),
+                          ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline_rounded,
+                            color: _kTextSub,
+                            size: 20,
+                          ),
+                          onPressed: () => _c.deletePlaylist(pl.id),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: _c,
-      builder: (_, __) => Scaffold(
+    return Scaffold(
+      backgroundColor: _kBg,
+      appBar: AppBar(
         backgroundColor: _kBg,
-        appBar: AppBar(
-          backgroundColor: _kBg,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          titleSpacing: 14,
-          title: Row(
-            children: [
-              const Text(
-                kZunifyGAppName,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        toolbarHeight: 50,
+        titleSpacing: 14,
+        title: Row(
+          children: [
+            const Text(
+              kZunifyGAppName,
+              style: TextStyle(
+                color: _kText,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.3,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: _kAccent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(5),
+              ),
+              child: const Text(
+                'LITE',
                 style: TextStyle(
-                  color: _kText,
-                  fontSize: 19,
+                  color: _kAccent,
+                  fontSize: 9,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: -0.3,
                 ),
               ),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _kAccent.withOpacity(0.16),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  'LITE',
-                  style: TextStyle(
-                    color: _kAccent,
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            GestureDetector(
-              onTap: _openQualityModal,
+            ),
+          ],
+        ),
+        actions: [
+          ListenableBuilder(
+            listenable: _c,
+            builder: (_, __) => GestureDetector(
+              onTap: _openQualitySheet,
               child: Container(
                 margin: const EdgeInsets.only(right: 14),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: _kSurface,
-                  borderRadius: BorderRadius.circular(10),
+                  color: _kCard,
+                  borderRadius: BorderRadius.circular(18),
                   border: Border.all(color: _kBorder),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.tune_rounded, color: _kAccent, size: 15),
+                    const Icon(Icons.graphic_eq_rounded, color: _kAccent, size: 14),
                     const SizedBox(width: 5),
                     Text(
                       _c.qualityShortLabel,
                       style: const TextStyle(
                         color: _kText,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: IndexedStack(
+              index: _tabIndex,
+              children: [
+                _buildSearchTab(),
+                _buildPlaylistTab(),
+              ],
+            ),
+          ),
+          _MiniPlayerBar(controller: _c, onOpenFull: _openPlayerSheet),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        height: 54 + MediaQuery.of(context).padding.bottom,
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+        decoration: const BoxDecoration(
+          color: Color(0xFF0F0F13),
+          border: Border(top: BorderSide(color: _kBorder, width: 1)),
         ),
-        body: Column(
+        child: Row(
           children: [
-            Expanded(
-              child: IndexedStack(
-                index: _tabIndex,
-                children: [
-                  _buildHomeTab(),
-                  _buildSearchTab(),
-                  _buildPlaylistTab(),
-                ],
-              ),
-            ),
-            _buildMiniPlayer(),
+            _navItem(0, Icons.search_rounded, 'Cari'),
+            _navItem(1, Icons.queue_music_rounded, 'Playlist'),
           ],
         ),
-        bottomNavigationBar: NavigationBar(
-          height: 58,
-          backgroundColor: _kSurface,
-          indicatorColor: _kAccent.withOpacity(0.16),
-          selectedIndex: _tabIndex,
-          onDestinationSelected: (idx) => setState(() => _tabIndex = idx),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.music_note_outlined, color: _kTextSub),
-              selectedIcon: Icon(Icons.music_note, color: _kAccent),
-              label: 'Lagu',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.search_outlined, color: _kTextSub),
-              selectedIcon: Icon(Icons.search, color: _kAccent),
-              label: 'Cari',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.queue_music_outlined, color: _kTextSub),
-              selectedIcon: Icon(Icons.queue_music, color: _kAccent),
-              label: 'Playlist',
+      ),
+    );
+  }
+
+  Widget _navItem(int idx, IconData icon, String label) {
+    final sel = _tabIndex == idx;
+    return Expanded(
+      child: InkWell(
+        onTap: () => setState(() => _tabIndex = idx),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: sel ? _kAccent : _kTextSub, size: 22),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: sel ? _kAccent : _kTextSub,
+                fontSize: 11,
+                fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -1119,20 +1094,326 @@ class _HomeShellState extends State<HomeShell> {
   }
 }
 
-class _CompactPlayerSheet extends StatefulWidget {
+class _SongRow extends StatelessWidget {
+  final LiteSong song;
+  final ZunifyGController controller;
+  final VoidCallback onTap;
+  final VoidCallback? onAddToPlaylist;
+  final Widget? trailing;
+
+  const _SongRow({
+    required this.song,
+    required this.controller,
+    required this.onTap,
+    this.onAddToPlaylist,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ListenableBuilder(
+        listenable: controller,
+        builder: (_, __) {
+          final isActive = controller.currentSong?.videoId == song.videoId;
+          final isDl = controller.isDownloaded(song.videoId);
+          final dlProg = controller.downloadProgressFor(song.videoId);
+
+          return InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      color: _kCardAlt,
+                      child: song.thumbnailUrl.isNotEmpty
+                          ? Image.network(
+                              song.thumbnailUrl,
+                              width: 44,
+                              height: 44,
+                              fit: BoxFit.cover,
+                              cacheWidth: 72,
+                              cacheHeight: 72,
+                              filterQuality: FilterQuality.none,
+                              gaplessPlayback: true,
+                              errorBuilder: (_, __, ___) => const Icon(
+                                Icons.music_note_rounded,
+                                color: _kTextSub,
+                                size: 20,
+                              ),
+                            )
+                          : const Icon(
+                              Icons.music_note_rounded,
+                              color: _kTextSub,
+                              size: 20,
+                            ),
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isActive ? _kAccent : _kText,
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            if (isDl) ...[
+                              const Icon(
+                                Icons.offline_pin_rounded,
+                                color: _kAccent,
+                                size: 13,
+                              ),
+                              const SizedBox(width: 4),
+                            ],
+                            Expanded(
+                              child: Text(
+                                '${song.artist} • ${song.formattedDuration}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _kTextSub,
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (trailing != null)
+                    trailing!
+                  else ...[
+                    if (dlProg != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 10),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            value: dlProg > 0.05 ? dlProg : null,
+                            color: _kAccent,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    else
+                      IconButton(
+                        icon: Icon(
+                          isDl
+                              ? Icons.download_done_rounded
+                              : Icons.download_for_offline_outlined,
+                          color: isDl ? _kAccent : _kTextSub,
+                          size: 20,
+                        ),
+                        onPressed: () {
+                          if (!isDl) controller.downloadSong(song);
+                        },
+                      ),
+                    if (onAddToPlaylist != null)
+                      IconButton(
+                        icon: const Icon(
+                          Icons.playlist_add_rounded,
+                          color: _kTextSub,
+                          size: 21,
+                        ),
+                        onPressed: onAddToPlaylist,
+                      ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MiniPlayerBar extends StatelessWidget {
+  final ZunifyGController controller;
+  final VoidCallback onOpenFull;
+
+  const _MiniPlayerBar({
+    required this.controller,
+    required this.onOpenFull,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: ListenableBuilder(
+        listenable: controller,
+        builder: (_, __) {
+          final song = controller.currentSong;
+          if (song == null) return const SizedBox.shrink();
+          final offline = controller.isDownloaded(song.videoId);
+
+          return GestureDetector(
+            onTap: onOpenFull,
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(10, 0, 10, 6),
+              decoration: BoxDecoration(
+                color: _kCard,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _kBorder),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  StreamBuilder<Duration>(
+                    stream: controller.player.positionStream,
+                    builder: (_, snap) {
+                      final pos = snap.data ?? controller.position;
+                      final total = controller.duration.inMilliseconds;
+                      final frac = total > 0
+                          ? (pos.inMilliseconds / total).clamp(0.0, 1.0)
+                          : 0.0;
+                      return LinearProgressIndicator(
+                        value: frac,
+                        minHeight: 2,
+                        backgroundColor: _kBorder,
+                        valueColor: const AlwaysStoppedAnimation(_kAccent),
+                      );
+                    },
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+                    child: Row(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(7),
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            color: _kCardAlt,
+                            child: song.thumbnailUrl.isNotEmpty
+                                ? Image.network(
+                                    song.thumbnailUrl,
+                                    width: 38,
+                                    height: 38,
+                                    fit: BoxFit.cover,
+                                    cacheWidth: 72,
+                                    cacheHeight: 72,
+                                    filterQuality: FilterQuality.none,
+                                    gaplessPlayback: true,
+                                    errorBuilder: (_, __, ___) => const Icon(
+                                      Icons.music_note_rounded,
+                                      color: _kAccent,
+                                      size: 18,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.music_note_rounded,
+                                    color: _kAccent,
+                                    size: 18,
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _kText,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              Text(
+                                offline
+                                    ? '${song.artist} • Offline'
+                                    : '${song.artist} • ${controller.activeBitrateKbps}k',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: _kTextSub,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (controller.isLoading)
+                          const Padding(
+                            padding: EdgeInsets.all(10),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                color: _kAccent,
+                                strokeWidth: 2,
+                              ),
+                            ),
+                          )
+                        else
+                          IconButton(
+                            icon: Icon(
+                              controller.isPlaying
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              color: _kAccent,
+                              size: 27,
+                            ),
+                            onPressed: controller.togglePlayPause,
+                          ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.skip_next_rounded,
+                            color: _kText,
+                            size: 24,
+                          ),
+                          onPressed: controller.playNext,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _NowPlayingSheet extends StatefulWidget {
   final ZunifyGController controller;
   final void Function(LiteSong song) onAddToPlaylist;
 
-  const _CompactPlayerSheet({
+  const _NowPlayingSheet({
     required this.controller,
     required this.onAddToPlaylist,
   });
 
   @override
-  State<_CompactPlayerSheet> createState() => _CompactPlayerSheetState();
+  State<_NowPlayingSheet> createState() => _NowPlayingSheetState();
 }
 
-class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
+class _NowPlayingSheetState extends State<_NowPlayingSheet> {
   bool _showQueue = false;
 
   ZunifyGController get _c => widget.controller;
@@ -1151,6 +1432,8 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
       builder: (_, __) {
         final song = _c.currentSong;
         if (song == null) return const SizedBox.shrink();
+        final isDl = _c.isDownloaded(song.videoId);
+        final dlProg = _c.downloadProgressFor(song.videoId);
 
         return SafeArea(
           child: Padding(
@@ -1159,38 +1442,38 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                  width: 38,
+                  width: 36,
                   height: 4,
                   decoration: BoxDecoration(
                     color: _kBorder,
                     borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 Row(
                   children: [
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        width: 68,
-                        height: 68,
-                        color: _kSurfaceAlt,
+                        width: 64,
+                        height: 64,
+                        color: _kCardAlt,
                         child: song.thumbnailUrl.isNotEmpty
                             ? Image.network(
                                 song.thumbnailUrl,
-                                width: 68,
-                                height: 68,
+                                width: 64,
+                                height: 64,
                                 fit: BoxFit.cover,
-                                cacheWidth: 160,
-                                cacheHeight: 160,
+                                cacheWidth: 144,
+                                cacheHeight: 144,
                                 errorBuilder: (_, __, ___) => const Icon(
-                                  Icons.music_note,
+                                  Icons.music_note_rounded,
                                   color: _kAccent,
                                   size: 28,
                                 ),
                               )
                             : const Icon(
-                                Icons.music_note,
+                                Icons.music_note_rounded,
                                 color: _kAccent,
                                 size: 28,
                               ),
@@ -1207,7 +1490,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: _kText,
-                              fontSize: 16,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w800,
                             ),
                           ),
@@ -1216,14 +1499,13 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                             song.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: _kTextSub,
-                              fontSize: 13,
-                            ),
+                            style: const TextStyle(color: _kTextSub, fontSize: 12.5),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 4),
                           Text(
-                            '${_c.activeBitrateKbps} kbps • ${_c.qualityDescription}',
+                            isDl
+                                ? 'Mode Offline • 0 Kuota'
+                                : '${_c.activeBitrateKbps} kbps • ${_c.qualityLabelFull}',
                             style: const TextStyle(
                               color: _kAccent,
                               fontSize: 11,
@@ -1233,9 +1515,34 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                         ],
                       ),
                     ),
+                    if (dlProg != null)
+                      const Padding(
+                        padding: EdgeInsets.all(10),
+                        child: SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: _kAccent,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      )
+                    else
+                      IconButton(
+                        icon: Icon(
+                          isDl
+                              ? Icons.download_done_rounded
+                              : Icons.download_for_offline_outlined,
+                          color: isDl ? _kAccent : _kText,
+                          size: 24,
+                        ),
+                        onPressed: () {
+                          if (!isDl) _c.downloadSong(song);
+                        },
+                      ),
                     IconButton(
                       icon: const Icon(
-                        Icons.playlist_add,
+                        Icons.playlist_add_rounded,
                         color: _kText,
                         size: 24,
                       ),
@@ -1259,10 +1566,10 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                           data: SliderTheme.of(context).copyWith(
                             trackHeight: 3,
                             thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6,
+                              enabledThumbRadius: 5.5,
                             ),
                             overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 12,
+                              overlayRadius: 11,
                             ),
                             activeTrackColor: _kAccent,
                             inactiveTrackColor: _kBorder,
@@ -1312,7 +1619,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                             ? Icons.repeat_one_rounded
                             : Icons.repeat_rounded,
                         color: _c.repeatMode == 0 ? _kTextSub : _kAccent,
-                        size: 24,
+                        size: 23,
                       ),
                       onPressed: _c.cycleRepeatMode,
                     ),
@@ -1325,15 +1632,15 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                       onPressed: _c.playPrevious,
                     ),
                     Container(
-                      width: 56,
-                      height: 56,
+                      width: 54,
+                      height: 54,
                       decoration: const BoxDecoration(
                         color: _kAccent,
                         shape: BoxShape.circle,
                       ),
                       child: _c.isLoading
                           ? const Padding(
-                              padding: EdgeInsets.all(16),
+                              padding: EdgeInsets.all(15),
                               child: CircularProgressIndicator(
                                 color: Colors.black,
                                 strokeWidth: 2.5,
@@ -1345,7 +1652,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                                     ? Icons.pause_rounded
                                     : Icons.play_arrow_rounded,
                                 color: Colors.black,
-                                size: 32,
+                                size: 30,
                               ),
                               onPressed: _c.togglePlayPause,
                             ),
@@ -1359,18 +1666,17 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                       onPressed: _c.playNext,
                     ),
                     IconButton(
-                      tooltip: 'Algoritma Auto-Radio',
+                      tooltip: 'Algoritma Radio Spotify',
                       icon: Icon(
                         Icons.auto_awesome_rounded,
                         color: _c.autoRadioEnabled ? _kAccent : _kTextSub,
-                        size: 23,
+                        size: 22,
                       ),
                       onPressed: _c.toggleAutoRadio,
                     ),
                   ],
                 ),
                 const SizedBox(height: 14),
-                // Quick 3-Tier Quality Switcher
                 Row(
                   children: [
                     _tierBtn('low', 'Hemat 64k'),
@@ -1381,7 +1687,6 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                // Queue / Algorithm Up-Next Toggle
                 InkWell(
                   borderRadius: BorderRadius.circular(10),
                   onTap: () => setState(() => _showQueue = !_showQueue),
@@ -1391,7 +1696,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                       vertical: 9,
                     ),
                     decoration: BoxDecoration(
-                      color: _kSurface,
+                      color: _kCard,
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: _kBorder),
                     ),
@@ -1406,8 +1711,8 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                         Expanded(
                           child: Text(
                             _c.isFetchingRadio
-                                ? 'Algoritma sedang menyiapkan lagu berikutnya...'
-                                : 'Antrean & Algoritma (${_c.queue.length} lagu)',
+                                ? 'Algoritma sedang menyiapkan antrean...'
+                                : 'Antrean Radio (${_c.queue.length} lagu)',
                             style: const TextStyle(
                               color: _kText,
                               fontSize: 12.5,
@@ -1428,7 +1733,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                 if (_showQueue) ...[
                   const SizedBox(height: 8),
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 220),
+                    constraints: const BoxConstraints(maxHeight: 200),
                     child: ListView.builder(
                       shrinkWrap: true,
                       itemCount: _c.queue.length,
@@ -1437,9 +1742,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                         final isCur = i == _c.currentIndex;
                         return ListTile(
                           dense: true,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
                           leading: Text(
                             '${i + 1}',
                             style: TextStyle(
@@ -1470,13 +1773,13 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
                           ),
                           trailing: isCur
                               ? const Icon(
-                                  Icons.graphic_eq,
+                                  Icons.graphic_eq_rounded,
                                   color: _kAccent,
                                   size: 18,
                                 )
                               : IconButton(
                                   icon: const Icon(
-                                    Icons.close,
+                                    Icons.close_rounded,
                                     color: _kTextSub,
                                     size: 16,
                                   ),
@@ -1505,7 +1808,7 @@ class _CompactPlayerSheetState extends State<_CompactPlayerSheet> {
           padding: const EdgeInsets.symmetric(vertical: 8),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: sel ? _kAccent : _kSurface,
+            color: sel ? _kAccent : _kCard,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: sel ? _kAccent : _kBorder),
           ),

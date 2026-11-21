@@ -4,6 +4,8 @@ class LiteSong {
   final String artist;
   final int durationSeconds;
   final String thumbnailUrl;
+  final String? localPath;
+  final bool isDownloaded;
 
   const LiteSong({
     required this.videoId,
@@ -11,6 +13,8 @@ class LiteSong {
     required this.artist,
     required this.durationSeconds,
     required this.thumbnailUrl,
+    this.localPath,
+    this.isDownloaded = false,
   });
 
   Duration get duration => Duration(seconds: durationSeconds);
@@ -21,12 +25,29 @@ class LiteSong {
     return '$m:${s.toString().padLeft(2, '0')}';
   }
 
+  LiteSong copyWith({
+    String? localPath,
+    bool? isDownloaded,
+  }) {
+    return LiteSong(
+      videoId: videoId,
+      title: title,
+      artist: artist,
+      durationSeconds: durationSeconds,
+      thumbnailUrl: thumbnailUrl,
+      localPath: localPath ?? this.localPath,
+      isDownloaded: isDownloaded ?? this.isDownloaded,
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'v': videoId,
         't': title,
         'a': artist,
         'd': durationSeconds,
         'u': thumbnailUrl,
+        if (localPath != null) 'lp': localPath,
+        if (isDownloaded) 'dl': 1,
       };
 
   factory LiteSong.fromJson(Map<String, dynamic> j) {
@@ -36,6 +57,8 @@ class LiteSong {
       artist: (j['a'] ?? 'Unknown Artist').toString(),
       durationSeconds: (j['d'] as num?)?.toInt() ?? 180,
       thumbnailUrl: (j['u'] ?? '').toString(),
+      localPath: j['lp']?.toString(),
+      isDownloaded: j['dl'] == 1 || j['dl'] == true,
     );
   }
 }

@@ -1,34 +1,42 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/lite_song.dart';
 import '../services/lite_audio_handler.dart';
+import '../services/lite_download_service.dart';
 import '../services/lite_ytm_service.dart';
 
-/// Ultra-lean state controller for ZunifyG.
-/// Handles ONLY the 6 core features:
-/// 1. Song Playback + Background Service + Resume
-/// 2. Song Search (+ History)
+/// Ultra-lean State Controller for ZunifyG.
+/// Features:
+/// 1. Song Search & Playback + Notification Skip/Pause/Play Controls
+/// 2. Spotify-style Radio Algorithm (RDAMVM + RD + Taste History + Skip Penalty + Artist Diversity)
 /// 3. Local Playlists
-/// 4. Repeat Mode (Off / All / One)
-/// 5. Audio Quality (Low / Standard / High)
-/// 6. Smart Radio Algorithm (Auto-Queue)
+/// 4. Private In-App Offline Song Downloader
+/// 5. Repeat Mode (Off / All / One)
+/// 6. 3-Tier Audio Quality (Low / Standard / High)
 class ZunifyGController extends ChangeNotifier {
   static const _kPrefQuality = 'zg_quality_tier';
   static const _kPrefRepeat = 'zg_repeat_mode';
   static const _kPrefAutoRadio = 'zg_auto_radio';
-  static const _kPrefGamingMix = 'zg_gaming_mix';
   static const _kPrefPlaylists = 'zg_playlists_v1';
+  static const _kPrefDownloads = 'zg_downloads_v1';
   static const _kPrefHistory = 'zg_search_history_v1';
   static const _kPrefLastSong = 'zg_last_song_v1';
   static const _kPrefLastPosMs = 'zg_last_pos_ms';
 
+  static const MethodChannel _sysChannel =
+      MethodChannel('com.fannz.zunifyg/system');
+
   final LiteAudioHandler? _handler;
   late final AudioPlayer _player;
   final LiteYtmService ytm;
+  final LiteDownloadService _downloader;
 
   List<LiteSong> _queue = [];
   int _currentIndex = -1;
@@ -36,15 +44,21 @@ class ZunifyGController extends ChangeNotifier {
   bool _isFetchingRadio = false;
   int _playToken = 0;
 
-  // Settings (defaults optimized for low-end gaming phones)
-  String _qualityTier = 'low'; // 'low' (~64k), 'standard' (~128k), 'high' (~160k)
+  // Spotify-style taste signals
+  final List<String> _recentHistoryIds = [];
+  final Map<String, int> _artistSkipPenalty = {};
+  final Random _rng = Random();
+
+  // Settings
+  String _qualityTier = 'low';
   int _repeatMode = 0; // 0 = Off, 1 = Repeat All, 2 = Repeat One
-  bool _autoRadioEnabled = true; // Smart Algorithm ON by default
-  bool _gamingMixMode = true; // Keep playing with game sound
+  bool _autoRadioEnabled = true;
   int _activeBitrateKbps = 64;
 
-  // Playlists & Search History
+  // Playlists, Downloads & Search History
   List<LitePlaylist> _playlists = [];
+  List<LiteSong> _downloadedSongs = [];
+  final Map<String, double> _downloadProgress = {};
   List<String> _searchHistory = [];
 
   // Resume state
@@ -55,12 +69,10 @@ class ZunifyGController extends ChangeNotifier {
   ZunifyGController({
     LiteAudioHandler? handler,
     required this.ytm,
-  }) : _handler = handler {
-    _player = _handler?.player ??
-        AudioPlayer(
-          handleInterruptions: false,
-          handleAudioSessionActivation: false,
-        );
+    required LiteDownloadService downloader,
+  })  : _handler = handler,
+        _downloader = downloader {
+    _player = _handler?.player ?? AudioPlayer();
     _handler?.onNextCallback = playNext;
     _handler?.onPreviousCallback = playPrevious;
     _bindListeners();
@@ -80,10 +92,22 @@ class ZunifyGController extends ChangeNotifier {
   String get qualityTier => _qualityTier;
   int get repeatMode => _repeatMode;
   bool get autoRadioEnabled => _autoRadioEnabled;
-  bool get gamingMixMode => _gamingMixMode;
   int get activeBitrateKbps => _activeBitrateKbps;
   List<LitePlaylist> get playlists => List.unmodifiable(_playlists);
+  List<LiteSong> get downloadedSongs => List.unmodifiable(_downloadedSongs);
   List<String> get searchHistory => List.unmodifiable(_searchHistory);
+
+  bool isDownloaded(String videoId) =>
+      _downloadedSongs.any((s) => s.videoId == videoId);
+
+  double? downloadProgressFor(String videoId) => _downloadProgress[videoId];
+
+  LiteSong? _findDownloaded(String videoId) {
+    for (final s in _downloadedSongs) {
+      if (s.videoId == videoId) return s;
+    }
+    return null;
+  }
 
   Duration get position =>
       _needsInitialLoadForResume ? _savedResumePos : _player.position;
@@ -94,22 +118,22 @@ class ZunifyGController extends ChangeNotifier {
   String get qualityShortLabel {
     switch (_qualityTier) {
       case 'low':
-        return 'Hemat';
+        return '64k';
       case 'standard':
-        return 'Normal';
+        return '128k';
       default:
-        return 'Tinggi';
+        return '160k';
     }
   }
 
-  String get qualityDescription {
+  String get qualityLabelFull {
     switch (_qualityTier) {
       case 'low':
-        return '~64 kbps • Ping Aman';
+        return 'Hemat (64k)';
       case 'standard':
-        return '~128 kbps • Seimbang';
+        return 'Normal (128k)';
       default:
-        return '~160 kbps • Jernih';
+        return 'Tinggi (160k)';
     }
   }
 
@@ -132,8 +156,7 @@ class ZunifyGController extends ChangeNotifier {
       notifyListeners();
     });
 
-    // Periodically persist playback position every 8s while playing (super lightweight)
-    _posSaveTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _posSaveTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (_player.playing && currentSong != null) {
         unawaited(_persistLastPlayback());
       }
@@ -145,8 +168,6 @@ class ZunifyGController extends ChangeNotifier {
     _qualityTier = prefs.getString(_kPrefQuality) ?? 'low';
     _repeatMode = prefs.getInt(_kPrefRepeat) ?? 0;
     _autoRadioEnabled = prefs.getBool(_kPrefAutoRadio) ?? true;
-    _gamingMixMode = prefs.getBool(_kPrefGamingMix) ?? true;
-    _handler?.gamingMixMode = _gamingMixMode;
 
     // Load Playlists
     final rawPl = prefs.getString(_kPrefPlaylists);
@@ -160,10 +181,25 @@ class ZunifyGController extends ChangeNotifier {
       } catch (_) {}
     }
 
-    // Load Search History
+    // Load Downloaded Songs & verify files exist
+    final rawDl = prefs.getString(_kPrefDownloads);
+    if (rawDl != null && rawDl.isNotEmpty) {
+      try {
+        final list = jsonDecode(rawDl) as List<dynamic>;
+        final verified = <LiteSong>[];
+        for (final item in list.whereType<Map>()) {
+          final song = LiteSong.fromJson(Map<String, dynamic>.from(item));
+          if (song.localPath != null && await File(song.localPath!).exists()) {
+            verified.add(song.copyWith(isDownloaded: true));
+          }
+        }
+        _downloadedSongs = verified;
+      } catch (_) {}
+    }
+
     _searchHistory = prefs.getStringList(_kPrefHistory) ?? [];
 
-    // Restore last played track (Spotify-style resume)
+    // Restore last played song
     final rawLast = prefs.getString(_kPrefLastSong);
     final posMs = prefs.getInt(_kPrefLastPosMs) ?? 0;
     if (rawLast != null && rawLast.isNotEmpty) {
@@ -182,6 +218,12 @@ class ZunifyGController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> requestNotificationPermissionIfNeeded() async {
+    try {
+      await _sysChannel.invokeMethod('requestNotifPermission');
+    } catch (_) {}
+  }
+
   Future<void> _persistLastPlayback() async {
     final s = currentSong;
     if (s == null) return;
@@ -192,8 +234,16 @@ class ZunifyGController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void _recordTasteHistory(LiteSong song) {
+    _recentHistoryIds.remove(song.videoId);
+    _recentHistoryIds.add(song.videoId);
+    if (_recentHistoryIds.length > 40) {
+      _recentHistoryIds.removeAt(0);
+    }
+  }
+
   // ---------------------------------------------------------------------------
-  // 1. Playback Controls
+  // 1. Playback Controls (Offline-first + Fast Stream)
   // ---------------------------------------------------------------------------
   Future<void> playSong(
     LiteSong song, {
@@ -202,6 +252,7 @@ class ZunifyGController extends ChangeNotifier {
   }) async {
     _needsInitialLoadForResume = false;
     _savedResumePos = Duration.zero;
+    unawaited(requestNotificationPermissionIfNeeded());
 
     if (queueList != null && queueList.isNotEmpty) {
       _queue = List<LiteSong>.from(queueList);
@@ -220,7 +271,7 @@ class ZunifyGController extends ChangeNotifier {
     await _loadAndPlayAt(_currentIndex);
 
     if (triggerAlgorithm && _autoRadioEnabled && _queue.length - _currentIndex <= 3) {
-      unawaited(_appendAlgorithmRecommendations(song));
+      unawaited(_appendSpotifyRadioRecommendations(song));
     }
   }
 
@@ -233,17 +284,20 @@ class ZunifyGController extends ChangeNotifier {
 
     final cur = currentSong;
     if (cur != null && _autoRadioEnabled && _queue.length - _currentIndex <= 3) {
-      unawaited(_appendAlgorithmRecommendations(cur));
+      unawaited(_appendSpotifyRadioRecommendations(cur));
     }
   }
 
   Future<void> _loadAndPlayAt(int index, {Duration? startPosition}) async {
     if (index < 0 || index >= _queue.length) return;
-    final song = _queue[index];
+    final rawSong = _queue[index];
+    final dlMatch = _findDownloaded(rawSong.videoId);
+    final song = dlMatch ?? rawSong;
     final token = ++_playToken;
 
     _isLoading = true;
     notifyListeners();
+    _recordTasteHistory(song);
 
     _handler?.updateTrack(
       MediaItem(
@@ -256,6 +310,22 @@ class ZunifyGController extends ChangeNotifier {
     );
 
     try {
+      // Offline playback first (0 KB internet!)
+      if (song.localPath != null && await File(song.localPath!).exists()) {
+        if (token != _playToken) return;
+        await _player.setAudioSource(
+          AudioSource.file(song.localPath!),
+          initialPosition: startPosition,
+        );
+        if (token != _playToken) return;
+        _isLoading = false;
+        notifyListeners();
+        unawaited(_player.play());
+        unawaited(_persistLastPlayback());
+        return;
+      }
+
+      // Online stream resolution
       final stream = await ytm.resolveStream(
         song.videoId,
         qualityTier: _qualityTier,
@@ -291,10 +361,11 @@ class ZunifyGController extends ChangeNotifier {
       unawaited(_player.play());
       unawaited(_persistLastPlayback());
 
-      // Prefetch next track URL silently for instant gapless switch
       if (_currentIndex + 1 < _queue.length) {
         final nextSong = _queue[_currentIndex + 1];
-        unawaited(ytm.prefetch(nextSong.videoId, qualityTier: _qualityTier));
+        if (!isDownloaded(nextSong.videoId)) {
+          unawaited(ytm.prefetch(nextSong.videoId, qualityTier: _qualityTier));
+        }
       }
     } catch (_) {
       if (token == _playToken) {
@@ -311,7 +382,7 @@ class ZunifyGController extends ChangeNotifier {
       final resumeAt = _savedResumePos;
       await _loadAndPlayAt(_currentIndex, startPosition: resumeAt);
       if (_autoRadioEnabled && _queue.length <= 2) {
-        unawaited(_appendAlgorithmRecommendations(currentSong!));
+        unawaited(_appendSpotifyRadioRecommendations(currentSong!));
       }
       return;
     }
@@ -333,8 +404,14 @@ class ZunifyGController extends ChangeNotifier {
     await _player.seek(pos);
   }
 
-  Future<void> playNext() async {
+  Future<void> playNext({bool userInitiated = true}) async {
     if (_queue.isEmpty) return;
+
+    // Spotify-style skip penalty: skipping within first 25s lowers artist weight
+    if (userInitiated && currentSong != null && _player.position.inSeconds < 25) {
+      final artKey = currentSong!.artist.toLowerCase();
+      _artistSkipPenalty[artKey] = (_artistSkipPenalty[artKey] ?? 0) + 1;
+    }
 
     if (_repeatMode == 2) {
       await _player.seek(Duration.zero);
@@ -347,13 +424,13 @@ class ZunifyGController extends ChangeNotifier {
       await _loadAndPlayAt(_currentIndex);
       final cur = currentSong;
       if (cur != null && _autoRadioEnabled && _queue.length - _currentIndex <= 3) {
-        unawaited(_appendAlgorithmRecommendations(cur));
+        unawaited(_appendSpotifyRadioRecommendations(cur));
       }
     } else if (_repeatMode == 1) {
       _currentIndex = 0;
       await _loadAndPlayAt(0);
     } else if (_autoRadioEnabled && currentSong != null) {
-      await _appendAlgorithmRecommendations(currentSong!);
+      await _appendSpotifyRadioRecommendations(currentSong!);
       if (_currentIndex + 1 < _queue.length) {
         _currentIndex++;
         await _loadAndPlayAt(_currentIndex);
@@ -383,32 +460,64 @@ class ZunifyGController extends ChangeNotifier {
       unawaited(_player.seek(Duration.zero).then((_) => _player.play()));
       return;
     }
-    unawaited(playNext());
+    unawaited(playNext(userInitiated: false));
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Smart Radio Algorithm
+  // 2. Spotify-Style Radio Algorithm (Taste-Aware Scoring + Artist Diversity)
   // ---------------------------------------------------------------------------
-  Future<void> _appendAlgorithmRecommendations(LiteSong seed) async {
+  Future<void> _appendSpotifyRadioRecommendations(LiteSong seed) async {
     if (_isFetchingRadio) return;
     _isFetchingRadio = true;
     notifyListeners();
     try {
-      final existing = _queue.map((e) => e.videoId).toSet();
-      final recs = await ytm.getRadioNext(seed, excludeIds: existing);
-      if (recs.isNotEmpty) {
-        // Keep queue memory-light (cap to 45 items max)
-        _queue.addAll(recs);
-        if (_queue.length > 45 && _currentIndex > 12) {
-          final drop = _currentIndex - 8;
-          _queue.removeRange(0, drop);
-          _currentIndex -= drop;
+      final exclude = <String>{
+        ..._queue.map((e) => e.videoId),
+        ..._recentHistoryIds,
+      };
+      final rawRecs = await ytm.getRadioRecommendations(
+        seed,
+        excludeIds: exclude,
+        tunerMode: 'AUTOMIX_SETTING_NORMAL',
+      );
+      if (rawRecs.isEmpty) return;
+
+      // Score and sort candidates like Spotify Radio:
+      // Prefer fresh artists (avoid back-to-back same artist) and penalize skipped artists
+      final scored = List<LiteSong>.from(rawRecs);
+      scored.sort((a, b) {
+        final penA = _artistSkipPenalty[a.artist.toLowerCase()] ?? 0;
+        final penB = _artistSkipPenalty[b.artist.toLowerCase()] ?? 0;
+        if (penA != penB) return penA.compareTo(penB);
+        return _rng.nextInt(3) - 1; // Slight organic jitter among equal scores
+      });
+
+      // Interleave so identical artists don't cluster consecutively
+      final ordered = <LiteSong>[];
+      final deferred = <LiteSong>[];
+      String lastArtist = currentSong?.artist.toLowerCase() ?? '';
+      for (final item in scored) {
+        final art = item.artist.toLowerCase();
+        if (art == lastArtist) {
+          deferred.add(item);
+        } else {
+          ordered.add(item);
+          lastArtist = art;
         }
-        // Prefetch immediate next song
-        if (_currentIndex + 1 < _queue.length) {
-          unawaited(
-            ytm.prefetch(_queue[_currentIndex + 1].videoId, qualityTier: _qualityTier),
-          );
+      }
+      ordered.addAll(deferred);
+
+      _queue.addAll(ordered.take(24));
+      if (_queue.length > 48 && _currentIndex > 12) {
+        final drop = _currentIndex - 8;
+        _queue.removeRange(0, drop);
+        _currentIndex -= drop;
+      }
+
+      if (_currentIndex + 1 < _queue.length) {
+        final next = _queue[_currentIndex + 1];
+        if (!isDownloaded(next.videoId)) {
+          unawaited(ytm.prefetch(next.videoId, qualityTier: _qualityTier));
         }
       }
     } finally {
@@ -426,12 +535,12 @@ class ZunifyGController extends ChangeNotifier {
     if (_autoRadioEnabled &&
         currentSong != null &&
         _queue.length - _currentIndex <= 2) {
-      unawaited(_appendAlgorithmRecommendations(currentSong!));
+      unawaited(_appendSpotifyRadioRecommendations(currentSong!));
     }
   }
 
   // ---------------------------------------------------------------------------
-  // 3. Repeat & Audio Quality & Gaming Mix Controls
+  // 3. Repeat & Quality Controls
   // ---------------------------------------------------------------------------
   Future<void> cycleRepeatMode() async {
     _repeatMode = (_repeatMode + 1) % 3;
@@ -448,21 +557,14 @@ class ZunifyGController extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_kPrefQuality, tier);
 
-    // Hot-reload active stream at the exact current second if currently playing
-    if (currentSong != null && !_needsInitialLoadForResume) {
+    if (currentSong != null &&
+        !_needsInitialLoadForResume &&
+        !isDownloaded(currentSong!.videoId)) {
       final pos = _player.position;
       final wasPlaying = _player.playing;
       await _loadAndPlayAt(_currentIndex, startPosition: pos);
       if (!wasPlaying) await _player.pause();
     }
-  }
-
-  Future<void> toggleGamingMixMode() async {
-    _gamingMixMode = !_gamingMixMode;
-    _handler?.gamingMixMode = _gamingMixMode;
-    notifyListeners();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kPrefGamingMix, _gamingMixMode);
   }
 
   void removeFromQueue(int index) {
@@ -473,7 +575,53 @@ class ZunifyGController extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Local Playlists Management
+  // 4. Private Offline Song Downloader
+  // ---------------------------------------------------------------------------
+  Future<void> _saveDownloads() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kPrefDownloads,
+      jsonEncode(_downloadedSongs.map((e) => e.toJson()).toList()),
+    );
+  }
+
+  Future<bool> downloadSong(LiteSong song) async {
+    if (isDownloaded(song.videoId) || _downloadProgress.containsKey(song.videoId)) {
+      return true;
+    }
+    _downloadProgress[song.videoId] = 0.01;
+    notifyListeners();
+
+    final saved = await _downloader.downloadSong(
+      song,
+      qualityTier: _qualityTier,
+      onProgress: (p) {
+        _downloadProgress[song.videoId] = p;
+        notifyListeners();
+      },
+    );
+
+    _downloadProgress.remove(song.videoId);
+    if (saved != null) {
+      _downloadedSongs.removeWhere((s) => s.videoId == saved.videoId);
+      _downloadedSongs.insert(0, saved);
+      notifyListeners();
+      await _saveDownloads();
+      return true;
+    }
+    notifyListeners();
+    return false;
+  }
+
+  Future<void> deleteDownload(String videoId) async {
+    _downloadedSongs.removeWhere((s) => s.videoId == videoId);
+    notifyListeners();
+    await _downloader.deleteSong(videoId);
+    await _saveDownloads();
+  }
+
+  // ---------------------------------------------------------------------------
+  // 5. Local Playlists
   // ---------------------------------------------------------------------------
   Future<void> _savePlaylists() async {
     final prefs = await SharedPreferences.getInstance();
@@ -525,7 +673,7 @@ class ZunifyGController extends ChangeNotifier {
   }
 
   // ---------------------------------------------------------------------------
-  // 5. Search History
+  // 6. Search History
   // ---------------------------------------------------------------------------
   Future<void> addSearchHistory(String query) async {
     final q = query.trim();

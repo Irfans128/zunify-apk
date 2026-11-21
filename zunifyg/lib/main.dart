@@ -3,15 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'screens/home_shell.dart';
 import 'services/lite_audio_handler.dart';
+import 'services/lite_download_service.dart';
 import 'services/lite_ytm_service.dart';
 import 'state/zunifyg_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Ultra-low RAM cap for low-end / potato gaming phones (max 24 tiny thumbs / 6 MB)
-  PaintingBinding.instance.imageCache.maximumSize = 24;
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 6 * 1024 * 1024;
+  // Ultra-lean image RAM cap for potato devices
+  PaintingBinding.instance.imageCache.maximumSize = 36;
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 8 * 1024 * 1024;
 
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -25,17 +26,20 @@ Future<void> main() async {
         androidNotificationChannelId: 'com.fannz.zunifyg.channel.audio',
         androidNotificationChannelName: 'ZunifyG Playback',
         androidNotificationChannelDescription:
-            'Kontrol pemutaran musik ultra-ringan ZunifyG',
+            'Kontrol pemutaran musik ZunifyG di notifikasi & layar kunci',
         androidNotificationIcon: 'drawable/ic_stat_zunifyg',
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
+        androidShowNotificationBadge: true,
       ),
     );
   } catch (_) {}
 
+  final ytm = LiteYtmService();
   final controller = ZunifyGController(
     handler: handler,
-    ytm: LiteYtmService(),
+    ytm: ytm,
+    downloader: LiteDownloadService(ytm),
   );
   await controller.init();
 
@@ -51,13 +55,15 @@ class ZunifyGApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseTheme = ThemeData(
       brightness: Brightness.dark,
-      scaffoldBackgroundColor: const Color(0xFF0B0C10),
+      scaffoldBackgroundColor: const Color(0xFF09090B),
       colorScheme: const ColorScheme.dark(
         primary: Color(0xFF00E676),
         onPrimary: Colors.black,
-        surface: Color(0xFF14161D),
-        onSurface: Color(0xFFF3F4F6),
+        surface: Color(0xFF141418),
+        onSurface: Color(0xFFF4F4F5),
       ),
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: Colors.transparent,
       useMaterial3: true,
     );
 
@@ -65,7 +71,7 @@ class ZunifyGApp extends StatelessWidget {
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Color(0xFF14161D),
+        systemNavigationBarColor: Color(0xFF0F0F13),
         systemNavigationBarIconBrightness: Brightness.light,
       ),
       child: MaterialApp(
