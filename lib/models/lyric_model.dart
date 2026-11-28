@@ -29,12 +29,26 @@ class LyricLine {
   final String? translatedIndoText;
   final List<LyricWord> words;
 
+  /// Duet vocal side: 'v1' (left/primary), 'v2' (right/secondary), 'group' (both/center), or null
+  final String? vocalAgent;
+
+  /// Optional background/ad-lib vocal text (e.g. TTML x-bg or trailing "(time, time)")
+  final String? backgroundText;
+  final List<LyricWord> backgroundWords;
+
+  /// True when word/end timestamps come directly from TTML / Enhanced LRC (not estimated)
+  final bool hasExactWordTiming;
+
   const LyricLine({
     required this.timestamp,
     this.endTimeMs,
     required this.originalText,
     this.translatedIndoText,
     this.words = const [],
+    this.vocalAgent,
+    this.backgroundText,
+    this.backgroundWords = const [],
+    this.hasExactWordTiming = false,
   });
 
   LyricLine copyWith({
@@ -43,6 +57,10 @@ class LyricLine {
     String? originalText,
     String? translatedIndoText,
     List<LyricWord>? words,
+    String? vocalAgent,
+    String? backgroundText,
+    List<LyricWord>? backgroundWords,
+    bool? hasExactWordTiming,
   }) {
     return LyricLine(
       timestamp: timestamp ?? this.timestamp,
@@ -50,6 +68,10 @@ class LyricLine {
       originalText: originalText ?? this.originalText,
       translatedIndoText: translatedIndoText ?? this.translatedIndoText,
       words: words ?? this.words,
+      vocalAgent: vocalAgent ?? this.vocalAgent,
+      backgroundText: backgroundText ?? this.backgroundText,
+      backgroundWords: backgroundWords ?? this.backgroundWords,
+      hasExactWordTiming: hasExactWordTiming ?? this.hasExactWordTiming,
     );
   }
 
@@ -59,6 +81,11 @@ class LyricLine {
         'originalText': originalText,
         'translatedIndoText': translatedIndoText,
         if (words.isNotEmpty) 'words': words.map((w) => w.toJson()).toList(),
+        if (vocalAgent != null) 'vocalAgent': vocalAgent,
+        if (backgroundText != null) 'backgroundText': backgroundText,
+        if (backgroundWords.isNotEmpty)
+          'backgroundWords': backgroundWords.map((w) => w.toJson()).toList(),
+        if (hasExactWordTiming) 'exact': true,
       };
 
   factory LyricLine.fromJson(Map<String, dynamic> json) => LyricLine(
@@ -71,6 +98,12 @@ class LyricLine {
         words: ((json['words'] as List<dynamic>?) ?? [])
             .map((e) => LyricWord.fromJson(e as Map<String, dynamic>))
             .toList(),
+        vocalAgent: json['vocalAgent'] as String?,
+        backgroundText: json['backgroundText'] as String?,
+        backgroundWords: ((json['backgroundWords'] as List<dynamic>?) ?? [])
+            .map((e) => LyricWord.fromJson(e as Map<String, dynamic>))
+            .toList(),
+        hasExactWordTiming: json['exact'] as bool? ?? false,
       );
 }
 
@@ -91,6 +124,18 @@ class SyncedLyrics {
 
   /// Returns true when Indonesian translation should be displayed under each line
   bool get shouldShowTranslation => !isOriginalIndonesian;
+
+  /// Returns true when the song has alternating singers (v1 & v2) for Spotify/Apple Music 2-side layout
+  bool get hasMultipleSingers {
+    bool hasV1 = false;
+    bool hasV2 = false;
+    for (final l in lines) {
+      if (l.vocalAgent == 'v1') hasV1 = true;
+      if (l.vocalAgent == 'v2') hasV2 = true;
+      if (hasV1 && hasV2) return true;
+    }
+    return false;
+  }
 
   SyncedLyrics copyWith({
     String? videoId,

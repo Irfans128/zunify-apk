@@ -15,6 +15,7 @@ class ZunifyPlaylist {
   final String? sourceUrl;
   final List<ZunifySong> songs;
   final DateTime createdAt;
+  final bool isPinned;
 
   const ZunifyPlaylist({
     required this.id,
@@ -25,6 +26,7 @@ class ZunifyPlaylist {
     this.sourceUrl,
     required this.songs,
     required this.createdAt,
+    this.isPinned = false,
   });
 
   String get originBadgeLabel {
@@ -47,6 +49,7 @@ class ZunifyPlaylist {
     String? sourceUrl,
     List<ZunifySong>? songs,
     DateTime? createdAt,
+    bool? isPinned,
   }) {
     return ZunifyPlaylist(
       id: id ?? this.id,
@@ -57,6 +60,7 @@ class ZunifyPlaylist {
       sourceUrl: sourceUrl ?? this.sourceUrl,
       songs: songs ?? this.songs,
       createdAt: createdAt ?? this.createdAt,
+      isPinned: isPinned ?? this.isPinned,
     );
   }
 
@@ -69,6 +73,7 @@ class ZunifyPlaylist {
         'sourceUrl': sourceUrl,
         'songs': songs.map((s) => s.toMap()).toList(),
         'createdAt': createdAt.toIso8601String(),
+        'isPinned': isPinned,
       };
 
   factory ZunifyPlaylist.fromJson(Map<String, dynamic> json) {
@@ -88,6 +93,7 @@ class ZunifyPlaylist {
           .map((e) => ZunifySong.fromMap(Map<String, dynamic>.from(e as Map)))
           .toList(),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      isPinned: json['isPinned'] as bool? ?? false,
     );
   }
 }

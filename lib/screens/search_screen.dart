@@ -1091,16 +1091,47 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Unified Search Input + Integrated YouTube-Style Voice Mic Button
-              Row(
-                children: [
-                  Expanded(
-                    child: LiquidGlassBox(
-                      borderRadius: 23,
-                      height: 46,
-                      tintOpacity: 0.10,
-                      rimIntensity: 0.38,
-                      alignment: Alignment.center,
+              // Unified Apple-Style Capsule Search Bar with Integrated Voice Button
+              Container(
+                height: 48,
+                decoration: isBrutal
+                    ? BoxDecoration(
+                        color: theme.cardBgColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: theme.brutalBorderColor,
+                          width: 2.0,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: theme.brutalShadowColor,
+                            blurRadius: 0,
+                            offset: const Offset(3.0, 3.0),
+                          ),
+                        ],
+                      )
+                    : BoxDecoration(
+                        color: theme.isLightCanvas
+                            ? Colors.black.withOpacity(0.055)
+                            : Colors.white.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: theme.isLightCanvas
+                              ? Colors.black.withOpacity(0.08)
+                              : Colors.white.withOpacity(0.12),
+                          width: 0.9,
+                        ),
+                      ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 15),
+                    Icon(
+                      Icons.search_rounded,
+                      color: theme.textMuted,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
                       child: TextField(
                         controller: _searchController,
                         focusNode: _searchFocusNode,
@@ -1108,61 +1139,79 @@ class _SearchScreenState extends State<SearchScreen> {
                         textAlignVertical: TextAlignVertical.center,
                         style: TextStyle(
                           color: theme.textPrimary,
-                          fontSize: 14,
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w600,
                         ),
                         onChanged: _onSearchTextChanged,
                         onSubmitted: (val) => _performSearch(val),
                         decoration: InputDecoration(
                           isDense: true,
-                          hintText: 'Cari judul lagu atau nama artis...',
+                          hintText: 'Lagu, artis, atau lirik...',
                           hintStyle: TextStyle(
                             color: theme.textMuted,
-                            fontSize: 13.5,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                           border: InputBorder.none,
                           contentPadding: const EdgeInsets.symmetric(
-                            vertical: 11,
+                            vertical: 12,
                           ),
-                          prefixIcon: Icon(
-                            Icons.search_rounded,
-                            color: theme.accentText,
-                            size: 20,
-                          ),
-                          suffixIcon: _searchController.text.isNotEmpty
-                              ? IosSpringButton(
-                                  onTap: () {
-                                    _debounceTimer?.cancel();
-                                    _searchController.clear();
-                                    setState(() {
-                                      _results = [];
-                                      _matchedArtist = null;
-                                      _suggestions = [];
-                                      _showingSuggestions = false;
-                                    });
-                                  },
-                                  child: Icon(
-                                    Icons.cancel_rounded,
-                                    color: theme.textMuted,
-                                    size: 18,
-                                  ),
-                                )
-                              : null,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IosGlassIconButton(
-                    icon: Icons.mic_rounded,
-                    size: 46,
-                    iconSize: 21,
-                    isActive: true,
-                    activeColor: accent,
-                    tooltip: 'Cari pakai suara',
-                    onTap: () => _openVoiceSearchModal(context),
-                  ),
-                ],
+                    if (_searchController.text.isNotEmpty)
+                      IosSpringButton(
+                        borderRadius: 18,
+                        onTap: () {
+                          _debounceTimer?.cancel();
+                          _searchController.clear();
+                          setState(() {
+                            _results = [];
+                            _matchedArtist = null;
+                            _suggestions = [];
+                            _showingSuggestions = false;
+                          });
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Icon(
+                            Icons.cancel_rounded,
+                            color: theme.textMuted,
+                            size: 18,
+                          ),
+                        ),
+                      ),
+                    Tooltip(
+                      message: 'Cari pakai suara',
+                      child: IosSpringButton(
+                        borderRadius: 20,
+                        onTap: () => _openVoiceSearchModal(context),
+                        child: Container(
+                          width: 36,
+                          height: 36,
+                          margin: const EdgeInsets.only(right: 6),
+                          decoration: BoxDecoration(
+                            color: isBrutal
+                                ? accent
+                                : accent.withOpacity(
+                                    theme.isLightCanvas ? 0.16 : 0.22,
+                                  ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.mic_rounded,
+                            color: isBrutal
+                                ? const Color(0xFF111111)
+                                : (theme.isLightCanvas
+                                    ? theme.accentText
+                                    : accent),
+                            size: 19,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               const SizedBox(height: 14),
 
@@ -1531,12 +1580,12 @@ class _SearchScreenState extends State<SearchScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Riwayat Pencarian',
-                style: TextStyle(
+                'Terakhir Dicari',
+                style: GoogleFonts.plusJakartaSans(
                   color: theme.textPrimary,
                   fontWeight: FontWeight.w800,
-                  fontSize: 15.5,
-                  letterSpacing: -0.2,
+                  fontSize: 16,
+                  letterSpacing: -0.3,
                 ),
               ),
               IosSpringButton(
@@ -1547,10 +1596,10 @@ class _SearchScreenState extends State<SearchScreen> {
                     vertical: 4,
                   ),
                   child: Text(
-                    'Hapus Semua',
+                    'Hapus',
                     style: TextStyle(
                       color: theme.accentText,
-                      fontSize: 12,
+                      fontSize: 12.2,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
@@ -1558,336 +1607,292 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: _searchHistory.take(8).map((historyQuery) {
-              return LiquidGlassBox(
-                borderRadius: 16,
-                padding: const EdgeInsets.fromLTRB(12, 7, 8, 7),
-                tintOpacity: 0.08,
-                rimIntensity: 0.32,
-                onTap: () => _performSearch(historyQuery),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.history_rounded,
-                      color: theme.textMuted,
-                      size: 15,
-                    ),
-                    const SizedBox(width: 6),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 170),
-                      child: Text(
-                        historyQuery,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
-                        ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 36,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: _searchHistory.take(10).length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, idx) {
+                final historyQuery = _searchHistory[idx];
+                return IosSpringButton(
+                  borderRadius: 18,
+                  onTap: () => _performSearch(historyQuery),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
+                    decoration: BoxDecoration(
+                      color: isBrutal ? theme.cardBgColor : theme.subtleFill,
+                      borderRadius: BorderRadius.circular(isBrutal ? 10 : 18),
+                      border: Border.all(
+                        color: isBrutal
+                            ? theme.brutalBorderColor
+                            : theme.dividerColor,
+                        width: isBrutal ? 1.5 : 0.8,
                       ),
                     ),
-                    const SizedBox(width: 4),
-                    IosSpringButton(
-                      onTap: () => _removeHistoryItem(historyQuery),
-                      child: Padding(
-                        padding: const EdgeInsets.all(2.0),
-                        child: Icon(
-                          Icons.close_rounded,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.history_rounded,
                           color: theme.textMuted,
-                          size: 14,
+                          size: 14.5,
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 150),
+                          child: Text(
+                            historyQuery,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: theme.textPrimary,
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        GestureDetector(
+                          onTap: () => _removeHistoryItem(historyQuery),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(
+                              Icons.close_rounded,
+                              color: theme.textMuted,
+                              size: 14,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            }).toList(),
+                  ),
+                );
+              },
+            ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 22),
         ],
 
-        // Redesigned Kategori Musik Section
-        Row(
-          children: [
-            Icon(
-              Icons.grid_view_rounded,
-              color: theme.accentText,
-              size: 17,
-            ),
-            const SizedBox(width: 7),
-            Text(
-              'Kategori Musik',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: 15.5,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
+        // Modern Vibrant Gradient Category Tiles (Clean 2-Column Browse)
+        Text(
+          'Jelajahi Mood & Genre',
+          style: GoogleFonts.plusJakartaSans(
+            color: theme.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 16.5,
+            letterSpacing: -0.3,
+          ),
         ),
-        const SizedBox(height: 11),
+        const SizedBox(height: 12),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           itemCount: categories.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
-            mainAxisSpacing: 10,
-            crossAxisSpacing: 10,
-            mainAxisExtent: 72,
+            mainAxisSpacing: 11,
+            crossAxisSpacing: 11,
+            mainAxisExtent: 82,
           ),
           itemBuilder: (context, idx) {
             final item = categories[idx];
             final cardColor = Color(item['color'] as int);
+            final darkerTone = Color.lerp(cardColor, const Color(0xFF090D16), 0.34)!;
             final iconData = item['icon'] as IconData;
-            return LiquidGlassBox(
-              borderRadius: 18,
-              padding: EdgeInsets.zero,
-              tintColor: cardColor,
-              tintOpacity: isBrutal ? 0.16 : 0.24,
-              rimIntensity: 0.44,
+            final tileRadius = isBrutal ? 13.0 : 18.0;
+
+            return IosSpringButton(
+              borderRadius: tileRadius,
               onTap: () {
                 final q = item['query'] as String;
                 _searchController.text = item['title'] as String;
                 _performSearch(q, allowArtistCard: false);
               },
-              child: Stack(
-                clipBehavior: Clip.hardEdge,
-                children: [
-                  Positioned(
-                    right: -8,
-                    bottom: -10,
-                    child: Icon(
-                      iconData,
-                      size: 54,
-                      color: cardColor.withOpacity(isBrutal ? 0.15 : 0.18),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: isBrutal
+                      ? null
+                      : LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [cardColor, darkerTone],
+                        ),
+                  color: isBrutal ? cardColor : null,
+                  borderRadius: BorderRadius.circular(tileRadius),
+                  border: isBrutal
+                      ? Border.all(
+                          color: theme.brutalBorderColor,
+                          width: 2.0,
+                        )
+                      : null,
+                  boxShadow: isBrutal
+                      ? [
+                          BoxShadow(
+                            color: theme.brutalShadowColor,
+                            blurRadius: 0,
+                            offset: const Offset(3.0, 3.0),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: cardColor.withOpacity(0.24),
+                            blurRadius: 14,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  children: [
+                    Positioned(
+                      right: -10,
+                      bottom: -12,
+                      child: Transform.rotate(
+                        angle: -0.22,
+                        child: Icon(
+                          iconData,
+                          size: 62,
+                          color: Colors.white.withOpacity(0.20),
+                        ),
+                      ),
                     ),
-                  ),
-                  Padding(
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            item['title'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14.5,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          Text(
+                            item['subtitle'] as String,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.84),
+                              fontWeight: FontWeight.w600,
+                              fontSize: 11.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 26),
+
+        // Editorial Ranked Popular Searches (Zero Box Clutter!)
+        Text(
+          'Populer Dicari',
+          style: GoogleFonts.plusJakartaSans(
+            color: theme.textPrimary,
+            fontWeight: FontWeight.w800,
+            fontSize: 16.5,
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Column(
+          children: List.generate(popularSearches.length, (i) {
+            final entry = popularSearches[i];
+            final rank = (i + 1).toString().padLeft(2, '0');
+            final isTop3 = i < 3;
+            final isLast = i == popularSearches.length - 1;
+
+            return Column(
+              children: [
+                IosSpringButton(
+                  borderRadius: 12,
+                  onTap: () {
+                    final q = entry['query']!;
+                    _searchController.text = q;
+                    _performSearch(q);
+                  },
+                  child: Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
+                      horizontal: 2,
+                      vertical: 11,
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 38,
-                          height: 38,
-                          decoration: BoxDecoration(
-                            gradient: isBrutal
-                                ? null
-                                : LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Color.lerp(cardColor, Colors.white, 0.22)!
-                                          .withOpacity(0.85),
-                                      cardColor.withOpacity(0.55),
-                                    ],
-                                  ),
-                            color: isBrutal ? cardColor : null,
-                            borderRadius: BorderRadius.circular(
-                              isBrutal ? 9 : 11,
-                            ),
-                            border: Border.all(
-                              color: isBrutal
-                                  ? theme.brutalBorderColor
-                                  : Colors.white.withOpacity(0.32),
-                              width: isBrutal ? 1.8 : 1.0,
+                        SizedBox(
+                          width: 28,
+                          child: Text(
+                            rank,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: isTop3 ? theme.accentText : theme.textMuted,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
                             ),
                           ),
-                          child: Icon(iconData, color: Colors.white, size: 19),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                item['title'] as String,
+                                entry['title']!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
+                                style: GoogleFonts.plusJakartaSans(
                                   color: theme.textPrimary,
+                                  fontSize: 14.2,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 13.0,
                                   letterSpacing: -0.2,
                                 ),
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                item['subtitle'] as String,
+                                entry['artist']!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: isBrutal
-                                      ? theme.textSecondary
-                                      : Colors.white.withOpacity(0.70),
+                                  color: theme.textMuted,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  fontSize: 11.0,
                                 ),
                               ),
                             ],
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.north_west_rounded,
+                          color: isTop3 ? theme.accentText : theme.textMuted,
+                          size: 16,
+                        ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 22),
-
-        // Redesigned Populer Dicari Section — Structured Ranked List
-        Row(
-          children: [
-            Icon(
-              Icons.local_fire_department_rounded,
-              color: theme.accentText,
-              size: 18,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'Populer Dicari',
-              style: TextStyle(
-                color: theme.textPrimary,
-                fontWeight: FontWeight.w800,
-                fontSize: 15.5,
-                letterSpacing: -0.2,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 11),
-        LiquidGlassBox(
-          borderRadius: 20,
-          tintColor: accent,
-          tintOpacity: isBrutal ? 0.0 : 0.06,
-          rimIntensity: 0.38,
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Column(
-            children: List.generate(popularSearches.length, (i) {
-              final entry = popularSearches[i];
-              final rank = (i + 1).toString().padLeft(2, '0');
-              final isTop3 = i < 3;
-              final isLast = i == popularSearches.length - 1;
-
-              return Column(
-                children: [
-                  IosSpringButton(
-                    onTap: () {
-                      final q = entry['query']!;
-                      _searchController.text = q;
-                      _performSearch(q);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 9.5,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 28,
-                            height: 28,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: isTop3
-                                  ? (isBrutal
-                                        ? accent
-                                        : accent.withOpacity(0.20))
-                                  : (isBrutal
-                                        ? theme.subtleFill
-                                        : Colors.white.withOpacity(0.06)),
-                              borderRadius: BorderRadius.circular(
-                                isBrutal ? 7 : 9,
-                              ),
-                              border: isBrutal
-                                  ? Border.all(
-                                      color: theme.brutalBorderColor,
-                                      width: 1.5,
-                                    )
-                                  : Border.all(
-                                      color: isTop3
-                                          ? accent.withOpacity(0.45)
-                                          : Colors.white.withOpacity(0.10),
-                                      width: 0.9,
-                                    ),
-                            ),
-                            child: Text(
-                              rank,
-                              style: TextStyle(
-                                color: isTop3
-                                    ? (isBrutal
-                                          ? const Color(0xFF111111)
-                                          : accent)
-                                    : theme.textMuted,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  entry['title']!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: theme.textPrimary,
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: -0.15,
-                                  ),
-                                ),
-                                const SizedBox(height: 1.5),
-                                Text(
-                                  entry['artist']!,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: theme.textMuted,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Icon(
-                            Icons.north_west_rounded,
-                            color: isTop3 ? theme.accentText : theme.textMuted,
-                            size: 16,
-                          ),
-                        ],
-                      ),
-                    ),
+                ),
+                if (!isLast)
+                  Divider(
+                    height: 1,
+                    thickness: 0.6,
+                    indent: 36,
+                    color: theme.dividerColor.withOpacity(0.55),
                   ),
-                  if (!isLast)
-                    Divider(
-                      height: 1,
-                      thickness: isBrutal ? 1.2 : 0.7,
-                      indent: 54,
-                      endIndent: 14,
-                      color: theme.dividerColor,
-                    ),
-                ],
-              );
-            }),
-          ),
+              ],
+            );
+          }),
         ),
       ],
     );

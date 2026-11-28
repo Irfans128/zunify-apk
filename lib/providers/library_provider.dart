@@ -23,6 +23,8 @@ class LibraryProvider extends ChangeNotifier {
   List<ZunifyPlaylist> _playlists = [];
 
   final Map<String, double> _activeDownloadProgress = {};
+  final Map<String, ({int done, int total})> _playlistDownloadProgress = {};
+  final Set<String> _cancelledPlaylistDownloads = {};
 
   LibraryProvider(this._downloadService, this._importerService);
 
@@ -33,6 +35,15 @@ class LibraryProvider extends ChangeNotifier {
   List<ZunifySong> get recentlyPlayed => List.unmodifiable(_recentlyPlayed);
   List<ZunifyPlaylist> get playlists => List.unmodifiable(_playlists);
   Map<String, double> get activeDownloadProgress => _activeDownloadProgress;
+
+  ({int done, int total})? getPlaylistDownloadProgress(String playlistId) =>
+      _playlistDownloadProgress[playlistId];
+
+  bool isPlaylistDownloading(String playlistId) =>
+      _playlistDownloadProgress.containsKey(playlistId);
+
+  bool isPlaylistFullyDownloaded(ZunifyPlaylist pl) =>
+      pl.songs.isNotEmpty && pl.songs.every((s) => isDownloaded(s.videoId));
 
   Future<void> loadLibrary() async {
     final prefs = await SharedPreferences.getInstance();
@@ -62,6 +73,7 @@ class LibraryProvider extends ChangeNotifier {
     _playlists = rawPlaylists
         .map((p) => ZunifyPlaylist.fromJson(jsonDecode(p) as Map<String, dynamic>))
         .toList();
+    _sortPlaylistsByPin();
 
     notifyListeners();
   }
@@ -164,6 +176,58 @@ class LibraryProvider extends ChangeNotifier {
     await _saveList('downloaded_songs', _downloadedSongs.map((e) => e.toMap()).toList());
   }
 
+  void cancelPlaylistDownload(String playlistId) {
+    if (_playlistDownloadProgress.containsKey(playlistId)) {
+      _cancelledPlaylistDownloads.add(playlistId);
+      notifyListeners();
+    }
+  }
+
+  /// Downloads all non-downloaded songs in a playlist sequentially with live progress
+  Future<int> downloadEntirePlaylist(
+    String playlistId, {
+    bool highQuality = true,
+  }) async {
+    if (_playlistDownloadProgress.containsKey(playlistId)) return 0;
+    final idx = _playlists.indexWhere((p) => p.id == playlistId);
+    if (idx < 0) return 0;
+
+    final pending = _playlists[idx]
+        .songs
+        .where((s) => !isDownloaded(s.videoId))
+        .toList();
+    if (pending.isEmpty) return 0;
+
+    _cancelledPlaylistDownloads.remove(playlistId);
+    _playlistDownloadProgress[playlistId] = (done: 0, total: pending.length);
+    notifyListeners();
+
+    int completed = 0;
+    try {
+      for (final song in pending) {
+        if (_cancelledPlaylistDownloads.contains(playlistId)) break;
+        final ok = await downloadSong(song, highQuality: highQuality);
+        if (ok) completed++;
+        _playlistDownloadProgress[playlistId] = (
+          done: completed,
+          total: pending.length,
+        );
+        notifyListeners();
+      }
+    } finally {
+      _cancelledPlaylistDownloads.remove(playlistId);
+      _playlistDownloadProgress.remove(playlistId);
+      notifyListeners();
+    }
+    return completed;
+  }
+
+  void _sortPlaylistsByPin() {
+    final pinned = _playlists.where((p) => p.isPinned).toList();
+    final unpinned = _playlists.where((p) => !p.isPinned).toList();
+    _playlists = [...pinned, ...unpinned];
+  }
+
   /// Create a new local playlist
   Future<void> createLocalPlaylist(String name, String description) async {
     final newPlaylist = ZunifyPlaylist(
@@ -175,6 +239,27 @@ class LibraryProvider extends ChangeNotifier {
       createdAt: DateTime.now(),
     );
     _playlists.insert(0, newPlaylist);
+    _sortPlaylistsByPin();
+    notifyListeners();
+    await _savePlaylists();
+  }
+
+  Future<void> renamePlaylist(String playlistId, String newName) async {
+    final clean = newName.trim();
+    if (clean.isEmpty) return;
+    final idx = _playlists.indexWhere((p) => p.id == playlistId);
+    if (idx < 0) return;
+    _playlists[idx] = _playlists[idx].copyWith(name: clean);
+    notifyListeners();
+    await _savePlaylists();
+  }
+
+  Future<void> togglePinPlaylist(String playlistId) async {
+    final idx = _playlists.indexWhere((p) => p.id == playlistId);
+    if (idx < 0) return;
+    final target = _playlists[idx];
+    _playlists[idx] = target.copyWith(isPinned: !target.isPinned);
+    _sortPlaylistsByPin();
     notifyListeners();
     await _savePlaylists();
   }
@@ -238,6 +323,7 @@ class LibraryProvider extends ChangeNotifier {
     final imported = await _importerService.importFromUrl(url, onProgress: onProgress);
     if (imported != null) {
       _playlists.insert(0, imported);
+      _sortPlaylistsByPin();
       notifyListeners();
       await _savePlaylists();
     }

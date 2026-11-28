@@ -59,6 +59,8 @@ class _ShareCardModalState extends State<ShareCardModal> {
     '📸 Polaroid Matte',
     '🌸 Pastel Aurora',
     '⚡ Neo-Brutalism',
+    '🤍 Minimalist White',
+    '🎞️ Polaroid 9:16',
   ];
 
   bool _didInitThemeTemplate = false;
@@ -84,7 +86,10 @@ class _ShareCardModalState extends State<ShareCardModal> {
     super.didChangeDependencies();
     if (!_didInitThemeTemplate) {
       _didInitThemeTemplate = true;
-      if (context.read<ThemeProvider>().isNeoBrutalism) {
+      final theme = context.read<ThemeProvider>();
+      if (theme.isClassicIpod) {
+        _selectedTemplate = 6;
+      } else if (theme.isNeoBrutalism) {
         _selectedTemplate = 5;
       }
     }
@@ -650,6 +655,335 @@ class _ShareCardModalState extends State<ShareCardModal> {
     required bool showIndo,
   }) {
     final song = widget.song;
+
+    // Template 6: Minimalist White (Reference iPod Video Aesthetic — Pure #FFFFFF Gallery Card)
+    if (_selectedTemplate == 6) {
+      final lyricAlign = _centerAlignLyrics ? TextAlign.center : TextAlign.justify;
+      final lyricCross =
+          _centerAlignLyrics ? CrossAxisAlignment.center : CrossAxisAlignment.stretch;
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(28, 36, 28, 24),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: const Color(0xFFE2E8F0),
+            width: 1.0,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: lyricCross,
+          children: [
+            const SizedBox(height: 10),
+            ...chosenLines.map((l) {
+              final hasIndo = showIndo &&
+                  l.translatedIndoText != null &&
+                  l.translatedIndoText!.trim().isNotEmpty;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14),
+                child: Column(
+                  crossAxisAlignment: lyricCross,
+                  children: [
+                    Text(
+                      l.originalText.trim().toLowerCase(),
+                      textAlign: lyricAlign,
+                      style: TextStyle(
+                        fontFamily: 'sans-serif',
+                        color: const Color(0xFF0A0A0A),
+                        fontSize: chosenLines.length <= 2 ? 23.0 : 19.5,
+                        fontWeight: FontWeight.w400,
+                        letterSpacing: -0.9,
+                        height: 1.18,
+                      ),
+                    ),
+                    if (hasIndo) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        l.translatedIndoText!.trim().toLowerCase(),
+                        textAlign: lyricAlign,
+                        style: const TextStyle(
+                          fontFamily: 'sans-serif',
+                          color: Color(0xFF6B7280),
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: -0.5,
+                          height: 1.24,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+            const Divider(color: Color(0xFFE5E7EB), height: 1, thickness: 0.8),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(7),
+                  child: CachedNetworkImage(
+                    imageUrl: song.highResArtUrl,
+                    width: 34,
+                    height: 34,
+                    memCacheWidth: 120,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Container(
+                      width: 34,
+                      height: 34,
+                      color: const Color(0xFFF1F5F9),
+                      child: const Icon(
+                        Icons.music_note_rounded,
+                        color: Color(0xFF0F172A),
+                        size: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title.toLowerCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'sans-serif',
+                          color: Color(0xFF0A0A0A),
+                          fontSize: 12.8,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      Text(
+                        song.artist.toLowerCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontFamily: 'sans-serif',
+                          color: Color(0xFF64748B),
+                          fontSize: 11.2,
+                          fontWeight: FontWeight.w400,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Text(
+                  'zunify',
+                  style: TextStyle(
+                    fontFamily: 'sans-serif',
+                    color: Color(0xFF94A3B8),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.4,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Template 7: Authentic Paper Polaroid Story 9:16 Card (For IG Story & WhatsApp Status)
+    if (_selectedTemplate == 7) {
+      final align = _centerAlignLyrics ? TextAlign.center : TextAlign.left;
+      final crossAlign =
+          _centerAlignLyrics ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 22),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAF7F0),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFFE7DFCF),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.18),
+              blurRadius: 24,
+              offset: const Offset(0, 12),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: crossAlign,
+          children: [
+            // Classic Square Instant Film Frame
+            AspectRatio(
+              aspectRatio: 1.05,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF14151A),
+                  borderRadius: BorderRadius.circular(8),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: song.highResArtUrl,
+                      memCacheWidth: 540,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        color: const Color(0xFF1E293B),
+                        child: Icon(
+                          Icons.music_note_rounded,
+                          color: accent,
+                          size: 46,
+                        ),
+                      ),
+                    ),
+                    // Subtle film vignette at bottom edge
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      height: 60,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.bottomCenter,
+                            end: Alignment.topCenter,
+                            colors: [
+                              Colors.black.withOpacity(0.55),
+                              Colors.transparent,
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: 12,
+                      right: 12,
+                      bottom: 10,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  song.title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.2,
+                                  ),
+                                ),
+                                Text(
+                                  song.artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.82),
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 18),
+            // Handwritten-feel Polaroid Lyric Caption
+            ...chosenLines.map((l) {
+              final hasIndo = showIndo &&
+                  l.translatedIndoText != null &&
+                  l.translatedIndoText!.trim().isNotEmpty;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Column(
+                  crossAxisAlignment: crossAlign,
+                  children: [
+                    Text(
+                      l.originalText,
+                      textAlign: align,
+                      style: GoogleFonts.plusJakartaSans(
+                        color: const Color(0xFF18181B),
+                        fontSize: chosenLines.length <= 2 ? 18.0 : 15.8,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.35,
+                        height: 1.28,
+                      ),
+                    ),
+                    if (hasIndo) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        l.translatedIndoText!,
+                        textAlign: align,
+                        style: GoogleFonts.plusJakartaSans(
+                          color: const Color(0xFF71717A),
+                          fontSize: 12.2,
+                          fontWeight: FontWeight.w600,
+                          height: 1.28,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'ZUNIFY • STORY',
+                  style: GoogleFonts.spaceMono(
+                    color: const Color(0xFF78716C),
+                    fontSize: 9.8,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                Text(
+                  '♪',
+                  style: TextStyle(
+                    color: const Color(0xFF78716C),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
 
     // Template 5: Authentic Neo-Brutalism (Warm Cream Paper + Hard Ink Shadow)
     if (_selectedTemplate == 5) {

@@ -1,9 +1,9 @@
-name: Scheduled Release v3.0.0 & Zidny Birthday (10 Dec 2026 00:00 WIB)
+name: Manual Release v3.0.0 & Zidny Birthday (Auto-Schedule Paused Until User Confirms)
 
 on:
-  schedule:
-    # 00:00 WIB on December 10, 2026 == 17:00 UTC on December 9, 2026
-    - cron: '0 17 9 12 *'
+  # Auto-schedule paused per user request ("jangan langsung dibuat otomatis rilis 10 Desember 2026"):
+  # schedule:
+  #   - cron: '0 17 9 12 *'
   workflow_dispatch:
 
 permissions:

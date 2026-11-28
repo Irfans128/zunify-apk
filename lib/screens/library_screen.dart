@@ -12,6 +12,106 @@ import '../widgets/song_tile_widget.dart';
 import 'search_screen.dart';
 
 /// Opens the full interactive Playlist Detail Sheet (Spotify Import, YT Music Import, and Local Playlists)
+/// Opens a sleek Rename Playlist dialog with safe controller disposal
+void showRenamePlaylistDialog(BuildContext context, ZunifyPlaylist playlist) {
+  final nameCtrl = TextEditingController(text: playlist.name);
+  final library = context.read<LibraryProvider>();
+  final theme = context.read<ThemeProvider>();
+  final accent = theme.accentColor;
+  final isBrutal = theme.isNeoBrutalism;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      backgroundColor: theme.sheetBgColor,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(isBrutal ? 15 : 22),
+        side: isBrutal
+            ? BorderSide(color: theme.brutalBorderColor, width: 2.2)
+            : BorderSide(color: theme.dividerColor),
+      ),
+      title: Text(
+        'Ubah Nama Playlist',
+        style: GoogleFonts.plusJakartaSans(
+          color: theme.textPrimary,
+          fontWeight: FontWeight.w800,
+          fontSize: 17,
+        ),
+      ),
+      content: TextField(
+        controller: nameCtrl,
+        autofocus: true,
+        textInputAction: TextInputAction.done,
+        onSubmitted: (_) async {
+          final clean = nameCtrl.text.trim();
+          if (clean.isNotEmpty) {
+            await library.renamePlaylist(playlist.id, clean);
+          }
+          if (ctx.mounted) Navigator.pop(ctx);
+        },
+        style: TextStyle(
+          color: theme.textPrimary,
+          fontWeight: FontWeight.w700,
+        ),
+        decoration: InputDecoration(
+          hintText: 'Nama playlist baru...',
+          hintStyle: TextStyle(color: theme.textMuted),
+          filled: true,
+          fillColor: isBrutal ? theme.cardBgColor : theme.subtleFill,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+            borderSide: isBrutal
+                ? BorderSide(color: theme.brutalBorderColor, width: 1.8)
+                : BorderSide(color: theme.dividerColor),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+            borderSide: BorderSide(
+              color: isBrutal ? theme.brutalBorderColor : accent,
+              width: isBrutal ? 2.0 : 1.4,
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: Text(
+            'Batal',
+            style: TextStyle(
+              color: theme.textMuted,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: accent,
+            foregroundColor: const Color(0xFF111111),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(isBrutal ? 10 : 12),
+            ),
+          ),
+          onPressed: () async {
+            final clean = nameCtrl.text.trim();
+            if (clean.isNotEmpty) {
+              await library.renamePlaylist(playlist.id, clean);
+            }
+            if (ctx.mounted) Navigator.pop(ctx);
+          },
+          child: const Text(
+            'Simpan',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+      ],
+    ),
+  ).whenComplete(() {
+    Future.delayed(const Duration(milliseconds: 350), nameCtrl.dispose);
+  });
+}
+
 void showPlaylistDetailSheet(BuildContext context, String playlistId) {
   showModalBottomSheet(
     context: context,
@@ -624,247 +724,487 @@ class _LibraryScreenState extends State<LibraryScreen>
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(18, 8, 18, 176),
+    // Apple Music Style 2-Column Large Cover Grid
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 180),
       physics: const BouncingScrollPhysics(),
       itemCount: library.playlists.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 18,
+        childAspectRatio: 0.75,
+      ),
       itemBuilder: (context, i) {
         final ZunifyPlaylist pl = library.playlists[i];
-        final Color badgeColor = pl.origin == PlaylistOrigin.spotifyImport
+        final isImported = pl.origin == PlaylistOrigin.spotifyImport ||
+            pl.origin == PlaylistOrigin.youtubeMusicImport;
+        final Color originDot = pl.origin == PlaylistOrigin.spotifyImport
             ? const Color(0xFF1DB954)
-            : pl.origin == PlaylistOrigin.youtubeMusicImport
-                ? const Color(0xFFFF4E45)
-                : accent;
-        final Color badgeTextColor = pl.origin == PlaylistOrigin.spotifyImport
-            ? (theme.isLightCanvas
-                ? const Color(0xFF0F7A35)
-                : const Color(0xFF1DB954))
-            : pl.origin == PlaylistOrigin.youtubeMusicImport
-                ? (theme.isLightCanvas
-                    ? const Color(0xFFC5221F)
-                    : const Color(0xFFFF4E45))
-                : theme.accentText;
+            : const Color(0xFFFF4E45);
+        final cardRadius = isBrutal ? 13.0 : 18.0;
 
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: LiquidGlassBox(
-            borderRadius: 20,
-            padding: const EdgeInsets.all(10),
-            tintOpacity: 0.07,
-            rimIntensity: 0.34,
-            onTap: () => showPlaylistDetailSheet(context, pl.id),
-            child: Row(
-              children: [
-                Container(
-                  decoration: isBrutal
-                      ? BoxDecoration(
-                          borderRadius: BorderRadius.circular(11),
-                          border: Border.all(
+        return IosSpringButton(
+          borderRadius: cardRadius,
+          scaleDown: 0.95,
+          onTap: () => showPlaylistDetailSheet(context, pl.id),
+          onLongPress: () => _showPlaylistCardMenu(
+            context,
+            pl: pl,
+            library: library,
+            player: player,
+            theme: theme,
+            accent: accent,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Large 1:1 Cover Artwork with Pin Badge & Play Overlay
+              AspectRatio(
+                aspectRatio: 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(cardRadius),
+                    border: isBrutal
+                        ? Border.all(
                             color: theme.brutalBorderColor,
-                            width: 1.8,
+                            width: 2.0,
+                          )
+                        : null,
+                    boxShadow: isBrutal
+                        ? [
+                            BoxShadow(
+                              color: theme.brutalShadowColor,
+                              blurRadius: 0,
+                              offset: const Offset(3.5, 3.5),
+                            ),
+                          ]
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(
+                                theme.isLightCanvas ? 0.10 : 0.30,
+                              ),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(
+                      isBrutal ? cardRadius - 2.0 : cardRadius,
+                    ),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        _buildPlaylistCoverArt(pl, theme, accent),
+                        // Subtle bottom scrim for play button legibility
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          height: 54,
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Colors.black.withOpacity(0.45),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
-                        )
-                      : null,
-                  child: _buildPlaylistCoverThumb(pl, theme, accent),
-                ),
-                const SizedBox(width: 13),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pl.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 15,
                         ),
-                      ),
-                      const SizedBox(height: 5),
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 7,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: badgeColor.withOpacity(
-                                isBrutal ? 0.22 : 0.16,
+                        if (isImported)
+                          Positioned(
+                            left: 8,
+                            top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 3,
                               ),
-                              borderRadius: BorderRadius.circular(6),
-                              border: isBrutal
-                                  ? Border.all(
-                                      color: theme.brutalBorderColor
-                                          .withOpacity(0.55),
-                                      width: 1.2,
-                                    )
-                                  : null,
-                            ),
-                            child: Text(
-                              pl.originBadgeLabel,
-                              style: TextStyle(
-                                color: badgeTextColor,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w800,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.62),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              '${pl.songs.length} lagu',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: theme.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: BoxDecoration(
+                                      color: originDot,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    pl.origin == PlaylistOrigin.spotifyImport
+                                        ? 'Spotify'
+                                        : 'YT Music',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9.5,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ],
+                        if (pl.isPinned)
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: accent,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.28),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.push_pin_rounded,
+                                color: Color(0xFF111111),
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          right: 8,
+                          bottom: 8,
+                          child: GestureDetector(
+                            onTap: () {
+                              if (pl.songs.isNotEmpty) {
+                                player.playSong(
+                                  pl.songs.first,
+                                  customQueue: pl.songs,
+                                  contextName: pl.name,
+                                );
+                              } else {
+                                showPlaylistDetailSheet(context, pl.id);
+                              }
+                            },
+                            child: Container(
+                              width: 34,
+                              height: 34,
+                              decoration: BoxDecoration(
+                                color: accent,
+                                shape: BoxShape.circle,
+                                border: isBrutal
+                                    ? Border.all(
+                                        color: theme.brutalBorderColor,
+                                        width: 1.8,
+                                      )
+                                    : null,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.28),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                color: Color(0xFF111111),
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                IosGlassIconButton(
-                  icon: Icons.play_arrow_rounded,
-                  size: 38,
-                  iconSize: 20,
-                  isActive: pl.songs.isNotEmpty,
-                  activeColor: accent,
-                  onTap: () {
-                    if (pl.songs.isNotEmpty) {
-                      player.playSong(
-                        pl.songs.first,
-                        customQueue: pl.songs,
-                        contextName: pl.name,
-                      );
-                    } else {
-                      showPlaylistDetailSheet(context, pl.id);
-                    }
-                  },
+              ),
+              const SizedBox(height: 9),
+              Text(
+                pl.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  color: theme.textPrimary,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14.5,
+                  letterSpacing: -0.25,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${pl.songs.length} lagu',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: theme.textMuted,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         );
       },
     );
   }
 
-  Widget _buildPlaylistCoverThumb(
+  Widget _buildPlaylistCoverArt(
     ZunifyPlaylist pl,
     ThemeProvider theme,
     Color accent,
   ) {
-    final radius = theme.isNeoBrutalism ? 9.2 : 14.0;
     if (pl.coverUrl != null && pl.coverUrl!.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: CachedNetworkImage(
-          imageUrl: pl.coverUrl!,
-          width: 58,
-          height: 58,
-          memCacheWidth: 174,
-          fit: BoxFit.cover,
-          errorWidget: (_, __, ___) => _fallbackCover(theme, accent, radius),
-        ),
+      return CachedNetworkImage(
+        imageUrl: pl.coverUrl!,
+        memCacheWidth: 360,
+        fit: BoxFit.cover,
+        errorWidget: (_, __, ___) => _fallbackCover(theme, accent),
       );
     }
     if (pl.songs.length >= 4) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: SizedBox(
-          width: 58,
-          height: 58,
+      return Column(
+        children: [
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: CachedNetworkImage(
+                    imageUrl: pl.songs[0].thumbnailUrl,
+                    memCacheWidth: 180,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) =>
+                        Container(color: theme.subtleFill),
+                  ),
+                ),
+                Expanded(
+                  child: CachedNetworkImage(
+                    imageUrl: pl.songs[1].thumbnailUrl,
+                    memCacheWidth: 180,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) =>
+                        Container(color: theme.subtleFill),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: Row(
+              children: [
+                Expanded(
+                  child: CachedNetworkImage(
+                    imageUrl: pl.songs[2].thumbnailUrl,
+                    memCacheWidth: 180,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) =>
+                        Container(color: theme.subtleFill),
+                  ),
+                ),
+                Expanded(
+                  child: CachedNetworkImage(
+                    imageUrl: pl.songs[3].thumbnailUrl,
+                    memCacheWidth: 180,
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) =>
+                        Container(color: theme.subtleFill),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+    if (pl.songs.isNotEmpty && pl.songs.first.highResArtUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: pl.songs.first.highResArtUrl,
+        memCacheWidth: 360,
+        fit: BoxFit.cover,
+        errorWidget: (_, __, ___) => _fallbackCover(theme, accent),
+      );
+    }
+    return _fallbackCover(theme, accent);
+  }
+
+  void _showPlaylistCardMenu(
+    BuildContext context, {
+    required ZunifyPlaylist pl,
+    required LibraryProvider library,
+    required PlayerProvider player,
+    required ThemeProvider theme,
+    required Color accent,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => ZunifySheetContainer(
+        child: SafeArea(
+          top: false,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: CachedNetworkImage(
-                        imageUrl: pl.songs[0].thumbnailUrl,
-                        memCacheWidth: 120,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            Container(color: theme.subtleFill),
-                      ),
-                    ),
-                    Expanded(
-                      child: CachedNetworkImage(
-                        imageUrl: pl.songs[1].thumbnailUrl,
-                        memCacheWidth: 120,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            Container(color: theme.subtleFill),
-                      ),
-                    ),
-                  ],
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: theme.dividerColor,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
               ),
-              Expanded(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: CachedNetworkImage(
-                        imageUrl: pl.songs[2].thumbnailUrl,
-                        memCacheWidth: 120,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            Container(color: theme.subtleFill),
-                      ),
-                    ),
-                    Expanded(
-                      child: CachedNetworkImage(
-                        imageUrl: pl.songs[3].thumbnailUrl,
-                        memCacheWidth: 120,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) =>
-                            Container(color: theme.subtleFill),
-                      ),
-                    ),
-                  ],
+              Text(
+                pl.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.plusJakartaSans(
+                  color: theme.textPrimary,
+                  fontSize: 16.5,
+                  fontWeight: FontWeight.w800,
                 ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  pl.isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+                  color: theme.accentText,
+                ),
+                title: Text(
+                  pl.isPinned ? 'Lepas Sematan' : 'Sematkan ke Paling Atas',
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  library.togglePinPlaylist(pl.id);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.edit_rounded, color: theme.textSecondary),
+                title: Text(
+                  'Ubah Nama Playlist',
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  showRenamePlaylistDialog(context, pl);
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  library.isPlaylistFullyDownloaded(pl)
+                      ? Icons.download_done_rounded
+                      : Icons.download_for_offline_outlined,
+                  color: library.isPlaylistFullyDownloaded(pl)
+                      ? theme.accentText
+                      : theme.textSecondary,
+                ),
+                title: Text(
+                  library.isPlaylistDownloading(pl.id)
+                      ? 'Batalkan Unduhan Playlist'
+                      : (library.isPlaylistFullyDownloaded(pl)
+                          ? 'Semua Tersimpan Offline'
+                          : 'Unduh Semua Lagu (Offline)'),
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (library.isPlaylistDownloading(pl.id)) {
+                    library.cancelPlaylistDownload(pl.id);
+                  } else if (!library.isPlaylistFullyDownloaded(pl) &&
+                      pl.songs.isNotEmpty) {
+                    library.downloadEntirePlaylist(pl.id);
+                  }
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(
+                  Icons.queue_music_rounded,
+                  color: theme.textSecondary,
+                ),
+                title: Text(
+                  'Tambah Semua ke Antrean',
+                  style: TextStyle(
+                    color: theme.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  for (final s in pl.songs) {
+                    player.addToQueue(s);
+                  }
+                },
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                ),
+                title: const Text(
+                  'Hapus Playlist',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  await library.deletePlaylist(pl.id);
+                },
               ),
             ],
           ),
         ),
-      );
-    }
-    if (pl.songs.isNotEmpty && pl.songs.first.thumbnailUrl.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(radius),
-        child: CachedNetworkImage(
-          imageUrl: pl.songs.first.thumbnailUrl,
-          width: 58,
-          height: 58,
-          memCacheWidth: 174,
-          fit: BoxFit.cover,
-          errorWidget: (_, __, ___) => _fallbackCover(theme, accent, radius),
-        ),
-      );
-    }
-    return _fallbackCover(theme, accent, radius);
+      ),
+    );
   }
 
-  Widget _fallbackCover(ThemeProvider theme, Color accent, double radius) {
+  Widget _fallbackCover(ThemeProvider theme, Color accent) {
     return Container(
-      width: 58,
-      height: 58,
       decoration: BoxDecoration(
-        color: accent.withOpacity(0.18),
-        borderRadius: BorderRadius.circular(radius),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            accent.withOpacity(0.32),
+            theme.secondaryAccentColor.withOpacity(0.18),
+          ],
+        ),
       ),
-      child: Icon(
-        Icons.queue_music_rounded,
-        color: theme.accentText,
-        size: 26,
+      child: Center(
+        child: Icon(
+          Icons.queue_music_rounded,
+          color: theme.accentText,
+          size: 42,
+        ),
       ),
     );
   }
@@ -883,11 +1223,33 @@ class PlaylistDetailSheet extends StatefulWidget {
 class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
   final TextEditingController _filterCtrl = TextEditingController();
   String _searchQuery = '';
+  String _sortMode = 'default'; // 'default' | 'title' | 'artist' | 'newest'
 
   @override
   void dispose() {
     _filterCtrl.dispose();
     super.dispose();
+  }
+
+  List<ZunifySong> _applySort(List<ZunifySong> source) {
+    final list = List<ZunifySong>.from(source);
+    switch (_sortMode) {
+      case 'title':
+        list.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
+        break;
+      case 'artist':
+        list.sort(
+          (a, b) => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+        );
+        break;
+      case 'newest':
+        return list.reversed.toList();
+      default:
+        break;
+    }
+    return list;
   }
 
   @override
@@ -921,13 +1283,18 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     : const Color(0xFFFF4E45))
                 : theme.accentText;
 
+    final sortedPlaylistSongs = _applySort(playlist.songs);
     final filteredSongs = _searchQuery.trim().isEmpty
-        ? playlist.songs
-        : playlist.songs.where((s) {
+        ? sortedPlaylistSongs
+        : sortedPlaylistSongs.where((s) {
             final q = _searchQuery.toLowerCase();
             return s.title.toLowerCase().contains(q) ||
                 s.artist.toLowerCase().contains(q);
           }).toList();
+
+    final dlState = library.getPlaylistDownloadProgress(playlist.id);
+    final isDlAll = dlState != null;
+    final allDownloaded = library.isPlaylistFullyDownloaded(playlist);
 
     return ZunifySheetContainer(
       height: MediaQuery.of(context).size.height * 0.88,
@@ -1042,8 +1409,12 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                         : BorderSide(color: theme.dividerColor),
                   ),
                   onSelected: (val) async {
-                    if (val == 'queue_all') {
-                      for (final s in playlist.songs) {
+                    if (val == 'pin') {
+                      await library.togglePinPlaylist(playlist.id);
+                    } else if (val == 'rename') {
+                      showRenamePlaylistDialog(context, playlist);
+                    } else if (val == 'queue_all') {
+                      for (final s in sortedPlaylistSongs) {
                         player.addToQueue(s);
                       }
                       if (!context.mounted) return;
@@ -1067,23 +1438,85 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                   },
                   itemBuilder: (_) => [
                     PopupMenuItem(
+                      value: 'pin',
+                      child: Row(
+                        children: [
+                          Icon(
+                            playlist.isPinned
+                                ? Icons.push_pin_outlined
+                                : Icons.push_pin_rounded,
+                            size: 17,
+                            color: theme.accentText,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            playlist.isPinned ? 'Lepas Sematan' : 'Sematkan Playlist',
+                            style: TextStyle(
+                              color: theme.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
+                      value: 'rename',
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.edit_rounded,
+                            size: 17,
+                            color: theme.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Ubah Nama',
+                            style: TextStyle(
+                              color: theme.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    PopupMenuItem(
                       value: 'queue_all',
-                      child: Text(
-                        'Tambah ke Antrean',
-                        style: TextStyle(
-                          color: theme.textPrimary,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.queue_music_rounded,
+                            size: 17,
+                            color: theme.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Tambah ke Antrean',
+                            style: TextStyle(
+                              color: theme.textPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                     const PopupMenuItem(
                       value: 'delete',
-                      child: Text(
-                        'Hapus Playlist',
-                        style: TextStyle(
-                          color: Colors.redAccent,
-                          fontWeight: FontWeight.w700,
-                        ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.delete_outline_rounded,
+                            size: 17,
+                            color: Colors.redAccent,
+                          ),
+                          SizedBox(width: 8),
+                          Text(
+                            'Hapus Playlist',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -1099,12 +1532,12 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
               children: [
                 Expanded(
                   child: IosSpringButton(
-                    onTap: playlist.songs.isEmpty
+                    onTap: sortedPlaylistSongs.isEmpty
                         ? null
                         : () {
                             player.playSong(
-                              playlist.songs.first,
-                              customQueue: playlist.songs,
+                              sortedPlaylistSongs.first,
+                              customQueue: sortedPlaylistSongs,
                               contextName: playlist.name,
                             );
                           },
@@ -1191,10 +1624,184 @@ class _PlaylistDetailSheetState extends State<PlaylistDetailSheet> {
                     ),
                   ),
                 ),
+                const SizedBox(width: 10),
+                Tooltip(
+                  message: isDlAll
+                      ? 'Batalkan Unduhan'
+                      : (allDownloaded
+                          ? 'Semua Tersimpan Offline'
+                          : 'Unduh Semua Lagu'),
+                  child: LiquidGlassBox(
+                    width: 42,
+                    height: 42,
+                    borderRadius: 14,
+                    tintColor: (allDownloaded || isDlAll) ? accent : null,
+                    tintOpacity: (allDownloaded || isDlAll) ? 0.18 : 0.10,
+                    rimIntensity: 0.35,
+                    alignment: Alignment.center,
+                    onTap: playlist.songs.isEmpty
+                        ? null
+                        : () {
+                            if (isDlAll) {
+                              library.cancelPlaylistDownload(playlist.id);
+                            } else if (!allDownloaded) {
+                              library.downloadEntirePlaylist(playlist.id);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  duration: const Duration(seconds: 2),
+                                  backgroundColor: accent,
+                                  content: Text(
+                                    'Mengunduh semua lagu di "${playlist.name}"...',
+                                    style: const TextStyle(
+                                      color: Color(0xFF111111),
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                    child: isDlAll
+                        ? SizedBox(
+                            width: 19,
+                            height: 19,
+                            child: CircularProgressIndicator(
+                              value: dlState.total > 0
+                                  ? (dlState.done / dlState.total)
+                                      .clamp(0.05, 1.0)
+                                  : null,
+                              strokeWidth: 2.3,
+                              color: theme.accentText,
+                            ),
+                          )
+                        : Icon(
+                            allDownloaded
+                                ? Icons.download_done_rounded
+                                : Icons.download_for_offline_outlined,
+                            size: 20,
+                            color: allDownloaded
+                                ? theme.accentText
+                                : theme.textPrimary,
+                          ),
+                  ),
+                ),
               ],
             ),
           ),
+
+          // Live Batch Download Progress Strip
+          if (isDlAll) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: accent.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isBrutal
+                        ? theme.brutalBorderColor
+                        : accent.withOpacity(0.35),
+                    width: isBrutal ? 1.5 : 0.9,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.downloading_rounded,
+                      size: 16,
+                      color: theme.accentText,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Mengunduh offline: ${dlState.done}/${dlState.total} lagu',
+                        style: TextStyle(
+                          color: theme.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => library.cancelPlaylistDownload(playlist.id),
+                      child: Text(
+                        'Batal',
+                        style: TextStyle(
+                          color: Colors.redAccent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
+
+          // Sort Songs Pill Bar (Asli | Judul A-Z | Artis A-Z | Terbaru)
+          if (playlist.songs.length > 1) ...[
+            SizedBox(
+              height: 32,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  for (final opt in const [
+                    ('default', 'Urutan Asli'),
+                    ('title', 'Judul A–Z'),
+                    ('artist', 'Artis A–Z'),
+                    ('newest', 'Terbaru'),
+                  ])
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _sortMode = opt.$1),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 160),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _sortMode == opt.$1
+                                ? accent
+                                : theme.subtleFill,
+                            borderRadius: BorderRadius.circular(
+                              isBrutal ? 9 : 16,
+                            ),
+                            border: isBrutal && _sortMode == opt.$1
+                                ? Border.all(
+                                    color: theme.brutalBorderColor,
+                                    width: 1.5,
+                                  )
+                                : null,
+                          ),
+                          child: Text(
+                            opt.$2,
+                            style: TextStyle(
+                              color: _sortMode == opt.$1
+                                  ? const Color(0xFF111111)
+                                  : theme.textSecondary,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
 
           if (playlist.songs.length > 4)
             Padding(

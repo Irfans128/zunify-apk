@@ -143,9 +143,16 @@ class LyricsTranslationService {
     score += (vocalLines.length.clamp(0, 65) * 1.15);
 
     // 5. True Word-by-Word / Syllable Synced Bonus (Apple Music TTML / RichSync)
-    final wordSyncedCount = vocalLines.where((l) => l.words.length > 1).length;
+    final wordSyncedCount = vocalLines.where((l) => l.hasExactWordTiming && l.words.length > 1).length;
     if (wordSyncedCount >= (vocalLines.length * 0.4)) {
       score += 18.0;
+    }
+
+    // 6. Duet / Multi-Singer Agent Bonus (v1 & v2 left-right split like Spotify / Apple Music)
+    final hasV1 = vocalLines.any((l) => l.vocalAgent == 'v1');
+    final hasV2 = vocalLines.any((l) => l.vocalAgent == 'v2');
+    if (hasV1 && hasV2) {
+      score += 22.0;
     }
 
     return score;
@@ -288,13 +295,20 @@ class LyricsTranslationService {
           ...lyrics.lines
               .where((l) => !l.originalText.contains('•'))
               .map(
-                (l) => LyricLine(
+                (l) => l.copyWith(
                   timestamp: l.timestamp + offset,
                   endTimeMs:
                       l.endTimeMs != null ? l.endTimeMs! + offsetMs : null,
-                  originalText: l.originalText,
-                  translatedIndoText: l.translatedIndoText,
                   words: l.words
+                      .map(
+                        (w) => LyricWord(
+                          text: w.text,
+                          startMs: w.startMs + offsetMs,
+                          endMs: w.endMs + offsetMs,
+                        ),
+                      )
+                      .toList(),
+                  backgroundWords: l.backgroundWords
                       .map(
                         (w) => LyricWord(
                           text: w.text,
@@ -666,12 +680,27 @@ class LyricsTranslationService {
           }
         }
 
+        final elem = m['element'] as Map<String, dynamic>?;
+        final rawSinger = elem?['singer']?.toString().toLowerCase() ?? '';
+        String? vocalAgent;
+        if (rawSinger == 'v1' || rawSinger == '1') {
+          vocalAgent = 'v1';
+        } else if (rawSinger == 'v2' || rawSinger == '2' || rawSinger == 'v3') {
+          vocalAgent = 'v2';
+        } else if (rawSinger.contains('all') ||
+            rawSinger.contains('group') ||
+            rawSinger == 'v1000') {
+          vocalAgent = 'group';
+        }
+
         parsedLines.add(
           LyricLine(
             timestamp: Duration(milliseconds: timeMs),
             endTimeMs: timeMs + (durMs > 300 ? durMs : 2800),
             originalText: cleanedText,
             words: mergedWords,
+            vocalAgent: vocalAgent,
+            hasExactWordTiming: mergedWords.length > 1,
           ),
         );
       }
@@ -748,7 +777,7 @@ class LyricsTranslationService {
         isSynced: true,
         declaredDurationSec: estimatedDur,
         targetDurationSec: totalDurationSec,
-        providerBonus: 4.0,
+        providerBonus: 14.0,
       );
 
       return [
@@ -765,31 +794,54 @@ class LyricsTranslationService {
 
   List<LyricLine> _parseTtmlFormat(String ttml) {
     final lines = <LyricLine>[];
-    final pRegExp = RegExp(
-      r'<p([^>]*)>(.*?)</p>',
+
+    // 1. Parse <ttm:agent type="person|group" xml:id="v1"/> declarations for duet side mapping
+    final groupAgentIds = <String>{};
+    final personAgentOrder = <String>[];
+    final agentRegExp = RegExp(r'<ttm:agent([^>]*)/?>', caseSensitive: false);
+    final typeAttr = RegExp(r'type="([^"]+)"', caseSensitive: false);
+    final idAttr = RegExp(r'xml:id="([^"]+)"', caseSensitive: false);
+    for (final am in agentRegExp.allMatches(ttml)) {
+      final attrs = am.group(1) ?? '';
+      final id = idAttr.firstMatch(attrs)?.group(1)?.trim();
+      final type = typeAttr.firstMatch(attrs)?.group(1)?.trim().toLowerCase();
+      if (id == null || id.isEmpty) continue;
+      if (type == 'group' || type == 'other') {
+        groupAgentIds.add(id);
+      } else if (!personAgentOrder.contains(id)) {
+        personAgentOrder.add(id);
+      }
+    }
+
+    String? normalizeTtmlAgent(String? rawAgent) {
+      if (rawAgent == null || rawAgent.isEmpty) return null;
+      if (groupAgentIds.contains(rawAgent) || rawAgent == 'v1000') {
+        return 'group';
+      }
+      if (personAgentOrder.isNotEmpty) {
+        final idx = personAgentOrder.indexOf(rawAgent);
+        if (idx == 0) return 'v1';
+        if (idx >= 1) return 'v2';
+      }
+      if (rawAgent == 'v1') return 'v1';
+      if (rawAgent == 'v2' || rawAgent == 'v3') return 'v2';
+      return 'group';
+    }
+
+    final pRegExp = RegExp(r'<p([^>]*)>(.*?)</p>', dotAll: true);
+    final bgSpanRegExp = RegExp(
+      r'<span[^>]*ttm:role="x-bg"[^>]*>(.*?)</span>',
       dotAll: true,
+      caseSensitive: false,
     );
-    final spanRegExp = RegExp(
-      r'<span([^>]*)>(.*?)</span>',
-      dotAll: true,
-    );
+    final spanRegExp = RegExp(r'<span([^>]*)>(.*?)</span>', dotAll: true);
     final beginAttr = RegExp(r'begin="([^"]+)"');
     final endAttr = RegExp(r'end="([^"]+)"');
+    final pAgentAttr = RegExp(r'ttm:agent="([^"]+)"', caseSensitive: false);
 
-    for (final m in pRegExp.allMatches(ttml)) {
-      final pAttrs = m.group(1) ?? '';
-      final innerHtml = m.group(2) ?? '';
-      final beginMatch = beginAttr.firstMatch(pAttrs);
-      if (beginMatch == null) continue;
-
-      final pStartMs = _parseTtmlTimestampMs(beginMatch.group(1)!.trim());
-      final endMatch = endAttr.firstMatch(pAttrs);
-      final pEndMs = endMatch != null
-          ? _parseTtmlTimestampMs(endMatch.group(1)!.trim())
-          : null;
-
-      final parsedWords = <LyricWord>[];
-      for (final sm in spanRegExp.allMatches(innerHtml)) {
+    List<LyricWord> extractSpanWords(String htmlChunk) {
+      final words = <LyricWord>[];
+      for (final sm in spanRegExp.allMatches(htmlChunk)) {
         final sAttrs = sm.group(1) ?? '';
         final rawWordHtml = sm.group(2) ?? '';
         final wText = _decodeXmlEntities(
@@ -803,7 +855,7 @@ class LyricsTranslationService {
           final we = se != null
               ? _parseTtmlTimestampMs(se.group(1)!.trim())
               : (ws + 260);
-          parsedWords.add(
+          words.add(
             LyricWord(
               text: wText,
               startMs: ws,
@@ -812,22 +864,74 @@ class LyricsTranslationService {
           );
         }
       }
+      return words;
+    }
 
-      final cleanText = parsedWords.isNotEmpty
+    for (final m in pRegExp.allMatches(ttml)) {
+      final pAttrs = m.group(1) ?? '';
+      final rawInnerHtml = m.group(2) ?? '';
+      final beginMatch = beginAttr.firstMatch(pAttrs);
+      if (beginMatch == null) continue;
+
+      final pStartMs = _parseTtmlTimestampMs(beginMatch.group(1)!.trim());
+      final endMatch = endAttr.firstMatch(pAttrs);
+      final pEndMs = endMatch != null
+          ? _parseTtmlTimestampMs(endMatch.group(1)!.trim())
+          : null;
+      final vocalAgent = normalizeTtmlAgent(
+        pAgentAttr.firstMatch(pAttrs)?.group(1)?.trim(),
+      );
+
+      // Separate Apple Music x-bg background/filler vocals cleanly so they don't throw off lead timing!
+      final bgWords = <LyricWord>[];
+      final bgParts = <String>[];
+      final leadHtml = rawInnerHtml.replaceAllMapped(bgSpanRegExp, (bgm) {
+        final bgInner = bgm.group(1) ?? '';
+        final extracted = extractSpanWords(bgInner);
+        if (extracted.isNotEmpty) {
+          bgWords.addAll(extracted);
+          bgParts.add(extracted.map((w) => w.text).join(' '));
+        } else {
+          final plainBg = _cleanAndSanitizeLyricText(
+            bgInner.replaceAll(RegExp(r'<[^>]+>'), ' '),
+            timestampMs: pStartMs,
+          );
+          if (plainBg.isNotEmpty) bgParts.add(plainBg);
+        }
+        return ' ';
+      });
+
+      final parsedWords = extractSpanWords(leadHtml);
+      final rawLeadText = parsedWords.isNotEmpty
           ? parsedWords.map((w) => w.text).join(' ')
           : _decodeXmlEntities(
-              innerHtml.replaceAll(RegExp(r'<[^>]+>'), ' '),
+              leadHtml.replaceAll(RegExp(r'<[^>]+>'), ' '),
             ).replaceAll(RegExp(r'\s+'), ' ').trim();
 
+      final cleanText = _cleanAndSanitizeLyricText(
+        rawLeadText,
+        timestampMs: pStartMs,
+      );
+      final cleanBg = bgParts.isNotEmpty
+          ? _cleanAndSanitizeLyricText(bgParts.join(' '), timestampMs: pStartMs)
+          : '';
+
       if (cleanText.isEmpty) continue;
+
+      final leadEndMs = parsedWords.isNotEmpty
+          ? parsedWords.last.endMs
+          : pEndMs;
 
       lines.add(
         LyricLine(
           timestamp: Duration(milliseconds: pStartMs),
-          endTimeMs: pEndMs ??
-              (parsedWords.isNotEmpty ? parsedWords.last.endMs : null),
+          endTimeMs: leadEndMs,
           originalText: cleanText,
           words: parsedWords,
+          vocalAgent: vocalAgent,
+          backgroundText: cleanBg.isNotEmpty ? cleanBg : null,
+          backgroundWords: bgWords,
+          hasExactWordTiming: parsedWords.length > 1 || pEndMs != null,
         ),
       );
     }
@@ -854,13 +958,43 @@ class LyricsTranslationService {
   }
 
   String _decodeXmlEntities(String input) {
-    return input
+    // 1. Decode named HTML/XML entities
+    String out = input
         .replaceAll('&apos;', "'")
-        .replaceAll('&#39;', "'")
         .replaceAll('&quot;', '"')
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>');
+        .replaceAll('&gt;', '>')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&rsquo;', "'")
+        .replaceAll('&lsquo;', "'")
+        .replaceAll('&ldquo;', '"')
+        .replaceAll('&rdquo;', '"')
+        .replaceAll('&mdash;', '—')
+        .replaceAll('&ndash;', '–')
+        .replaceAll('&hellip;', '...');
+
+    // 2. Decode ALL hex numeric entities like &#x27; (fixes Darkside "We&#x27;re", "Don&#x27;t")
+    out = out.replaceAllMapped(
+      RegExp(r'&#x([0-9a-fA-F]+);', caseSensitive: false),
+      (m) {
+        final code = int.tryParse(m.group(1)!, radix: 16);
+        if (code == null || code <= 0 || code > 0x10FFFF) return '';
+        return String.fromCharCode(code);
+      },
+    );
+
+    // 3. Decode ALL decimal numeric entities like &#39;, &#8217;
+    out = out.replaceAllMapped(
+      RegExp(r'&#(\d+);'),
+      (m) {
+        final code = int.tryParse(m.group(1)!);
+        if (code == null || code <= 0 || code > 0x10FFFF) return '';
+        return String.fromCharCode(code);
+      },
+    );
+
+    return out;
   }
 
   // ---------------------------------------------------------------------------
@@ -1110,17 +1244,19 @@ class LyricsTranslationService {
     return (mins * 60 + secs) * 1000 + millis;
   }
 
-  /// Strips random/garbage text from lyrics: closed-caption noise (`[Music]`, `[Applause]`,
-  /// `[Rapping]`), uploader credits/URLs (`Synced by...`, `www...`), broken replacement chars
-  /// (`\uFFFD`), and singer labels (`v1:`, `Male:`). Returns empty string if the line is pure noise.
-  String _cleanAndSanitizeLyricText(String input) {
+  /// Strips random/garbage text from lyrics: hex/dec HTML entities (`&#x27;`),
+  /// NetEase/QQMusic production credits (`MER Publishing / Sony / ATV`, `Executive Producer：`),
+  /// closed-caption noise (`[Music]`, `[Applause]`), uploader credits/URLs, and singer labels.
+  /// Returns empty string if the line is pure metadata/noise.
+  String _cleanAndSanitizeLyricText(String input, {int? timestampMs}) {
     String s = _decodeXmlEntities(input)
         .replaceAll('\uFFFD', '')
-        .replaceAll('', '')
+        .replaceAll(RegExp(r'<\d{1,2}:\d{2}(?:[\.:]\d{1,3})?>'), ' ')
+        .replaceAll(RegExp(r'\[\d{1,2}:\d{2}(?:[\.:]\d{1,3})?\]'), ' ')
         .replaceAll(RegExp(r'<[^>]*>'), ' ')
         .replaceAll(
           RegExp(
-            r'^(?:v\d+|male|female|boy|girl|all|duet|penyanyi\s*\d*)\s*:\s*',
+            r'^(?:v\d+|male|female|boy|girl|all|duet|both|penyanyi\s*\d*)\s*:\s*',
             caseSensitive: false,
           ),
           '',
@@ -1138,8 +1274,9 @@ class LyricsTranslationService {
     s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
     if (s.isEmpty) return '';
 
-    // Drop entire line if it is an LRC uploader credit, URL, or metadata watermark
     final lower = s.toLowerCase();
+
+    // 1. Drop LRC uploader credits, URLs, & watermarks
     if (RegExp(
       r'(?:^lrc\s*by|synced\s*by|created\s*by|transcribed\s*by|subtitles?\s*by|lirik\s*oleh|disinkronkan\s*oleh|editor\s*:|www\.|https?://|\.com\b|\.net\b|\.org\b|megalobiz|rentanadviser|kazelyrics|musixmatch|lrclib|@\w{3,})',
       caseSensitive: false,
@@ -1147,11 +1284,71 @@ class LyricsTranslationService {
       return '';
     }
 
-    // Drop lines that consist only of punctuation/symbols/musical notes
-    final alphaNum = s.replaceAll(RegExp(r'[^a-zA-Z0-9\u00C0-\u024F\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]'), '');
-    if (alphaNum.isEmpty) return '';
+    // 2. Drop NetEase / QQMusic / SimpMusic studio & publisher credit lines
+    //    (e.g. "Background Vocals by：Tommy LaVerdi", "MER Publishing / Sony / ATV",
+    //     "Executive Producer：", "Mastering Engineer：", "Repertoire Owner：", "词：", "曲：")
+    if (RegExp(
+      r'(?:(?:executive\s+)?producer|mastering(?:\s+engineer)?|mixing(?:\s+engineer)?|mixed\s+by|recorded\s+(?:at|by)|vocals?\s+(?:produced|by)|background\s+vocals?\s+by|written\s+by|composed\s+by|arranged\s+by|lyrics?\s+by|repertoire\s+owner|copyright\s+control|music\s+publishing|sony\s*/\s*atv|warner\s+chappell|stellar\s+songs|chrysalis|bmg\s+|cosmos\s+mastering|basecamp\s+studios|mer\s+studio|mer\s+recordings|all\s+rights\s+reserved)\b',
+      caseSensitive: false,
+    ).hasMatch(lower)) {
+      return '';
+    }
+    if (RegExp(r'^(?:作?词|作?曲|编曲|制作人?|混音|母带|录音|出品|监制|发行|和声|演唱|企划|统筹)\s*[:：]').hasMatch(s)) {
+      return '';
+    }
+    if (s.contains('：') &&
+        RegExp(
+          r'(?:by|producer|engineer|owner|studio|vocal|mix|master|write|compos|arrang|guitar|bass|drum|piano|synth)',
+          caseSensitive: false,
+        ).hasMatch(lower)) {
+      return '';
+    }
+
+    // 3. Drop early intro (first 16s) credit dumps listing multiple songwriters/artists with slashes
+    //    or "SongTitle - Artist" header lines (like Darkside [00:00.00] Darkside - Alan Walker / Au / Ra)
+    if (timestampMs != null && timestampMs < 16000) {
+      final slashCount = '/'.allMatches(s).length;
+      if (slashCount >= 2) return '';
+      if (timestampMs <= 1500 &&
+          RegExp(r'\s[-–—]\s').hasMatch(s) &&
+          s.length < 95) {
+        return '';
+      }
+      if (RegExp(r'\bin\s+(?:stockholm|oslo|london|los\s+angeles|new\s+york|tokyo|seoul|jakarta)\b', caseSensitive: false)
+          .hasMatch(lower)) {
+        return '';
+      }
+    }
+
+    // 4. Drop lines that consist only of punctuation/symbols/musical notes or stray digits
+    final alpha = s.replaceAll(
+      RegExp(r'[^a-zA-Z\u00C0-\u024F\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF]'),
+      '',
+    );
+    if (alpha.isEmpty) return '';
 
     return s;
+  }
+
+  /// Extracts speaker side ('v1' | 'v2' | 'group') from LRC prefix tags before stripping.
+  String? _extractLrcVocalAgent(String rawBody) {
+    final trimmed = rawBody.trimLeft();
+    final m = RegExp(
+      r'^(v\d+|male|female|boy|girl|all|duet|both|penyanyi\s*\d*)\s*:\s*',
+      caseSensitive: false,
+    ).firstMatch(trimmed);
+    if (m == null) return null;
+    final tag = m.group(1)!.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    if (tag == 'v1' || tag == 'male' || tag == 'boy' || tag == 'penyanyi1') {
+      return 'v1';
+    }
+    if (tag == 'v2' || tag == 'female' || tag == 'girl' || tag == 'penyanyi2') {
+      return 'v2';
+    }
+    if (tag == 'all' || tag == 'duet' || tag == 'both' || tag == 'v3' || tag == 'v4') {
+      return 'group';
+    }
+    return null;
   }
 
   List<LyricLine> _parseLrcFormat(String lrcContent) {
@@ -1160,6 +1357,7 @@ class LyricsTranslationService {
     final wordTagRegExp = RegExp(
       r'[<\[](\d{1,2}):(\d{2})(?:[\.:](\d{1,3}))?[>\]]([^<\[]*)',
     );
+    final trailingParenBg = RegExp(r'^(.*\S)\s+\(([^()]{2,42})\)\s*$');
 
     for (final rawLine in lrcContent.split('\n')) {
       final match = regExp.firstMatch(rawLine.trim());
@@ -1169,15 +1367,33 @@ class LyricsTranslationService {
           match.group(2)!,
           match.group(3),
         );
-        final rawBody = match
-            .group(4)!
-            .replaceAll(RegExp(r'^v\d+:\s*', caseSensitive: false), '');
+        final rawBodyOriginal = match.group(4)!;
+        final vocalAgent = _extractLrcVocalAgent(rawBodyOriginal);
+        final rawBody = rawBodyOriginal.replaceFirst(
+          RegExp(
+            r'^\s*(?:v\d+|male|female|boy|girl|all|duet|both|penyanyi\s*\d*)\s*:\s*',
+            caseSensitive: false,
+          ),
+          '',
+        );
 
         // Extract inline RichSync word/syllable timestamps like <00:12.34>word
         // and merge consecutive syllables without whitespace into whole words!
         final parsedWords = <LyricWord>[];
         final wordMatches = wordTagRegExp.allMatches(rawBody).toList();
+        int? trailingEndTagMs;
         if (wordMatches.isNotEmpty) {
+          // If the last match is a trailing closing timestamp with empty text (like LrcRed `<00:15.48>`),
+          // capture it as the exact end time of the previous word/line!
+          final lastM = wordMatches.last;
+          if ((lastM.group(4) ?? '').trim().isEmpty) {
+            trailingEndTagMs = _parseLrcTimeTokenMs(
+              lastM.group(1)!,
+              lastM.group(2)!,
+              lastM.group(3),
+            );
+          }
+
           String accText = '';
           int accStart = 0;
           int accEnd = 0;
@@ -1203,7 +1419,7 @@ class LyricsTranslationService {
             }
 
             if (rawSeg.startsWith(' ') && accText.isNotEmpty) {
-              final cleanW = _cleanAndSanitizeLyricText(accText);
+              final cleanW = _decodeXmlEntities(accText).trim();
               if (cleanW.isNotEmpty) {
                 parsedWords.add(
                   LyricWord(text: cleanW, startMs: accStart, endMs: accEnd),
@@ -1219,7 +1435,7 @@ class LyricsTranslationService {
             accEnd = wEnd;
 
             if (rawSeg.endsWith(' ')) {
-              final cleanW = _cleanAndSanitizeLyricText(accText);
+              final cleanW = _decodeXmlEntities(accText).trim();
               if (cleanW.isNotEmpty) {
                 parsedWords.add(
                   LyricWord(text: cleanW, startMs: accStart, endMs: accEnd),
@@ -1229,7 +1445,7 @@ class LyricsTranslationService {
             }
           }
           if (accText.trim().isNotEmpty) {
-            final cleanW = _cleanAndSanitizeLyricText(accText);
+            final cleanW = _decodeXmlEntities(accText).trim();
             if (cleanW.isNotEmpty) {
               parsedWords.add(
                 LyricWord(text: cleanW, startMs: accStart, endMs: accEnd),
@@ -1241,20 +1457,83 @@ class LyricsTranslationService {
         final strippedBody = rawBody
             .replaceAll(RegExp(r'<\d{1,2}:\d{2}(?:[\.:]\d{1,3})?>'), '')
             .replaceAll(RegExp(r'\[\d{1,2}:\d{2}(?:[\.:]\d{1,3})?\]'), '');
-        final text = _cleanAndSanitizeLyricText(strippedBody);
+        final cleanedFull = _cleanAndSanitizeLyricText(
+          strippedBody,
+          timestampMs: lineStartMs,
+        );
+
+        // If the raw line had non-empty junk that was stripped (e.g. NetEase credits),
+        // skip it completely rather than treating it as an instrumental pause marker!
+        if (cleanedFull.isEmpty) {
+          if (strippedBody.trim().isEmpty) {
+            rawParsed.add(
+              LyricLine(
+                timestamp: Duration(milliseconds: lineStartMs),
+                originalText: '',
+              ),
+            );
+          }
+          continue;
+        }
+
+        // Split trailing parenthesized ad-lib / filler vocals (e.g. "We're running out of time (Time, time)")
+        // so background vocals don't disturb lead vocal cadence!
+        String leadText = cleanedFull;
+        String? bgText;
+        List<LyricWord> leadWords = parsedWords;
+        List<LyricWord> bgWords = const [];
+
+        final bgMatch = trailingParenBg.firstMatch(cleanedFull);
+        if (bgMatch != null) {
+          final mainCandidate = bgMatch.group(1)!.trim();
+          final adlibCandidate = bgMatch.group(2)!.trim();
+          if (mainCandidate.length >= 4 && adlibCandidate.length >= 2) {
+            leadText = mainCandidate;
+            bgText = adlibCandidate;
+            if (parsedWords.isNotEmpty) {
+              final parenIdx = parsedWords.indexWhere(
+                (w) => w.text.startsWith('('),
+              );
+              if (parenIdx > 0) {
+                leadWords = parsedWords.sublist(0, parenIdx);
+                bgWords = parsedWords
+                    .sublist(parenIdx)
+                    .map(
+                      (w) => LyricWord(
+                        text: w.text.replaceAll(RegExp(r'^[()]+|[()]+$'), ''),
+                        startMs: w.startMs,
+                        endMs: w.endMs,
+                      ),
+                    )
+                    .where((w) => w.text.isNotEmpty)
+                    .toList();
+              } else {
+                leadWords = const [];
+              }
+            }
+          }
+        }
+
+        final exactEnd = leadWords.isNotEmpty
+            ? leadWords.last.endMs
+            : trailingEndTagMs;
 
         rawParsed.add(
           LyricLine(
             timestamp: Duration(milliseconds: lineStartMs),
-            endTimeMs: parsedWords.isNotEmpty ? parsedWords.last.endMs : null,
-            originalText: text,
-            words: text.isEmpty ? const [] : parsedWords,
+            endTimeMs: exactEnd,
+            originalText: leadText,
+            words: leadWords,
+            vocalAgent: vocalAgent,
+            backgroundText: bgText,
+            backgroundWords: bgWords,
+            hasExactWordTiming: leadWords.length > 1 || trailingEndTagMs != null,
           ),
         );
       }
     }
 
-    // Filter out empty lines unless they mark a real musical interlude (>= 6s gap)
+    // Filter out explicit empty LRC markers unless they mark a true musical interlude (>= 7s gap)
     final cleaned = <LyricLine>[];
     for (int i = 0; i < rawParsed.length; i++) {
       final cur = rawParsed[i];
@@ -1262,14 +1541,16 @@ class LyricsTranslationService {
         cleaned.add(cur);
       } else if (cleaned.isNotEmpty && i + 1 < rawParsed.length) {
         final next = rawParsed[i + 1];
+        if (next.originalText.isEmpty) continue;
         final gapMs =
             next.timestamp.inMilliseconds - cur.timestamp.inMilliseconds;
-        if (gapMs >= 6000 && !cleaned.last.originalText.contains('•')) {
+        if (gapMs >= 7000 && !cleaned.last.originalText.contains('•')) {
           cleaned.add(
             LyricLine(
               timestamp: cur.timestamp,
               endTimeMs: next.timestamp.inMilliseconds,
               originalText: '♪ • • • ♪',
+              hasExactWordTiming: true,
             ),
           );
         }
@@ -1279,20 +1560,21 @@ class LyricsTranslationService {
     return _finalizeWordTimingsAndInterludes(cleaned);
   }
 
-  /// Synthesizes natural Apple Music Sing vocal cadence for lines without explicit word tags,
-  /// and inserts `♪ • • • ♪` 3-dot markers for intros (>= 3.5s) and instrumental breaks (>= 6.5s).
+  /// Finalizes vocal timings & inserts `♪ • • • ♪` ONLY on genuine instrumental breaks
+  /// (never interrupting a line that is still being sung!).
   List<LyricLine> _finalizeWordTimingsAndInterludes(List<LyricLine> input) {
     if (input.isEmpty) return input;
     final out = <LyricLine>[];
 
-    // 1. If the first vocal line starts at >= 3.5s, insert a 3-dot intro row at 00:00
+    // 1. Intro dots ONLY when first actual lyric starts >= 4.5s into the track
     final firstStartMs = input.first.timestamp.inMilliseconds;
-    if (firstStartMs >= 3500 && !input.first.originalText.contains('•')) {
+    if (firstStartMs >= 4500 && !input.first.originalText.contains('•')) {
       out.add(
         LyricLine(
           timestamp: Duration.zero,
           endTimeMs: firstStartMs,
           originalText: '♪ • • • ♪',
+          hasExactWordTiming: true,
         ),
       );
     }
@@ -1310,7 +1592,7 @@ class LyricsTranslationService {
       final startMs = cur.timestamp.inMilliseconds;
       final nextLineStartMs = i + 1 < input.length
           ? input[i + 1].timestamp.inMilliseconds
-          : (startMs + 4800);
+          : (startMs + 5000);
       final availableSpanMs = (nextLineStartMs - startMs).clamp(600, 60000);
 
       List<LyricWord> words = cur.words;
@@ -1324,35 +1606,40 @@ class LyricsTranslationService {
             .toList();
 
         if (rawTokens.isNotEmpty) {
-          // Estimate natural human singing duration for each word (syllable & punctuation aware)
           final weights = <int>[];
-          int naturalTotalMs = 200;
+          int naturalTotalMs = 180;
           for (int wIdx = 0; wIdx < rawTokens.length; wIdx++) {
             final token = rawTokens[wIdx];
-            final cleanLen =
-                token.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '').length.clamp(1, 14);
-            int wMs = 155 + (cleanLen * 56);
+            final cleanLen = token
+                .replaceAll(RegExp(r'[^a-zA-Z0-9]'), '')
+                .length
+                .clamp(1, 14);
+            int wMs = 175 + (cleanLen * 62);
             if (token.endsWith(',') ||
                 token.endsWith('.') ||
                 token.endsWith('!') ||
                 token.endsWith('?')) {
-              wMs += 190; // breath pause after punctuation
+              wMs += 200;
             }
             if (wIdx == rawTokens.length - 1) {
-              wMs += 240; // vocal sustain on last word of line
+              wMs += 280;
             }
             weights.add(wMs);
             naturalTotalMs += wMs;
           }
 
-          // Never stretch vocal sweep across a long silent instrumental pause!
-          final maxSingSpan = (availableSpanMs - 140).clamp(500, 60000);
-          final actualSingSpanMs = naturalTotalMs < maxSingSpan
-              ? naturalTotalMs
-              : maxSingSpan;
+          // Smoothly fit word fill to actual available span (without finishing way too early!)
+          final maxSingSpan = (availableSpanMs - 100).clamp(500, 8800);
+          final targetSpan = (availableSpanMs <= 8800)
+              ? (availableSpanMs * 0.86).round().clamp(500, maxSingSpan)
+              : naturalTotalMs.clamp(1800, maxSingSpan);
+          final actualSingSpanMs = targetSpan > maxSingSpan
+              ? maxSingSpan
+              : targetSpan;
           lineEndMs = startMs + actualSingSpanMs;
 
-          final totalWeight = weights.fold<int>(0, (a, b) => a + b).clamp(1, 999999);
+          final totalWeight =
+              weights.fold<int>(0, (a, b) => a + b).clamp(1, 999999);
           int cursorMs = startMs;
           final builtWords = <LyricWord>[];
           for (int wIdx = 0; wIdx < rawTokens.length; wIdx++) {
@@ -1381,18 +1668,37 @@ class LyricsTranslationService {
         ),
       );
 
-      // 2. If there is an instrumental pause of >= 6.5s after the singer finishes this line
-      // before the next line starts, insert the 3 animated dots (`♪ • • • ♪`)!
+      // 2. Insert mid-song interlude dots ONLY on a genuine long instrumental break
+      //    so filler dots NEVER cut off a singer mid-phrase!
       if (i + 1 < input.length && !input[i + 1].originalText.contains('•')) {
-        final silentRestMs = nextLineStartMs - lineEndMs;
-        if (silentRestMs >= 6500) {
-          out.add(
-            LyricLine(
-              timestamp: Duration(milliseconds: lineEndMs + 300),
-              endTimeMs: nextLineStartMs,
-              originalText: '♪ • • • ♪',
-            ),
-          );
+        if (cur.hasExactWordTiming && cur.endTimeMs != null) {
+          final realSilentRestMs = nextLineStartMs - cur.endTimeMs!;
+          if (realSilentRestMs >= 7500) {
+            out.add(
+              LyricLine(
+                timestamp: Duration(milliseconds: cur.endTimeMs! + 700),
+                endTimeMs: nextLineStartMs,
+                originalText: '♪ • • • ♪',
+                hasExactWordTiming: true,
+              ),
+            );
+          }
+        } else {
+          // For line-only LRC without explicit word end times, only insert dots on a huge >= 14s gap
+          final lineGapMs = nextLineStartMs - startMs;
+          if (lineGapMs >= 14000) {
+            final dotStartMs = startMs + 6200;
+            if (nextLineStartMs - dotStartMs >= 7000) {
+              out.add(
+                LyricLine(
+                  timestamp: Duration(milliseconds: dotStartMs),
+                  endTimeMs: nextLineStartMs,
+                  originalText: '♪ • • • ♪',
+                  hasExactWordTiming: false,
+                ),
+              );
+            }
+          }
         }
       }
     }

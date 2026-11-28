@@ -75,10 +75,11 @@ class PlayerProvider extends ChangeNotifier {
   String _detectedNetworkType = 'wifi';
   DateTime? _lastNetCheckAt;
 
-  // Feature #1: Crossfade & Gapless Transition (0 = Off, 3..8s = Smooth Crossfade)
+  // Feature #1: Crossfade & Gapless Transition (0 = Off, 3 / 5 / 8s = Equal-Power S-Curve Crossfade)
   int _crossfadeSeconds = 4;
   bool _crossfadeTriggeredForCurrent = false;
   bool _isCrossfadingHandoff = false;
+  bool _inCrossfadeOut = false;
   Timer? _fadeInTimer;
 
   // Zunify 2.0 Studio Speed & Pitch + Audio Output Format Badge
@@ -109,7 +110,9 @@ class PlayerProvider extends ChangeNotifier {
 
   /// Lines light up slightly before they are sung (like Spotify / Apple Music)
   /// so the scroll settles right as the first word starts.
-  static const int _lyricsLeadMs = 140;
+  /// Tight 50ms visual lead so active highlight lands cleanly on the vocal onset
+  /// without jumping ahead of the singer.
+  static const int _lyricsLeadMs = 50;
 
   // Sleep Timer State
   Timer? _sleepTimer;
@@ -473,17 +476,29 @@ class PlayerProvider extends ChangeNotifier {
       return;
     }
     final total = _audioPlayer.duration ?? _currentSong?.duration ?? Duration.zero;
-    if (total.inSeconds < 45) return;
+    if (total.inSeconds < 30) return;
 
     final remainingMs = total.inMilliseconds - pos.inMilliseconds;
     final fadeWindowMs = _crossfadeSeconds * 1000;
 
-    if (remainingMs > 0 && remainingMs <= fadeWindowMs) {
-      // Smoothly ramp volume down as the song approaches the crossfade handoff
-      final ratio = (remainingMs / fadeWindowMs).clamp(0.18, 1.0);
-      _audioPlayer.setVolume(ratio);
+    if (remainingMs > fadeWindowMs) {
+      // User scrubbed backward out of the crossfade window — restore full volume cleanly!
+      if (_inCrossfadeOut) {
+        _inCrossfadeOut = false;
+        _crossfadeTriggeredForCurrent = false;
+        _audioPlayer.setVolume(1.0);
+      }
+      return;
+    }
 
-      if (remainingMs <= 750 && !_crossfadeTriggeredForCurrent) {
+    if (remainingMs > 0 && remainingMs <= fadeWindowMs) {
+      _inCrossfadeOut = true;
+      // Studio-grade Equal-Power Cosine S-Curve fade-out (silky to human hearing)
+      final t = (remainingMs / fadeWindowMs).clamp(0.0, 1.0);
+      final smoothVol = (0.08 + 0.92 * sin(t * pi * 0.5)).clamp(0.08, 1.0);
+      _audioPlayer.setVolume(smoothVol);
+
+      if (remainingMs <= 650 && !_crossfadeTriggeredForCurrent) {
         _crossfadeTriggeredForCurrent = true;
         _isCrossfadingHandoff = true;
         playNext(fromCompletion: true);
@@ -493,21 +508,25 @@ class PlayerProvider extends ChangeNotifier {
 
   void _startSmoothFadeIn() {
     _fadeInTimer?.cancel();
+    _inCrossfadeOut = false;
     if (_crossfadeSeconds <= 0) {
       _audioPlayer.setVolume(1.0);
       return;
     }
-    double vol = 0.22;
-    _audioPlayer.setVolume(vol);
-    const steps = 12;
-    final stepMs = ((_crossfadeSeconds * 320) ~/ steps).clamp(70, 180);
+    int step = 0;
+    const totalSteps = 20;
+    _audioPlayer.setVolume(0.12);
+    final totalFadeInMs = (_crossfadeSeconds * 340).clamp(900, 2800);
+    final stepMs = (totalFadeInMs ~/ totalSteps).clamp(45, 145);
     _fadeInTimer = Timer.periodic(Duration(milliseconds: stepMs), (timer) {
-      vol += (1.0 - 0.22) / steps;
-      if (vol >= 0.99) {
+      step++;
+      if (step >= totalSteps) {
         _audioPlayer.setVolume(1.0);
         timer.cancel();
       } else {
-        _audioPlayer.setVolume(vol.clamp(0.22, 1.0));
+        final t = step / totalSteps;
+        final vol = (0.12 + 0.88 * sin(t * pi * 0.5)).clamp(0.12, 1.0);
+        _audioPlayer.setVolume(vol);
       }
     });
   }
@@ -2151,6 +2170,7 @@ class PlayerProvider extends ChangeNotifier {
     _crossfadeSeconds = seconds.clamp(0, 12);
     if (_crossfadeSeconds == 0) {
       _fadeInTimer?.cancel();
+      _inCrossfadeOut = false;
       _audioPlayer.setVolume(1.0);
     }
     notifyListeners();

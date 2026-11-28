@@ -364,15 +364,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     );
   }
 
-  String? _activeLiveLyricLine(PlayerProvider player) {
-    final lyrics = player.currentLyrics;
-    final idx = player.activeLyricIndex;
-    if (lyrics == null || idx < 0 || idx >= lyrics.lines.length) return null;
-    final txt = lyrics.lines[idx].originalText.trim();
-    if (txt.isEmpty || txt.contains('♪')) return null;
-    return txt;
-  }
-
   Widget _buildDockMiniPlayerContent(
     BuildContext context,
     PlayerProvider player,
@@ -382,7 +373,6 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   ) {
     final song = player.currentSong!;
     final isBrutal = theme.isNeoBrutalism;
-    final liveLyric = _activeLiveLyricLine(player);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -475,22 +465,14 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
                         ],
                       ),
                       const SizedBox(height: 1.5),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 220),
-                        child: Text(
-                          liveLyric ?? song.artist,
-                          key: ValueKey<String>(liveLyric ?? song.artist),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: liveLyric != null
-                                ? theme.accentText
-                                : theme.textSecondary,
-                            fontSize: 11.2,
-                            fontWeight: liveLyric != null
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: theme.textSecondary,
+                          fontSize: 11.2,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
