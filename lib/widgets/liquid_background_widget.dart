@@ -1212,6 +1212,14 @@ class _LiquidBackgroundWidgetState extends State<LiquidBackgroundWidget>
                   ),
                 ),
               ),
+              // Subtle optical matte film micro-grain (~2.4% opacity, cached in RepaintBoundary)
+              const IgnorePointer(
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _MicroGrainPainter(),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1299,15 +1307,23 @@ class _LiquidOrbsPainter extends CustomPainter {
       h * (0.72 + 0.12 * math.cos(phase * 0.9)),
     );
 
+    final breathe1 = 0.92 + 0.08 * math.sin(phase * 1.45);
+    final breathe2 = 0.91 + 0.09 * math.cos(phase * 1.15 + 0.8);
+    final breathe3 = 0.93 + 0.07 * math.sin(phase * 1.30 + 2.1);
+
+    final r1 = w * 0.76 * breathe1;
+    final r2 = w * 0.70 * breathe2;
+    final r3 = w * 0.64 * breathe3;
+
     final paint1 = Paint()
       ..shader = RadialGradient(
         colors: [primaryColor, primaryColor.withOpacity(0.0)],
-      ).createShader(Rect.fromCircle(center: orb1Center, radius: w * 0.76));
+      ).createShader(Rect.fromCircle(center: orb1Center, radius: r1));
 
     final paint2 = Paint()
       ..shader = RadialGradient(
         colors: [secondaryColor, secondaryColor.withOpacity(0.0)],
-      ).createShader(Rect.fromCircle(center: orb2Center, radius: w * 0.70));
+      ).createShader(Rect.fromCircle(center: orb2Center, radius: r2));
 
     final paint3 = Paint()
       ..shader = RadialGradient(
@@ -1315,11 +1331,11 @@ class _LiquidOrbsPainter extends CustomPainter {
           primaryColor.withOpacity(0.55),
           primaryColor.withOpacity(0.0),
         ],
-      ).createShader(Rect.fromCircle(center: orb3Center, radius: w * 0.64));
+      ).createShader(Rect.fromCircle(center: orb3Center, radius: r3));
 
-    canvas.drawCircle(orb1Center, w * 0.76, paint1);
-    canvas.drawCircle(orb2Center, w * 0.70, paint2);
-    canvas.drawCircle(orb3Center, w * 0.64, paint3);
+    canvas.drawCircle(orb1Center, r1, paint1);
+    canvas.drawCircle(orb2Center, r2, paint2);
+    canvas.drawCircle(orb3Center, r3, paint3);
   }
 
   @override
@@ -1327,4 +1343,44 @@ class _LiquidOrbsPainter extends CustomPainter {
       oldDelegate.phase != phase ||
       oldDelegate.primaryColor != primaryColor ||
       oldDelegate.secondaryColor != secondaryColor;
+}
+
+/// Ultra-lightweight deterministic matte film-grain texture (~2.4% opacity).
+/// Wrapped in its own static RepaintBoundary so it rasterizes once per layout.
+class _MicroGrainPainter extends CustomPainter {
+  const _MicroGrainPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.isEmpty) return;
+    final lightPts = <Offset>[];
+    final darkPts = <Offset>[];
+    int seed = 0x5A17F3B1;
+    const total = 1050;
+    for (int i = 0; i < total; i++) {
+      seed = (seed * 1664525 + 1013904223) & 0x7FFFFFFF;
+      final fx = (seed % 10000) / 10000.0;
+      seed = (seed * 1664525 + 1013904223) & 0x7FFFFFFF;
+      final fy = (seed % 10000) / 10000.0;
+      final pt = Offset(fx * size.width, fy * size.height);
+      if ((i & 1) == 0) {
+        lightPts.add(pt);
+      } else {
+        darkPts.add(pt);
+      }
+    }
+    final lightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.026)
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.square;
+    final darkPaint = Paint()
+      ..color = Colors.black.withOpacity(0.024)
+      ..strokeWidth = 1.1
+      ..strokeCap = StrokeCap.square;
+    canvas.drawPoints(PointMode.points, lightPts, lightPaint);
+    canvas.drawPoints(PointMode.points, darkPts, darkPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MicroGrainPainter oldDelegate) => false;
 }

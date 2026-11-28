@@ -417,22 +417,62 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                   child: Stack(
                                     alignment: Alignment.topRight,
                                     children: [
-                                      theme.playerCoverStyle == 'vinyl'
-                                          ? VinylDiscWidget(
-                                              imageUrl: song.highResArtUrl,
-                                              localImagePath: song.localArtPath,
-                                              isPlaying: player.isPlaying,
-                                              accentColor: accent,
-                                              size: availableForArt,
-                                            )
-                                          : _buildModern3DAlbumArtwork(
-                                              imageUrl: song.highResArtUrl,
-                                              isPlaying: player.isPlaying,
-                                              accent: accent,
-                                              ambient: ambient,
-                                              theme: theme,
-                                              size: availableForArt,
+                                      Hero(
+                                        tag: 'zunify_now_playing_art',
+                                        flightShuttleBuilder: (
+                                          flightCtx,
+                                          animation,
+                                          direction,
+                                          fromCtx,
+                                          toCtx,
+                                        ) {
+                                          final radiusTween =
+                                              BorderRadiusTween(
+                                            begin: BorderRadius.circular(
+                                              isBrutal ? 8 : 11,
                                             ),
+                                            end: BorderRadius.circular(
+                                              isBrutal ? 18 : 28,
+                                            ),
+                                          );
+                                          return AnimatedBuilder(
+                                            animation: animation,
+                                            builder: (_, __) {
+                                              return ClipRRect(
+                                                borderRadius: radiusTween
+                                                        .evaluate(animation) ??
+                                                    BorderRadius.circular(20),
+                                                child: CachedNetworkImage(
+                                                  imageUrl: song.highResArtUrl,
+                                                  memCacheWidth: 480,
+                                                  fit: BoxFit.cover,
+                                                  errorWidget: (_, __, ___) =>
+                                                      Container(
+                                                    color: theme.subtleFill,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          );
+                                        },
+                                        child: theme.playerCoverStyle == 'vinyl'
+                                            ? VinylDiscWidget(
+                                                imageUrl: song.highResArtUrl,
+                                                localImagePath:
+                                                    song.localArtPath,
+                                                isPlaying: player.isPlaying,
+                                                accentColor: accent,
+                                                size: availableForArt,
+                                              )
+                                            : _buildModern3DAlbumArtwork(
+                                                imageUrl: song.highResArtUrl,
+                                                isPlaying: player.isPlaying,
+                                                accent: accent,
+                                                ambient: ambient,
+                                                theme: theme,
+                                                size: availableForArt,
+                                              ),
+                                      ),
                                       Positioned(
                                         right: 10,
                                         top: 10,

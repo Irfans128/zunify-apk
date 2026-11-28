@@ -24,13 +24,17 @@
     <!-- Custom In-App Multilingual Voice Search Engine -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
-    <!-- Headless Speech Recognition Service Visibility (Android 11+) -->
+    <!-- Headless Speech Recognition & Built-In Launcher App Visibility (Android 11+) -->
     <queries>
         <intent>
             <action android:name="android.speech.RecognitionService" />
         </intent>
         <intent>
             <action android:name="android.speech.action.RECOGNIZE_SPEECH" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
         </intent>
     </queries>
 
@@ -57,6 +61,34 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Zunify Built-In Native Launcher (Ultra-Light Kotlin Views, 0 Flutter Engine on Home) -->
+        <activity
+            android:name=".ZunifyLauncherActivity"
+            android:label="Zunify Launcher"
+            android:enabled="true"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:clearTaskOnLaunch="true"
+            android:stateNotNeeded="true"
+            android:excludeFromRecents="true"
+            android:screenOrientation="portrait"
+            android:theme="@android:style/Theme.Wallpaper.NoTitleBar" />
+
+        <!-- Default-OFF Home Alias: enabled only when user turns on Zunify Launcher in Settings -->
+        <activity-alias
+            android:name=".ZunifyHomeEntry"
+            android:targetActivity=".ZunifyLauncherActivity"
+            android:label="Zunify Launcher"
+            android:icon="@mipmap/launcher_icon"
+            android:enabled="false"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
 
         <!-- Foreground Media Service for Battery-Efficient Background Audio -->
         <service

@@ -13,6 +13,7 @@ import '../widgets/permissions_sheet.dart';
 import '../widgets/update_sheet.dart';
 import '../widgets/vinyl_disc_widget.dart';
 import '../widgets/weekly_rapot_modal.dart';
+import '../widgets/whats_new_v3_sheet.dart';
 import '../widgets/zidny_birthday_dialog.dart';
 import 'home_screen.dart';
 import 'library_screen.dart';
@@ -72,6 +73,8 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
     if (!mounted) return;
     if (!context.read<LibraryProvider>().hasCompletedOnboarding) return;
     await showZidnyBirthdayIfFirstOpen(context);
+    if (!mounted) return;
+    await showWhatsNewV3IfNeeded(context);
     if (!mounted) return;
     final updater = UpdateService();
     try {
@@ -387,21 +390,24 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
       onTap: () {
         Navigator.of(context).push(
           PageRouteBuilder(
-            transitionDuration: theme.animDuration(300),
-            reverseTransitionDuration: theme.animDuration(240),
+            transitionDuration: theme.animDuration(380),
+            reverseTransitionDuration: theme.animDuration(300),
             pageBuilder: (_, __, ___) => const NowPlayingScreen(),
             transitionsBuilder: (_, anim, __, child) {
-              final slideCurve = CurvedAnimation(
+              final curved = CurvedAnimation(
                 parent: anim,
-                curve: Curves.easeOutQuart,
+                curve: Curves.easeOutCubic,
                 reverseCurve: Curves.easeInCubic,
               );
-              return SlideTransition(
-                position: Tween<Offset>(
-                  begin: const Offset(0, 0.94),
-                  end: Offset.zero,
-                ).animate(slideCurve),
-                child: RepaintBoundary(child: child),
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0, 0.06),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: RepaintBoundary(child: child),
+                ),
               );
             },
           ),
@@ -414,23 +420,26 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
             padding: const EdgeInsets.fromLTRB(10, 8, 8, 6),
             child: Row(
               children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(isBrutal ? 8 : 11),
-                  child: CachedNetworkImage(
-                    imageUrl: song.highResArtUrl,
-                    width: 40,
-                    height: 40,
-                    memCacheWidth: 110,
-                    fadeInDuration: const Duration(milliseconds: 120),
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Container(
+                Hero(
+                  tag: 'zunify_now_playing_art',
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(isBrutal ? 8 : 11),
+                    child: CachedNetworkImage(
+                      imageUrl: song.highResArtUrl,
                       width: 40,
                       height: 40,
-                      color: theme.subtleFill,
-                      child: Icon(
-                        Icons.music_note_rounded,
-                        color: theme.accentText,
-                        size: 18,
+                      memCacheWidth: 110,
+                      fadeInDuration: const Duration(milliseconds: 120),
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Container(
+                        width: 40,
+                        height: 40,
+                        color: theme.subtleFill,
+                        child: Icon(
+                          Icons.music_note_rounded,
+                          color: theme.accentText,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),

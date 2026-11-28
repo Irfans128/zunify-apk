@@ -894,35 +894,38 @@ class _IpodClassicPlayerState extends State<IpodClassicPlayer> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Transform(
-                      alignment: Alignment.center,
-                      transform: Matrix4.identity()
-                        ..setEntry(3, 2, 0.0020)
-                        ..rotateY(0.14),
-                      child: Container(
-                        width: artSize,
-                        height: artSize,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(9),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.24),
-                              blurRadius: 14,
-                              offset: const Offset(2, 7),
-                            ),
-                          ],
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        child: CachedNetworkImage(
-                          imageUrl: song.highResArtUrl,
-                          memCacheWidth: 360,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => ColoredBox(
-                            color: const Color(0xFFE5E7EB),
-                            child: Icon(
-                              Icons.music_note_rounded,
-                              color: glossBlue,
-                              size: artSize * 0.36,
+                    Hero(
+                      tag: 'zunify_now_playing_art',
+                      child: Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.identity()
+                          ..setEntry(3, 2, 0.0020)
+                          ..rotateY(0.14),
+                        child: Container(
+                          width: artSize,
+                          height: artSize,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(9),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.24),
+                                blurRadius: 14,
+                                offset: const Offset(2, 7),
+                              ),
+                            ],
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: CachedNetworkImage(
+                            imageUrl: song.highResArtUrl,
+                            memCacheWidth: 360,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => ColoredBox(
+                              color: const Color(0xFFE5E7EB),
+                              child: Icon(
+                                Icons.music_note_rounded,
+                                color: glossBlue,
+                                size: artSize * 0.36,
+                              ),
                             ),
                           ),
                         ),

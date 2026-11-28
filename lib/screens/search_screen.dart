@@ -1092,37 +1092,13 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
               const SizedBox(height: 14),
 
-              // Unified Apple-Style Capsule Search Bar with Integrated Voice Button
-              Container(
+              // Unified Capsule Search Bar (True Optical Liquid Glass on Liquid Glass theme!)
+              LiquidGlassBox(
+                borderRadius: isBrutal ? 14 : 24,
                 height: 48,
-                decoration: isBrutal
-                    ? BoxDecoration(
-                        color: theme.cardBgColor,
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: theme.brutalBorderColor,
-                          width: 2.0,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: theme.brutalShadowColor,
-                            blurRadius: 0,
-                            offset: const Offset(3.0, 3.0),
-                          ),
-                        ],
-                      )
-                    : BoxDecoration(
-                        color: theme.isLightCanvas
-                            ? Colors.black.withOpacity(0.055)
-                            : Colors.white.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(
-                          color: theme.isLightCanvas
-                              ? Colors.black.withOpacity(0.08)
-                              : Colors.white.withOpacity(0.12),
-                          width: 0.9,
-                        ),
-                      ),
+                tintOpacity: isBrutal ? 0.0 : (theme.isLightCanvas ? 0.06 : 0.11),
+                rimIntensity: 0.46,
+                enableBlur: !isBrutal && !theme.isLightCanvas,
                 child: Row(
                   children: [
                     const SizedBox(width: 15),
@@ -1188,16 +1164,22 @@ class _SearchScreenState extends State<SearchScreen> {
                         borderRadius: 20,
                         onTap: () => _openVoiceSearchModal(context),
                         child: Container(
-                          width: 36,
-                          height: 36,
+                          width: 34,
+                          height: 34,
                           margin: const EdgeInsets.only(right: 6),
                           decoration: BoxDecoration(
                             color: isBrutal
                                 ? accent
-                                : accent.withOpacity(
-                                    theme.isLightCanvas ? 0.16 : 0.22,
-                                  ),
+                                : (theme.isLightCanvas
+                                    ? accent.withOpacity(0.14)
+                                    : Colors.white.withOpacity(0.12)),
                             shape: BoxShape.circle,
+                            border: (!isBrutal && !theme.isLightCanvas)
+                                ? Border.all(
+                                    color: Colors.white.withOpacity(0.22),
+                                    width: 0.8,
+                                  )
+                                : null,
                           ),
                           child: Icon(
                             Icons.mic_rounded,
@@ -1205,8 +1187,8 @@ class _SearchScreenState extends State<SearchScreen> {
                                 ? const Color(0xFF111111)
                                 : (theme.isLightCanvas
                                     ? theme.accentText
-                                    : accent),
-                            size: 19,
+                                    : Colors.white.withOpacity(0.92)),
+                            size: 18,
                           ),
                         ),
                       ),
@@ -1618,57 +1600,47 @@ class _SearchScreenState extends State<SearchScreen> {
               separatorBuilder: (_, __) => const SizedBox(width: 8),
               itemBuilder: (_, idx) {
                 final historyQuery = _searchHistory[idx];
-                return IosSpringButton(
-                  borderRadius: 18,
+                return LiquidGlassBox(
+                  borderRadius: isBrutal ? 10 : 18,
+                  tintOpacity: isBrutal ? 0.0 : 0.08,
+                  rimIntensity: 0.34,
+                  padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
                   onTap: () => _performSearch(historyQuery),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
-                    decoration: BoxDecoration(
-                      color: isBrutal ? theme.cardBgColor : theme.subtleFill,
-                      borderRadius: BorderRadius.circular(isBrutal ? 10 : 18),
-                      border: Border.all(
-                        color: isBrutal
-                            ? theme.brutalBorderColor
-                            : theme.dividerColor,
-                        width: isBrutal ? 1.5 : 0.8,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.history_rounded,
+                        color: theme.textMuted,
+                        size: 14.5,
                       ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.history_rounded,
-                          color: theme.textMuted,
-                          size: 14.5,
-                        ),
-                        const SizedBox(width: 6),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 150),
-                          child: Text(
-                            historyQuery,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: theme.textPrimary,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                            ),
+                      const SizedBox(width: 6),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 150),
+                        child: Text(
+                          historyQuery,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        GestureDetector(
-                          onTap: () => _removeHistoryItem(historyQuery),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              Icons.close_rounded,
-                              color: theme.textMuted,
-                              size: 14,
-                            ),
+                      ),
+                      const SizedBox(width: 4),
+                      GestureDetector(
+                        onTap: () => _removeHistoryItem(historyQuery),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close_rounded,
+                            color: theme.textMuted,
+                            size: 14,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -1677,7 +1649,10 @@ class _SearchScreenState extends State<SearchScreen> {
           const SizedBox(height: 22),
         ],
 
-        // Modern Vibrant Gradient Category Tiles (Clean 2-Column Browse)
+        // Theme-Aware Mood & Genre Tiles:
+        // - Liquid Glass: Refined Smoked Optical Glass with soft internal prism glow (never harsh solid blocks!)
+        // - Neo-Brutalism: Bold crisp cards with hard ink shadow
+        // - Classic iPod: Clean frosted aluminum cards with subtle accent dot
         Text(
           'Jelajahi Mood & Genre',
           style: GoogleFonts.plusJakartaSans(
@@ -1696,14 +1671,122 @@ class _SearchScreenState extends State<SearchScreen> {
             crossAxisCount: 2,
             mainAxisSpacing: 11,
             crossAxisSpacing: 11,
-            mainAxisExtent: 82,
+            mainAxisExtent: 80,
           ),
           itemBuilder: (context, idx) {
             final item = categories[idx];
             final cardColor = Color(item['color'] as int);
-            final darkerTone = Color.lerp(cardColor, const Color(0xFF090D16), 0.34)!;
             final iconData = item['icon'] as IconData;
-            final tileRadius = isBrutal ? 13.0 : 18.0;
+            final isIpod = theme.isClassicIpod;
+            final isLiquid = !isBrutal && !isIpod;
+
+            if (isLiquid) {
+              final softTint = Color.lerp(cardColor, Colors.white, 0.36)!;
+              return LiquidGlassBox(
+                borderRadius: 20,
+                padding: EdgeInsets.zero,
+                tintColor: cardColor,
+                tintOpacity: 0.11,
+                rimIntensity: 0.46,
+                onTap: () {
+                  final q = item['query'] as String;
+                  _searchController.text = item['title'] as String;
+                  _performSearch(q, allowArtistCard: false);
+                },
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Stack(
+                    children: [
+                      // Subtle internal ambient prism glow in bottom-right corner
+                      Positioned(
+                        right: -18,
+                        bottom: -22,
+                        child: Container(
+                          width: 78,
+                          height: 78,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                cardColor.withOpacity(0.42),
+                                cardColor.withOpacity(0.0),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: BoxDecoration(
+                                    color: cardColor.withOpacity(0.20),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: softTint.withOpacity(0.32),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    iconData,
+                                    color: softTint,
+                                    size: 14,
+                                  ),
+                                ),
+                                const Spacer(),
+                                Icon(
+                                  Icons.arrow_forward_ios_rounded,
+                                  color: Colors.white.withOpacity(0.28),
+                                  size: 11,
+                                ),
+                              ],
+                            ),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  item['title'] as String,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: GoogleFonts.plusJakartaSans(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 13.8,
+                                    letterSpacing: -0.25,
+                                  ),
+                                ),
+                                Text(
+                                  item['subtitle'] as String,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.58),
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 10.8,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final darkerTone =
+                Color.lerp(cardColor, const Color(0xFF090D16), 0.34)!;
+            final tileRadius = isBrutal ? 13.0 : 16.0;
 
             return IosSpringButton(
               borderRadius: tileRadius,
@@ -1714,21 +1797,23 @@ class _SearchScreenState extends State<SearchScreen> {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: isBrutal
+                  gradient: (isBrutal || isIpod)
                       ? null
                       : LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                           colors: [cardColor, darkerTone],
                         ),
-                  color: isBrutal ? cardColor : null,
+                  color: isBrutal
+                      ? cardColor
+                      : (isIpod ? theme.cardBgColor : null),
                   borderRadius: BorderRadius.circular(tileRadius),
-                  border: isBrutal
-                      ? Border.all(
-                          color: theme.brutalBorderColor,
-                          width: 2.0,
-                        )
-                      : null,
+                  border: Border.all(
+                    color: isBrutal
+                        ? theme.brutalBorderColor
+                        : theme.dividerColor,
+                    width: isBrutal ? 2.0 : 1.0,
+                  ),
                   boxShadow: isBrutal
                       ? [
                           BoxShadow(
@@ -1737,13 +1822,7 @@ class _SearchScreenState extends State<SearchScreen> {
                             offset: const Offset(3.0, 3.0),
                           ),
                         ]
-                      : [
-                          BoxShadow(
-                            color: cardColor.withOpacity(0.24),
-                            blurRadius: 14,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
+                      : null,
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: Stack(
@@ -1755,8 +1834,10 @@ class _SearchScreenState extends State<SearchScreen> {
                         angle: -0.22,
                         child: Icon(
                           iconData,
-                          size: 62,
-                          color: Colors.white.withOpacity(0.20),
+                          size: 58,
+                          color: isIpod
+                              ? cardColor.withOpacity(0.14)
+                              : Colors.white.withOpacity(0.20),
                         ),
                       ),
                     ),
@@ -1771,9 +1852,9 @@ class _SearchScreenState extends State<SearchScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: GoogleFonts.plusJakartaSans(
-                              color: Colors.white,
+                              color: isIpod ? theme.textPrimary : Colors.white,
                               fontWeight: FontWeight.w800,
-                              fontSize: 14.5,
+                              fontSize: 14.2,
                               letterSpacing: -0.3,
                             ),
                           ),
@@ -1782,7 +1863,9 @@ class _SearchScreenState extends State<SearchScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.84),
+                              color: isIpod
+                                  ? theme.textMuted
+                                  : Colors.white.withOpacity(0.84),
                               fontWeight: FontWeight.w600,
                               fontSize: 11.2,
                             ),

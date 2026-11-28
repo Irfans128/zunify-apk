@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../app_version.dart';
@@ -10,6 +11,7 @@ import '../widgets/equalizer_sheet.dart';
 import '../widgets/liquid_background_widget.dart';
 import '../widgets/qris_donation_sheet.dart';
 import '../widgets/update_sheet.dart';
+import '../widgets/whats_new_v3_sheet.dart';
 import 'theme_studio_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -321,6 +323,10 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+
+            // 2b. Built-In Native Zunify Launcher Card (Default OFF, Toggle + Live Preview)
+            const _ZunifyLauncherSettingsCard(),
             const SizedBox(height: 18),
 
             // 3. Direct Audio Quality Selector (Rendah, Standar, Tinggi)
@@ -553,6 +559,68 @@ class SettingsScreen extends StatelessWidget {
                       fontSize: 11.5,
                       onTap: () => runManualUpdateCheck(context),
                     ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            LiquidGlassBox(
+              borderRadius: 18,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+              tintColor: accent,
+              tintOpacity: isBrutal ? 0.14 : 0.08,
+              rimIntensity: 0.34,
+              onTap: () => showWhatsNewV3Sheet(context),
+              child: Row(
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: accent.withOpacity(isBrutal ? 0.90 : 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                      border: isBrutal
+                          ? Border.all(
+                              color: theme.brutalBorderColor,
+                              width: 1.5,
+                            )
+                          : null,
+                    ),
+                    child: Icon(
+                      Icons.auto_awesome_rounded,
+                      color: isBrutal ? const Color(0xFF111111) : accent,
+                      size: 18,
+                    ),
+                  ),
+                  const SizedBox(width: 11),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Apa yang Baru di v$kAppVersion',
+                          style: TextStyle(
+                            color: theme.textPrimary,
+                            fontSize: 13.8,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          'Lihat ringkasan fitur & tema terbaru',
+                          style: TextStyle(
+                            color: theme.textSecondary,
+                            fontSize: 11.4,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: theme.textMuted,
+                    size: 20,
                   ),
                 ],
               ),
@@ -1490,6 +1558,229 @@ class SettingsScreen extends StatelessWidget {
         color: theme.textSecondary,
         fontSize: 13,
         fontWeight: FontWeight.w800,
+      ),
+    );
+  }
+}
+
+/// Built-in Native Zunify Launcher toggle + instant live preview card
+class _ZunifyLauncherSettingsCard extends StatefulWidget {
+  const _ZunifyLauncherSettingsCard();
+
+  @override
+  State<_ZunifyLauncherSettingsCard> createState() =>
+      _ZunifyLauncherSettingsCardState();
+}
+
+class _ZunifyLauncherSettingsCardState
+    extends State<_ZunifyLauncherSettingsCard> with WidgetsBindingObserver {
+  static const MethodChannel _launcherChannel =
+      MethodChannel('com.fannz.zunify/launcher');
+
+  bool _enabled = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _refreshLauncherStatus();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshLauncherStatus();
+    }
+  }
+
+  Future<void> _refreshLauncherStatus() async {
+    try {
+      final res =
+          await _launcherChannel.invokeMethod<bool>('isZunifyLauncherEnabled');
+      if (mounted && res != null) {
+        setState(() => _enabled = res);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _toggleLauncher(bool nextValue) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      final res = await _launcherChannel.invokeMethod<bool>(
+        'setZunifyLauncherEnabled',
+        {'enabled': nextValue, 'openPicker': nextValue},
+      );
+      if (mounted) {
+        setState(() => _enabled = res ?? nextValue);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 2),
+            content: Text(
+              nextValue
+                  ? 'Zunify Launcher aktif! Pilih "Zunify Launcher" sebagai Home default.'
+                  : 'Zunify Launcher dimatikan. Home Screen kembali normal.',
+            ),
+          ),
+        );
+      }
+    } catch (_) {} finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _openPreview() async {
+    try {
+      await _launcherChannel.invokeMethod('openZunifyLauncherPreview');
+    } catch (_) {}
+  }
+
+  Future<void> _openHomePicker() async {
+    try {
+      await _launcherChannel.invokeMethod('openHomeSettingsPicker');
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.watch<ThemeProvider>();
+    final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
+
+    return LiquidGlassBox(
+      borderRadius: 20,
+      padding: const EdgeInsets.all(14),
+      tintColor: const Color(0xFFA78BFA),
+      tintOpacity: isBrutal ? 0.14 : 0.08,
+      rimIntensity: 0.38,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFA78BFA)
+                      .withOpacity(isBrutal ? 0.88 : 0.20),
+                  borderRadius: BorderRadius.circular(13),
+                  border: isBrutal
+                      ? Border.all(color: theme.brutalBorderColor, width: 1.6)
+                      : null,
+                ),
+                child: Icon(
+                  Icons.dashboard_customize_rounded,
+                  color: isBrutal
+                      ? const Color(0xFF111111)
+                      : const Color(0xFFA78BFA),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'Zunify Launcher',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: GoogleFonts.plusJakartaSans(
+                              color: theme.textPrimary,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 7),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: (_enabled
+                                    ? const Color(0xFF10B981)
+                                    : theme.textMuted)
+                                .withOpacity(0.18),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            _enabled ? 'Aktif' : 'Nonaktif',
+                            style: TextStyle(
+                              color: _enabled
+                                  ? const Color(0xFF10B981)
+                                  : theme.textMuted,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Home Screen Native ringan + Dynamic Capsule musik',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: theme.textSecondary,
+                        fontSize: 11.4,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: _enabled,
+                activeColor: accent,
+                onChanged: _busy ? null : _toggleLauncher,
+              ),
+            ],
+          ),
+          const SizedBox(height: 11),
+          Row(
+            children: [
+              Expanded(
+                child: IosGlassPillButton(
+                  icon: Icons.visibility_rounded,
+                  label: 'Pratinjau',
+                  height: 34,
+                  expand: true,
+                  fontSize: 11.8,
+                  activeColor: accent,
+                  isActive: true,
+                  onTap: _openPreview,
+                ),
+              ),
+              if (_enabled) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: IosGlassPillButton(
+                    icon: Icons.home_rounded,
+                    label: 'Pilih Default',
+                    height: 34,
+                    expand: true,
+                    fontSize: 11.8,
+                    onTap: _openHomePicker,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
       ),
     );
   }
