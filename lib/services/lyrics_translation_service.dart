@@ -32,6 +32,7 @@ class LyricsTranslationService {
 
   final Map<String, SyncedLyrics> _memoryLyricsCache = {};
   final Map<String, List<SyncedLyrics>> _providerOptionsCache = {};
+  final Map<String, DateTime> _translateCooldownUntil = {};
   final http.Client _http = http.Client();
 
   List<SyncedLyrics> getProviderOptionsForVideo(String videoId) =>
@@ -44,14 +45,19 @@ class LyricsTranslationService {
     _memoryLyricsCache[videoId] = lyrics;
   }
 
-  // Common Indonesian words to accurately detect Bahasa Indonesia lyrics
+  // Unmistakable Bahasa Indonesia words (no short ambiguous tokens like ku/mu/nya that collide with JP/KR)
   static const Set<String> _indonesianMarkers = {
     'yang', 'dan', 'aku', 'kamu', 'kau', 'kita', 'tidak', 'tak', 'bisa',
     'dengan', 'untuk', 'dalam', 'karena', 'jika', 'bila', 'saat', 'hati',
     'cinta', 'rindu', 'malam', 'hari', 'ini', 'itu', 'ada', 'lagi',
     'pernah', 'selalu', 'hanya', 'ingin', 'mengapa', 'kenapa', 'jangan',
     'masih', 'telah', 'sudah', 'akan', 'sampai', 'bahagia', 'luka',
-    'sendiri', 'bersama', 'dirimu', 'diriku', 'ku', 'mu', 'nya',
+    'sendiri', 'bersama', 'dirimu', 'diriku', 'semua', 'bukan', 'seperti',
+    'menjadi', 'tetap', 'waktu', 'semoga', 'mungkin', 'mengerti', 'tanpa',
+    'kembali', 'pergi', 'tinggal', 'bertahan', 'terluka', 'merasa', 'kepada',
+    'antara', 'sedang', 'sangat', 'begitu', 'sekarang', 'terima', 'kasih',
+    'cukup', 'biarkan', 'dunia', 'hidupku', 'jiwaku', 'hatiku', 'cintaku',
+    'namamu', 'senyummu', 'dirinya', 'tentang', 'harus', 'tapi', 'namun',
   };
 
   String _cleanSongTitle(String raw) {
@@ -169,7 +175,7 @@ class LyricsTranslationService {
     final cleanTitle = _cleanSongTitle(song.title);
     final cleanArtist = _cleanArtistName(song.artist);
 
-    // Query all 5 synced providers in parallel so we can compare completeness & duration fit
+    // Query all 6 synced providers in parallel (SimpMusic, LRCLIB, LyricsPlus, LrcRed, BetterLyrics, NetEase)
     final results = await Future.wait([
       _fetchCandidatesFromSimpMusic(song.videoId, song.durationSeconds),
       _fetchCandidatesFromLrclib(
@@ -195,6 +201,12 @@ class LyricsTranslationService {
         cleanArtist.isNotEmpty ? cleanArtist : song.artist,
         song.durationSeconds,
       ),
+      _fetchCandidatesFromNetEase(
+        song.videoId,
+        cleanTitle.isNotEmpty ? cleanTitle : song.title,
+        cleanArtist.isNotEmpty ? cleanArtist : song.artist,
+        song.durationSeconds,
+      ),
     ]);
 
     final allCandidates = <_ScoredLyricsCandidate>[
@@ -203,6 +215,7 @@ class LyricsTranslationService {
       ...results[2],
       ...results[3],
       ...results[4],
+      ...results[5],
     ];
 
     if (allCandidates.isNotEmpty) {
@@ -326,7 +339,8 @@ class LyricsTranslationService {
     return lyrics;
   }
 
-  /// Stage 2: Translates non-Indonesian lyrics into Bahasa Indonesia in background
+  /// Stage 2: Translates non-Indonesian lyrics into Bahasa Indonesia cleanly.
+  /// Never poison-caches failed network/rate-limit attempts as Indonesian!
   Future<SyncedLyrics> translateLyricsToIndonesian(SyncedLyrics rawLyrics) async {
     if (rawLyrics.isOriginalIndonesian || rawLyrics.lines.length <= 1) {
       return rawLyrics;
@@ -344,17 +358,21 @@ class LyricsTranslationService {
       return simpTrans;
     }
 
-    final translatedLines = await _translateLinesWithGoogle(rawLyrics.lines);
-    final stillIndonesian =
-        translatedLines.every((l) => l.translatedIndoText == null);
+    final result = await _translateLinesResilient(rawLyrics.lines);
+    if (result.confirmedIndonesian) {
+      final indo = rawLyrics.copyWith(isOriginalIndonesian: true);
+      _cacheLyrics(rawLyrics.videoId, indo);
+      return indo;
+    }
 
-    final updated = rawLyrics.copyWith(
-      lines: translatedLines,
-      isOriginalIndonesian:
-          stillIndonesian ? true : rawLyrics.isOriginalIndonesian,
-    );
-    _cacheLyrics(rawLyrics.videoId, updated);
-    return updated;
+    if (result.translatedAny) {
+      final updated = rawLyrics.copyWith(lines: result.lines);
+      _cacheLyrics(rawLyrics.videoId, updated);
+      return updated;
+    }
+
+    // All translation providers temporarily failed (e.g. offline) — do NOT poison cache!
+    return rawLyrics;
   }
 
   /// Full 2-stage helper (used by Offline Vault Downloader & direct callers)
@@ -1204,8 +1222,128 @@ class LyricsTranslationService {
     }
   }
 
-  /// Smart Bahasa Indonesia Detector
+  // ---------------------------------------------------------------------------
+  // PROVIDER 5: NetEase Cloud Music Synced LRC (from Mochy Music, great for Asia/Global)
+  // ---------------------------------------------------------------------------
+  Future<List<_ScoredLyricsCandidate>> _fetchCandidatesFromNetEase(
+    String videoId,
+    String title,
+    String artist,
+    int totalDurationSec,
+  ) async {
+    try {
+      final query = '$artist $title'.trim();
+      if (query.isEmpty) return const [];
+      final searchUri = Uri.parse('https://music.163.com/api/search/get')
+          .replace(
+        queryParameters: {'s': query, 'type': '1', 'limit': '4'},
+      );
+      final searchRes = await _http
+          .get(
+            searchUri,
+            headers: const {
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0',
+              'Referer': 'https://music.163.com/',
+            },
+          )
+          .timeout(const Duration(seconds: 4));
+      if (searchRes.statusCode != 200) return const [];
+
+      final searchJson = jsonDecode(utf8.decode(searchRes.bodyBytes));
+      final songs =
+          searchJson['result']?['songs'] as List<dynamic>? ?? const [];
+      if (songs.isEmpty) return const [];
+
+      final targetTitleLower = title.toLowerCase();
+      Map<String, dynamic>? picked;
+      int bestDurDiff = 999999;
+
+      for (final raw in songs) {
+        if (raw is! Map<String, dynamic>) continue;
+        final name = (raw['name']?.toString() ?? '').toLowerCase();
+        if (targetTitleLower.length >= 3 &&
+            name.isNotEmpty &&
+            !name.contains(targetTitleLower) &&
+            !targetTitleLower.contains(name)) {
+          continue;
+        }
+        final durSec = (((raw['duration'] as num?)?.toInt() ?? 0) / 1000).round();
+        final diff = totalDurationSec > 25 && durSec > 25
+            ? (durSec - totalDurationSec).abs()
+            : 0;
+        if (totalDurationSec > 25 && durSec > 25 && diff > 14) continue;
+        if (diff < bestDurDiff) {
+          bestDurDiff = diff;
+          picked = raw;
+        }
+      }
+      if (picked == null) return const [];
+
+      final songId = picked['id']?.toString() ?? '';
+      if (songId.isEmpty) return const [];
+      final durSec =
+          (((picked['duration'] as num?)?.toInt() ?? 0) / 1000).round();
+
+      final lrcUri = Uri.parse(
+        'https://music.163.com/api/song/lyric?id=$songId&lv=1&kv=1&tv=-1',
+      );
+      final lrcRes = await _http
+          .get(
+            lrcUri,
+            headers: const {
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/126.0',
+              'Referer': 'https://music.163.com/',
+            },
+          )
+          .timeout(const Duration(seconds: 4));
+      if (lrcRes.statusCode != 200) return const [];
+
+      final lrcJson = jsonDecode(utf8.decode(lrcRes.bodyBytes));
+      final rawLrc = lrcJson['lrc']?['lyric']?.toString() ?? '';
+      if (rawLrc.trim().isEmpty) return const [];
+
+      final parsed = _parseLrcFormat(rawLrc);
+      if (parsed.length < 3) return const [];
+
+      final sample = parsed.map((e) => e.originalText).join(' ');
+      final lyr = SyncedLyrics(
+        videoId: videoId,
+        isSynced: true,
+        isOriginalIndonesian: detectIsIndonesian(sample),
+        lines: parsed,
+        sourceName: 'NetEase Synced',
+      );
+
+      final score = _scoreLyricsCandidate(
+        lines: parsed,
+        isSynced: true,
+        declaredDurationSec: durSec > 0 ? durSec : totalDurationSec,
+        targetDurationSec: totalDurationSec,
+        providerBonus: 4.0,
+      );
+
+      return [
+        _ScoredLyricsCandidate(
+          lyrics: lyr,
+          score: score,
+          declaredDurationSec: durSec > 0 ? durSec : totalDurationSec,
+        ),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Smart Bahasa Indonesia Detector (immune to JP/KR/CN & English false positives)
   bool detectIsIndonesian(String text) {
+    // Non-Latin scripts (Japanese, Korean, Chinese, Cyrillic, Arabic, Thai) are never Indonesian
+    final nonLatinCount = RegExp(
+      r'[\u3040-\u30FF\u4E00-\u9FFF\uAC00-\uD7AF\u0400-\u04FF\u0600-\u06FF\u0E00-\u0E7F]',
+    ).allMatches(text).length;
+    if (nonLatinCount >= 6) return false;
+
     final words = text
         .toLowerCase()
         .replaceAll(RegExp(r'[^a-z\s]'), ' ')
@@ -1213,22 +1351,19 @@ class LyricsTranslationService {
         .where((w) => w.length >= 2)
         .toList();
 
-    if (words.isEmpty) return false;
+    if (words.length < 6) return false;
 
     int indoHits = 0;
     for (final w in words) {
       if (_indonesianMarkers.contains(w) ||
-          w.startsWith('ber') ||
-          w.startsWith('men') ||
-          w.startsWith('ter') ||
-          w.endsWith('kan') ||
-          w.endsWith('nya')) {
+          (w.length >= 7 && (w.endsWith('kan') || w.endsWith('nya')))) {
         indoHits++;
       }
     }
 
+    if (indoHits < 3) return false;
     final ratio = indoHits / words.length;
-    return ratio >= 0.14;
+    return ratio >= 0.16;
   }
 
   int _parseLrcTimeTokenMs(String minsStr, String secsStr, String? fracStr) {
@@ -1728,73 +1863,332 @@ class LyricsTranslationService {
     );
   }
 
-  /// Batch-translates non-Indonesian lyric lines into Bahasa Indonesia
-  Future<List<LyricLine>> _translateLinesWithGoogle(
-    List<LyricLine> lines,
-  ) async {
-    try {
-      final joinedText = lines.map((l) => l.originalText).join('\n');
-      final uri = Uri.parse(
-        'https://translate.googleapis.com/translate_a/single',
-      ).replace(
-        queryParameters: {
-          'client': 'gtx',
-          'sl': 'auto',
-          'tl': 'id',
-          'dt': 't',
-          'q': joinedText,
-        },
-      );
+  bool _isTranslateProviderCoolingDown(String providerKey) {
+    final until = _translateCooldownUntil[providerKey];
+    if (until == null) return false;
+    if (DateTime.now().isAfter(until)) {
+      _translateCooldownUntil.remove(providerKey);
+      return false;
+    }
+    return true;
+  }
 
+  void _coolDownTranslateProvider(String providerKey, {int minutes = 3}) {
+    _translateCooldownUntil[providerKey] =
+        DateTime.now().add(Duration(minutes: minutes));
+  }
+
+  /// Resilient 4-Tier Chunked & Deduplicated Translator to Bahasa Indonesia:
+  /// 1. Google Translate POST (`gtx`)
+  /// 2. Google Clients5 POST (`dict-chrome-ex`)
+  /// 3. MyMemory API (`autodetect|id` — works even when Google returns HTTP 429!)
+  /// 4. Lingva Public Mirror (`lingva.lunar.icu`)
+  Future<({List<LyricLine> lines, bool confirmedIndonesian, bool translatedAny})>
+      _translateLinesResilient(List<LyricLine> lines) async {
+    // 1. Deduplicate chorus/repeated lines -> ~60% fewer requests & faster!
+    final uniqueOrder = <String>[];
+    final seen = <String>{};
+    for (final l in lines) {
+      final orig = l.originalText.trim();
+      if (orig.isEmpty || orig.contains('•')) continue;
+      if (seen.add(orig)) {
+        uniqueOrder.add(orig);
+      }
+    }
+    if (uniqueOrder.isEmpty) {
+      return (lines: lines, confirmedIndonesian: false, translatedAny: false);
+    }
+
+    // 2. Pack unique lines into compact chunks (<= 10 lines & <= 380 chars)
+    //    so Google POST, Clients5, and MyMemory (500-char max) ALL accept every chunk!
+    final chunks = <List<String>>[];
+    var curChunk = <String>[];
+    int curChars = 0;
+    for (final text in uniqueOrder) {
+      final nextChars = curChars + text.length + 1;
+      if (curChunk.isNotEmpty && (curChunk.length >= 10 || nextChars > 380)) {
+        chunks.add(curChunk);
+        curChunk = <String>[];
+        curChars = 0;
+      }
+      curChunk.add(text);
+      curChars += text.length + 1;
+    }
+    if (curChunk.isNotEmpty) {
+      chunks.add(curChunk);
+    }
+
+    final translatedMap = <String, String>{};
+    int indoDetections = 0;
+    int successfulChunks = 0;
+
+    for (final chunk in chunks) {
+      final chunkRes = await _translateChunkCascade(chunk);
+      if (chunkRes == null) continue;
+      successfulChunks++;
+      if (chunkRes.isIndonesian) {
+        indoDetections++;
+        continue;
+      }
+      if (chunkRes.translations.length == chunk.length) {
+        for (int i = 0; i < chunk.length; i++) {
+          final tr = chunkRes.translations[i].trim();
+          if (tr.isNotEmpty) {
+            translatedMap[chunk[i]] = tr;
+          }
+        }
+      } else {
+        // Line count shifted by provider newline merge -> translate individually cleanly
+        for (final singleLine in chunk) {
+          final singleRes = await _translateChunkCascade([singleLine]);
+          if (singleRes != null &&
+              !singleRes.isIndonesian &&
+              singleRes.translations.isNotEmpty) {
+            final tr = singleRes.translations.join(' ').trim();
+            if (tr.isNotEmpty) {
+              translatedMap[singleLine] = tr;
+            }
+          }
+        }
+      }
+    }
+
+    // Only confirm Indonesian if translation API actually succeeded & explicitly reported `id`
+    if (successfulChunks > 0 &&
+        translatedMap.isEmpty &&
+        indoDetections == successfulChunks) {
+      return (lines: lines, confirmedIndonesian: true, translatedAny: false);
+    }
+
+    if (translatedMap.isEmpty) {
+      return (lines: lines, confirmedIndonesian: false, translatedAny: false);
+    }
+
+    bool anyApplied = false;
+    final updated = <LyricLine>[];
+    for (final line in lines) {
+      final orig = line.originalText.trim();
+      if (orig.isEmpty || orig.contains('•')) {
+        updated.add(line);
+        continue;
+      }
+      final tr = translatedMap[orig];
+      final shouldKeep = tr != null &&
+          tr.isNotEmpty &&
+          tr.toLowerCase() != orig.toLowerCase();
+      if (shouldKeep) anyApplied = true;
+      updated.add(line.copyWith(translatedIndoText: shouldKeep ? tr : null));
+    }
+
+    return (
+      lines: updated,
+      confirmedIndonesian: false,
+      translatedAny: anyApplied,
+    );
+  }
+
+  Future<({List<String> translations, bool isIndonesian})?>
+      _translateChunkCascade(List<String> chunk) async {
+    final joined = chunk.join('\n');
+
+    // Tier 1: Google Translate POST (gtx)
+    if (!_isTranslateProviderCoolingDown('google_gtx')) {
+      final res = await _translateViaGoogleGtxPost(joined);
+      if (res != null) return res;
+    }
+
+    // Tier 2: Google Clients5 POST (separate rate-limit bucket)
+    if (!_isTranslateProviderCoolingDown('google_c5')) {
+      final res = await _translateViaGoogleClients5(joined);
+      if (res != null) return res;
+    }
+
+    // Tier 3: MyMemory Free Translation API (autodetect|id — proven immune to Google 429!)
+    if (!_isTranslateProviderCoolingDown('mymemory')) {
+      final res = await _translateViaMyMemory(joined);
+      if (res != null) return res;
+    }
+
+    // Tier 4: Lingva Public Mirror
+    if (!_isTranslateProviderCoolingDown('lingva')) {
+      final res = await _translateViaLingva(joined);
+      if (res != null) return res;
+    }
+
+    return null;
+  }
+
+  Future<({List<String> translations, bool isIndonesian})?>
+      _translateViaGoogleGtxPost(String text) async {
+    try {
+      final uri = Uri.parse(
+        'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=id&dt=t',
+      );
       final res = await _http
-          .get(
+          .post(
             uri,
-            headers: {
+            headers: const {
               'User-Agent':
-                  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36',
+              'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
             },
+            body: {'q': text},
           )
-          .timeout(const Duration(seconds: 8));
-      if (res.statusCode != 200) return lines;
+          .timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 429 || res.statusCode == 403) {
+        _coolDownTranslateProvider('google_gtx', minutes: 4);
+        return null;
+      }
+      if (res.statusCode != 200) return null;
 
       final decoded = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
-      final detectedLang = decoded.length > 2 ? (decoded[2] as String?) : null;
-
+      final detectedLang =
+          decoded.length > 2 ? decoded[2]?.toString().toLowerCase() : null;
       if (detectedLang == 'id') {
-        return lines;
+        return (translations: const <String>[], isIndonesian: true);
       }
 
       final segments = decoded[0] as List<dynamic>;
-      final translatedBuffer = StringBuffer();
+      final buf = StringBuffer();
       for (final seg in segments) {
         if (seg is List && seg.isNotEmpty && seg[0] != null) {
-          translatedBuffer.write(seg[0].toString());
+          buf.write(seg[0].toString());
         }
       }
-
-      final translatedLines = translatedBuffer.toString().split('\n');
-      final updated = <LyricLine>[];
-
-      for (int i = 0; i < lines.length; i++) {
-        final orig = lines[i].originalText.trim();
-        if (orig.contains('•')) {
-          updated.add(lines[i]);
-          continue;
-        }
-        final trans =
-            i < translatedLines.length ? translatedLines[i].trim() : null;
-
-        final shouldKeep = trans != null &&
-            trans.isNotEmpty &&
-            trans.toLowerCase() != orig.toLowerCase();
-
-        updated.add(
-          lines[i].copyWith(translatedIndoText: shouldKeep ? trans : null),
-        );
-      }
-      return updated;
+      final full = buf.toString().trim();
+      if (full.isEmpty) return null;
+      return (translations: full.split('\n'), isIndonesian: false);
     } catch (_) {
-      return lines;
+      return null;
+    }
+  }
+
+  Future<({List<String> translations, bool isIndonesian})?>
+      _translateViaGoogleClients5(String text) async {
+    try {
+      final uri = Uri.parse(
+        'https://clients5.google.com/translate_a/t?client=dict-chrome-ex&sl=auto&tl=id',
+      );
+      final res = await _http
+          .post(
+            uri,
+            headers: const {
+              'User-Agent':
+                  'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/126.0 Mobile Safari/537.36',
+              'Content-Type': 'application/x-www-form-urlencoded; charset=utf-8',
+            },
+            body: {'q': text},
+          )
+          .timeout(const Duration(seconds: 6));
+
+      if (res.statusCode == 429 || res.statusCode == 403) {
+        _coolDownTranslateProvider('google_c5', minutes: 4);
+        return null;
+      }
+      if (res.statusCode != 200) return null;
+
+      final decoded = jsonDecode(utf8.decode(res.bodyBytes));
+      if (decoded is List && decoded.isNotEmpty) {
+        final first = decoded.first;
+        if (first is List && first.isNotEmpty) {
+          final lang = first.length > 1 ? first[1]?.toString().toLowerCase() : null;
+          if (lang == 'id') {
+            return (translations: const <String>[], isIndonesian: true);
+          }
+          final full = first[0]?.toString().trim() ?? '';
+          if (full.isNotEmpty) {
+            return (translations: full.split('\n'), isIndonesian: false);
+          }
+        } else if (first is String && first.trim().isNotEmpty) {
+          return (translations: first.trim().split('\n'), isIndonesian: false);
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<({List<String> translations, bool isIndonesian})?>
+      _translateViaMyMemory(String text) async {
+    try {
+      final uri = Uri.parse('https://api.mymemory.translated.net/get').replace(
+        queryParameters: {
+          'q': text,
+          'langpair': 'autodetect|id',
+        },
+      );
+      final res = await _http
+          .get(
+            uri,
+            headers: const {
+              'User-Agent': 'Zunify/3.0',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 7));
+
+      if (res.statusCode == 429) {
+        _coolDownTranslateProvider('mymemory', minutes: 5);
+        return null;
+      }
+      if (res.statusCode != 200) return null;
+
+      final decoded =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      if (decoded['quotaFinished'] == true) {
+        _coolDownTranslateProvider('mymemory', minutes: 10);
+        return null;
+      }
+      final respData = decoded['responseData'] as Map<String, dynamic>?;
+      if (respData == null) return null;
+
+      final detected = respData['detectedLanguage']?.toString().toLowerCase();
+      if (detected == 'id' || detected == 'id-id') {
+        return (translations: const <String>[], isIndonesian: true);
+      }
+
+      final rawTrans = respData['translatedText']?.toString().trim() ?? '';
+      if (rawTrans.isEmpty ||
+          rawTrans.toUpperCase().contains('MYMEMORY WARNING') ||
+          rawTrans.toUpperCase().contains('PLEASE SELECT TWO DISTINCT')) {
+        return null;
+      }
+
+      final decodedTrans = _decodeXmlEntities(rawTrans);
+      return (translations: decodedTrans.split('\n'), isIndonesian: false);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<({List<String> translations, bool isIndonesian})?>
+      _translateViaLingva(String text) async {
+    try {
+      final encoded = Uri.encodeComponent(text);
+      final uri = Uri.parse('https://lingva.lunar.icu/api/v1/auto/id/$encoded');
+      final res = await _http
+          .get(uri, headers: const {'User-Agent': 'Zunify/3.0'})
+          .timeout(const Duration(seconds: 6));
+      if (res.statusCode != 200) {
+        if (res.statusCode >= 400) {
+          _coolDownTranslateProvider('lingva', minutes: 5);
+        }
+        return null;
+      }
+      final decoded =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final detected = decoded['info']?['detectedSource']?.toString().toLowerCase();
+      if (detected == 'id') {
+        return (translations: const <String>[], isIndonesian: true);
+      }
+      final tr = decoded['translation']?.toString().trim() ?? '';
+      if (tr.isEmpty) return null;
+      return (translations: tr.split('\n'), isIndonesian: false);
+    } catch (_) {
+      _coolDownTranslateProvider('lingva', minutes: 5);
+      return null;
     }
   }
 

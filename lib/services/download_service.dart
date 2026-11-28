@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/lyric_model.dart';
 import '../models/song_model.dart';
 import 'lyrics_translation_service.dart';
@@ -29,19 +30,29 @@ class DownloadService {
   Future<ZunifySong?> downloadSongToPrivateVault(
     ZunifySong song, {
     required bool highQuality,
+    bool? preferLossless,
     void Function(double progress)? onProgress,
   }) async {
     try {
       final vaultDir = await _getVaultDir();
-      // Always download in High Quality ('high') automatically
+      bool useLossless = preferLossless ?? false;
+      if (preferLossless == null) {
+        try {
+          final prefs = await SharedPreferences.getInstance();
+          useLossless = prefs.getString('audio_quality_tier_v2') == 'lossless';
+        } catch (_) {}
+      }
+      // Download in Lossless FLAC if enabled (auto-fallback to YT Music High Quality), else High Quality
       final resolvedStream = await _ytMusicService.resolveAudioStream(
         song.videoId,
         highQuality: true,
-        qualityTier: 'high',
+        qualityTier: useLossless ? 'lossless' : 'high',
+        song: song,
       );
       if (resolvedStream == null) return null;
 
-      final audioPath = p.join(vaultDir.path, 'track_${song.videoId}.m4a');
+      final ext = resolvedStream.fileExtension == 'flac' ? 'flac' : 'm4a';
+      final audioPath = p.join(vaultDir.path, 'track_${song.videoId}.$ext');
       final artPath = p.join(vaultDir.path, 'art_${song.videoId}.jpg');
       final lyricsPath = p.join(vaultDir.path, 'lyrics_${song.videoId}.json');
 
@@ -118,6 +129,7 @@ class DownloadService {
       final vaultDir = await _getVaultDir();
       for (final name in [
         'track_$videoId.m4a',
+        'track_$videoId.flac',
         'art_$videoId.jpg',
         'lyrics_$videoId.json',
       ]) {

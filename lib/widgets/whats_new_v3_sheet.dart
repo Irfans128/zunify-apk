@@ -50,16 +50,16 @@ class _WhatsNewV3Sheet extends StatelessWidget {
     (
       icon: Icons.lyrics_rounded,
       color: Color(0xFF34D399),
-      title: 'Lirik Duet 2 Sisi & Mode iPod Minimalis',
+      title: 'Lirik Duet 2 Sisi, NetEase & Terjemahan 4-Server',
       subtitle:
-          'Penyanyi bergantian rata kiri/kanan ala Spotify, bebas teks acak, plus layar lirik putih bersih di Classic iPod.',
+          'Penyanyi bergantian kiri/kanan, 7 sumber lirik paralel, layar putih iPod, plus terjemahan anti-gagal.',
     ),
     (
-      icon: Icons.graphic_eq_rounded,
+      icon: Icons.high_quality_rounded,
       color: Color(0xFFF59E0B),
-      title: 'Crossfade S-Curve, Grid Playlist & Share Card',
+      title: 'Audio Lossless FLAC, Crossfade & Grid Playlist',
       subtitle:
-          'Transisi lagu mulus, Unduh 1 Playlist sekaligus, Pin/Sortir playlist, serta kartu bagikan Minimalist & Polaroid.',
+          'Streaming & unduh FLAC Lossless (auto-fallback), Crossfade S-Curve, Unduh 1 Playlist & Share Card baru.',
     ),
   ];
 

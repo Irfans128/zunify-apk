@@ -143,7 +143,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES="- Tema Baru: Classic iPod (Click Wheel & layar lirik putih minimalis), Studio Tema, Liquid Glass micro-grain optik & Neo-Brutalism\n- Transisi Hero sampul halus ala Apple Music dari Mini-Player ke Now Playing\n- Lirik Duet 2 Sisi (kiri/kanan ala Spotify) & bersih dari teks/kredit acak\n- Crossfade S-Curve, Grid Playlist 2 kolom, Unduh 1 Playlist sekaligus & Share Card Minimalist/Polaroid\n- Rilis perdana ZunifyG (Versi Super Ringan HP Kentang/Gaming)\n- Spesial Ulang Tahun Zidny 🎉"
+          NOTES="- Audio Lossless FLAC Hi-Fi (Monochrome/HiFi multi-server + auto-fallback YT Music Tinggi)\n- Terjemahan lirik anti-gagal 4-server + 7 sumber lirik (BetterLyrics, LyricsPlus, SimpMusic, LRCLIB, LRC.red, NetEase, YT Music) & Duet 2 Sisi\n- Tema Baru: Classic iPod (Click Wheel & layar lirik putih minimalis), Studio Tema, Liquid Glass micro-grain optik & Neo-Brutalism\n- Transisi Hero sampul halus ala Apple Music dari Mini-Player ke Now Playing\n- Crossfade S-Curve, Grid Playlist 2 kolom, Unduh 1 Playlist sekaligus & Share Card Minimalist/Polaroid\n- Rilis perdana ZunifyG (Versi Super Ringan HP Kentang/Gaming)\n- Spesial Ulang Tahun Zidny 🎉"
           gh release delete "v3.0.0" --yes || true
           gh release create "v3.0.0" \
             dist/*.apk \

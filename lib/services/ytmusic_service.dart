@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
 import '../models/song_model.dart';
+import 'lossless_audio_service.dart';
 
 class ResolvedAudioStream {
   final Uri url;
@@ -11,6 +12,9 @@ class ResolvedAudioStream {
   final int bitrateKbps;
   final String mimeType;
   final int contentLength;
+  final bool isLossless;
+  final String? formatLabel;
+  final String fileExtension;
 
   const ResolvedAudioStream({
     required this.url,
@@ -19,6 +23,9 @@ class ResolvedAudioStream {
     required this.bitrateKbps,
     required this.mimeType,
     this.contentLength = 0,
+    this.isLossless = false,
+    this.formatLabel,
+    this.fileExtension = 'm4a',
   });
 }
 
@@ -47,6 +54,8 @@ class YTMusicService {
       'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
   final Random _random = Random();
   final http.Client _http = http.Client();
+  late final LosslessAudioService _losslessService =
+      LosslessAudioService(client: _http);
 
   String? _cachedVisitorData;
   DateTime? _visitorDataFetchedAt;
@@ -583,6 +592,7 @@ class YTMusicService {
     String videoId, {
     bool highQuality = true,
     String? qualityTier,
+    ZunifySong? song,
   }) async {
     final effectiveTier =
         qualityTier ?? (highQuality ? 'high' : 'low');
@@ -590,6 +600,19 @@ class YTMusicService {
     final cached = _streamCache[cacheKey];
     if (cached != null && cached.isValid) {
       return cached.stream;
+    }
+
+    // When Lossless mode is active and track metadata is available, try direct FLAC Lossless first;
+    // falls back seamlessly to YouTube Music High Quality if unavailable or non-studio upload.
+    if (effectiveTier == 'lossless' && song != null) {
+      final flacStream = await _losslessService.resolveLosslessStream(song);
+      if (flacStream != null) {
+        _streamCache[cacheKey] = _CachedStreamEntry(
+          flacStream,
+          DateTime.now().add(const Duration(minutes: 45)),
+        );
+        return flacStream;
+      }
     }
 
     final visitorData = await _getVisitorData();
@@ -822,12 +845,14 @@ class YTMusicService {
     String videoId, {
     bool highQuality = true,
     String? qualityTier,
+    ZunifySong? song,
   }) async {
     try {
       await resolveAudioStream(
         videoId,
         highQuality: highQuality,
         qualityTier: qualityTier,
+        song: song,
       );
     } catch (_) {}
   }

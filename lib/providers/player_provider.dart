@@ -233,6 +233,8 @@ class PlayerProvider extends ChangeNotifier {
         return 'Rendah';
       case 'standard':
         return 'Standar';
+      case 'lossless':
+        return 'Lossless';
       default:
         return 'Tinggi';
     }
@@ -283,7 +285,8 @@ class PlayerProvider extends ChangeNotifier {
   Future<void> initPreferences() async {
     final prefs = await SharedPreferences.getInstance();
     _audioQualityTier = prefs.getString('audio_quality_tier_v2') ?? 'high';
-    _highQualityAudio = _audioQualityTier == 'high';
+    _highQualityAudio =
+        _audioQualityTier == 'high' || _audioQualityTier == 'lossless';
     _autoQualityEnabled = prefs.getBool('auto_quality_enabled') ?? false;
     _crossfadeSeconds = prefs.getInt('crossfade_seconds') ?? 4;
     _offlineModeEnabled = prefs.getBool('offline_mode_enabled') ?? false;
@@ -607,6 +610,12 @@ class PlayerProvider extends ChangeNotifier {
           await _lyricsService.translateLyricsToIndonesian(lyrics);
       if (_currentSong?.videoId == targetVideoId) {
         _currentLyrics = translated;
+        final hasAnyTranslation =
+            translated.lines.any((l) => l.translatedIndoText != null);
+        if (!hasAnyTranslation) {
+          // If translation failed (e.g. offline) or song confirmed Indo, turn toggle off cleanly so user can retry
+          _showTranslation = false;
+        }
       }
       _isTranslatingLyrics = false;
       notifyListeners();
@@ -1061,7 +1070,10 @@ class PlayerProvider extends ChangeNotifier {
       _audioHandler?.updateNowPlayingMediaItem(mediaItemTag);
 
       if (offlineCopy != null && offlineCopy.localFilePath != null) {
-        _activeAudioFormatBadge = 'Offline • Tinggi';
+        final isOfflineFlac =
+            offlineCopy.localFilePath!.toLowerCase().endsWith('.flac');
+        _activeAudioFormatBadge =
+            isOfflineFlac ? 'Offline • FLAC Lossless' : 'Offline • Tinggi';
         await _audioPlayer.setFilePath(offlineCopy.localFilePath!);
       } else {
         if (_offlineModeEnabled) {
@@ -1069,10 +1081,12 @@ class PlayerProvider extends ChangeNotifier {
           notifyListeners();
           return;
         }
-        final resolvedStream = await _ytMusicService.resolveAudioStream(
+        var resolvedStream = await _ytMusicService.resolveAudioStream(
           song.videoId,
-          highQuality: _audioQualityTier == 'high',
+          highQuality: _audioQualityTier == 'high' ||
+              _audioQualityTier == 'lossless',
           qualityTier: _audioQualityTier,
+          song: song,
         );
         if (token != _playToken) return; // user already skipped elsewhere
         if (resolvedStream == null) {
@@ -1083,10 +1097,10 @@ class PlayerProvider extends ChangeNotifier {
 
         final br = resolvedStream.bitrateKbps > 0
             ? resolvedStream.bitrateKbps
-            : (_audioQualityTier == 'high'
+            : (_audioQualityTier == 'high' || _audioQualityTier == 'lossless'
                 ? 160
                 : (_audioQualityTier == 'standard' ? 128 : 64));
-        _activeAudioFormatBadge = '$br kbps';
+        _activeAudioFormatBadge = resolvedStream.formatLabel ?? '$br kbps';
 
         try {
           await _audioPlayer.setAudioSource(
@@ -1096,7 +1110,28 @@ class PlayerProvider extends ChangeNotifier {
             ),
           );
         } catch (_) {
-          if (resolvedStream.hlsUrl != null) {
+          // If a Lossless FLAC CDN URL fails to open in ExoPlayer, fall back seamlessly to YT Music High Quality!
+          if (resolvedStream.isLossless) {
+            final fallbackYt = await _ytMusicService.resolveAudioStream(
+              song.videoId,
+              highQuality: true,
+              qualityTier: 'high',
+            );
+            if (token != _playToken) return;
+            if (fallbackYt != null) {
+              resolvedStream = fallbackYt;
+              final fbr = fallbackYt.bitrateKbps > 0 ? fallbackYt.bitrateKbps : 160;
+              _activeAudioFormatBadge = '$fbr kbps';
+              await _audioPlayer.setAudioSource(
+                AudioSource.uri(
+                  fallbackYt.url,
+                  headers: fallbackYt.headers,
+                ),
+              );
+            } else {
+              rethrow;
+            }
+          } else if (resolvedStream.hlsUrl != null) {
             try {
               await _audioPlayer.setAudioSource(
                 HlsAudioSource(
@@ -1164,8 +1199,10 @@ class PlayerProvider extends ChangeNotifier {
         if (!_libraryProvider.isDownloaded(upcoming.videoId)) {
           _ytMusicService.prefetchNextSongStream(
             upcoming.videoId,
-            highQuality: _audioQualityTier == 'high',
+            highQuality: _audioQualityTier == 'high' ||
+                _audioQualityTier == 'lossless',
             qualityTier: _audioQualityTier,
+            song: upcoming,
           );
         }
       }
@@ -2103,17 +2140,21 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> setAudioQualityTier(String tier) async {
-    final normalized =
-        (tier == 'low' || tier == 'standard' || tier == 'high') ? tier : 'high';
+    final normalized = (tier == 'low' ||
+            tier == 'standard' ||
+            tier == 'high' ||
+            tier == 'lossless')
+        ? tier
+        : 'high';
     if (_audioQualityTier == normalized) return;
     _audioQualityTier = normalized;
-    _highQualityAudio = normalized == 'high';
+    _highQualityAudio = normalized == 'high' || normalized == 'lossless';
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('audio_quality_tier_v2', normalized);
     await prefs.setBool('high_quality_audio', _highQualityAudio);
 
-    // Immediately switch stream bitrate if currently streaming a song online
+    // Immediately switch stream bitrate/FLAC if currently streaming a song online
     final song = _currentSong;
     if (song != null &&
         !_offlineModeEnabled &&
@@ -2123,16 +2164,17 @@ class PlayerProvider extends ChangeNotifier {
       try {
         final resolvedStream = await _ytMusicService.resolveAudioStream(
           song.videoId,
-          highQuality: normalized == 'high',
+          highQuality: normalized == 'high' || normalized == 'lossless',
           qualityTier: normalized,
+          song: song,
         );
         if (resolvedStream != null && _currentSong?.videoId == song.videoId) {
           final br = resolvedStream.bitrateKbps > 0
               ? resolvedStream.bitrateKbps
-              : (normalized == 'high'
+              : (normalized == 'high' || normalized == 'lossless'
                   ? 160
                   : (normalized == 'standard' ? 128 : 64));
-          _activeAudioFormatBadge = '$br kbps';
+          _activeAudioFormatBadge = resolvedStream.formatLabel ?? '$br kbps';
           await _audioPlayer.setAudioSource(
             AudioSource.uri(
               resolvedStream.url,

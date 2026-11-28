@@ -324,7 +324,7 @@ class SettingsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 18),
 
-            // 3. Direct Audio Quality Selector (Rendah, Standar, Tinggi)
+            // 3. Direct Audio Quality Selector (Rendah, Standar, Tinggi, Lossless FLAC)
             _sectionLabel('Kualitas Audio', theme),
             const SizedBox(height: 8),
             LiquidGlassBox(
@@ -354,14 +354,27 @@ class SettingsScreen extends StatelessWidget {
                         accent: accent,
                         onTap: () => player.setAudioQualityTier('standard'),
                       ),
-                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
                       _buildQualityOption(
                         label: 'Tinggi',
-                        sub: 'Jernih',
+                        sub: 'Jernih AAC',
                         selected: player.audioQualityTier == 'high',
                         theme: theme,
                         accent: accent,
                         onTap: () => player.setAudioQualityTier('high'),
+                      ),
+                      const SizedBox(width: 8),
+                      _buildQualityOption(
+                        label: 'Lossless',
+                        sub: 'FLAC Hi-Fi',
+                        selected: player.audioQualityTier == 'lossless',
+                        theme: theme,
+                        accent: accent,
+                        onTap: () => player.setAudioQualityTier('lossless'),
                       ),
                     ],
                   ),
@@ -369,14 +382,18 @@ class SettingsScreen extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        Icons.download_done_rounded,
+                        player.audioQualityTier == 'lossless'
+                            ? Icons.high_quality_rounded
+                            : Icons.download_done_rounded,
                         color: theme.accentText,
                         size: 15,
                       ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          'Unduh lagu otomatis memakai Kualitas Tinggi',
+                          player.audioQualityTier == 'lossless'
+                              ? 'Streaming & unduh FLAC Lossless (otomatis fallback YT Music Tinggi jika tidak tersedia)'
+                              : 'Unduh lagu otomatis memakai Kualitas Tinggi',
                           style: TextStyle(
                             color: theme.textSecondary,
                             fontSize: 11.5,
