@@ -89,10 +89,6 @@ class PlayerProvider extends ChangeNotifier {
 
   static const MethodChannel _nativeChannel =
       MethodChannel('com.fannz.zunify/equalizer');
-  static const MethodChannel _launcherChannel =
-      MethodChannel('com.fannz.zunify/launcher');
-  DateTime _lastLauncherSyncAt = DateTime.fromMillisecondsSinceEpoch(0);
-  String _lastLauncherSyncKey = '';
 
   // Shuffle & Repeat State (0 = Off, 1 = Repeat Queue, 2 = Repeat One)
   bool _shuffleEnabled = false;
@@ -169,91 +165,6 @@ class PlayerProvider extends ChangeNotifier {
     _audioHandler?.onSkipToNextCallback = playNext;
     _audioHandler?.onSkipToPreviousCallback = playPrevious;
     _initAudioListeners();
-    _initLauncherBridge();
-  }
-
-  void _initLauncherBridge() {
-    _launcherChannel.setMethodCallHandler((call) async {
-      if (call.method == 'launcherAction') {
-        final action = call.arguments?.toString() ?? '';
-        switch (action) {
-          case 'playPause':
-            await togglePlayPause();
-            break;
-          case 'next':
-            await playNext();
-            break;
-          case 'prev':
-            await playPrevious();
-            break;
-          case 'toggleFavorite':
-            final song = _currentSong;
-            if (song != null) {
-              await _libraryProvider.toggleFavorite(song);
-              _syncLauncherState(force: true);
-            }
-            break;
-        }
-      }
-    });
-    _themeProvider.addListener(_onExternalStateForLauncher);
-    _libraryProvider.addListener(_onExternalStateForLauncher);
-  }
-
-  void _onExternalStateForLauncher() {
-    _syncLauncherState();
-  }
-
-  void _syncLauncherState({bool force = false}) {
-    final song = _currentSong;
-    String activeLyric = '';
-    final lyr = _currentLyrics;
-    if (lyr != null &&
-        _activeLyricIndex >= 0 &&
-        _activeLyricIndex < lyr.lines.length) {
-      final raw = lyr.lines[_activeLyricIndex].originalText.trim();
-      if (raw.isNotEmpty && !raw.contains('•')) {
-        activeLyric = raw;
-      }
-    }
-
-    final isFav =
-        song != null ? _libraryProvider.isFavorite(song.videoId) : false;
-    final playing = _audioPlayer.playing;
-    final posMs = position.inMilliseconds;
-    final durMs = duration.inMilliseconds;
-    final themeMode = _themeProvider.uiThemeMode;
-    final isLight = _themeProvider.isLightCanvas;
-    final ambientInt = _themeProvider.playerAmbientColor.value;
-    final accentInt = _themeProvider.accentColor.value;
-
-    final stateKey =
-        '${song?.videoId ?? ''}|$playing|$isFav|$activeLyric|$themeMode|$isLight|$ambientInt|$accentInt';
-    final now = DateTime.now();
-    if (!force &&
-        stateKey == _lastLauncherSyncKey &&
-        now.difference(_lastLauncherSyncAt).inMilliseconds < 1000) {
-      return;
-    }
-    _lastLauncherSyncKey = stateKey;
-    _lastLauncherSyncAt = now;
-
-    unawaited(
-      _launcherChannel.invokeMethod('syncLauncherState', {
-        'title': song?.title ?? '',
-        'artist': song?.artist ?? '',
-        'artUrl': song?.highResArtUrl ?? '',
-        'liveLyric': activeLyric,
-        'isPlaying': playing,
-        'isFavorite': isFav,
-        'positionMs': posMs,
-        'durationMs': durMs,
-        'ambientColor': ambientInt,
-        'accentColor': accentInt,
-        'themeMode': themeMode,
-        'isLightCanvas': isLight,
-      }).catchError((_) {}),
-    );
   }
 
   // ---------------------------------------------------------------------------
@@ -433,7 +344,6 @@ class PlayerProvider extends ChangeNotifier {
     }
 
     notifyListeners();
-    _syncLauncherState(force: true);
   }
 
   Future<void> _persistResumeState({bool force = false}) async {
@@ -489,7 +399,6 @@ class PlayerProvider extends ChangeNotifier {
       _checkSleepTimerDeadline(fromStream: true);
       if (_audioPlayer.playing) {
         unawaited(_persistResumeState());
-        _syncLauncherState();
       }
     });
 
@@ -520,7 +429,6 @@ class PlayerProvider extends ChangeNotifier {
         _lastNotifiedPlaying = state.playing;
         _lastNotifiedProcessing = state.processingState;
         notifyListeners();
-        _syncLauncherState(force: true);
       }
     });
   }
@@ -667,7 +575,6 @@ class PlayerProvider extends ChangeNotifier {
     if (found != _activeLyricIndex) {
       _activeLyricIndex = found;
       notifyListeners();
-      _syncLauncherState(force: true);
     }
   }
 
@@ -1272,7 +1179,6 @@ class PlayerProvider extends ChangeNotifier {
     _showTranslation = false;
     _currentLyrics = null;
     notifyListeners();
-    _syncLauncherState(force: true);
 
     final cached = await _downloadService.getOfflineCachedLyrics(song.videoId);
     if (cached != null && cached.lines.length > 1) {
@@ -2505,8 +2411,6 @@ class PlayerProvider extends ChangeNotifier {
 
   @override
   void dispose() {
-    _themeProvider.removeListener(_onExternalStateForLauncher);
-    _libraryProvider.removeListener(_onExternalStateForLauncher);
     _flushListenLog();
     _sleepTimer?.cancel();
     _sleepFadeTimer?.cancel();

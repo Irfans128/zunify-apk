@@ -395,7 +395,10 @@ class _MiniAudioSpectrumBarsState extends State<MiniAudioSpectrumBars>
               children: List.generate(4, (i) {
                 return Container(
                   width: 2.8,
-                  height: (widget.height * factors[i]).clamp(3.0, widget.height),
+                  height: (widget.height * factors[i]).clamp(
+                    math.min(3.0, widget.height),
+                    math.max(3.0, widget.height),
+                  ),
                   margin: const EdgeInsets.symmetric(horizontal: 1.2),
                   decoration: BoxDecoration(
                     color: widget.color,

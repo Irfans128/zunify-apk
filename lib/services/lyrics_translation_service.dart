@@ -1630,9 +1630,10 @@ class LyricsTranslationService {
 
           // Smoothly fit word fill to actual available span (without finishing way too early!)
           final maxSingSpan = (availableSpanMs - 100).clamp(500, 8800);
+          final minLongSpan = maxSingSpan < 1800 ? maxSingSpan : 1800;
           final targetSpan = (availableSpanMs <= 8800)
               ? (availableSpanMs * 0.86).round().clamp(500, maxSingSpan)
-              : naturalTotalMs.clamp(1800, maxSingSpan);
+              : naturalTotalMs.clamp(minLongSpan, maxSingSpan);
           final actualSingSpanMs = targetSpan > maxSingSpan
               ? maxSingSpan
               : targetSpan;
@@ -1645,9 +1646,11 @@ class LyricsTranslationService {
           for (int wIdx = 0; wIdx < rawTokens.length; wIdx++) {
             final sliceMs =
                 ((weights[wIdx] / totalWeight) * actualSingSpanMs).round();
+            final minWordEnd =
+                (cursorMs + 60) > lineEndMs ? lineEndMs : (cursorMs + 60);
             final wEnd = (wIdx == rawTokens.length - 1)
                 ? lineEndMs
-                : (cursorMs + sliceMs).clamp(cursorMs + 60, lineEndMs);
+                : (cursorMs + sliceMs).clamp(minWordEnd, lineEndMs);
             builtWords.add(
               LyricWord(
                 text: rawTokens[wIdx],

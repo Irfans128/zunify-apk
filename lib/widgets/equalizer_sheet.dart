@@ -358,7 +358,7 @@ class _EqCurvePainter extends CustomPainter {
       ..strokeWidth = 1;
     canvas.drawLine(Offset(0, midY), Offset(size.width, midY), refPaint);
 
-    if (bandLevels.isEmpty) return;
+    if (bandLevels.length < 2) return;
 
     final points = <Offset>[];
     for (int i = 0; i < bandLevels.length; i++) {

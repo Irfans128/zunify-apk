@@ -131,6 +131,7 @@ class _ShareCardModalState extends State<ShareCardModal> {
   }
 
   Future<void> _exportAndShareCard() async {
+    if (!mounted) return;
     setState(() {
       _isSharing = true;
       _statusMessage = 'Menyiapkan kartu lirik HD...';
@@ -159,17 +160,18 @@ class _ShareCardModalState extends State<ShareCardModal> {
     PlayerProvider player,
     List<LyricLine> chosenLines,
   ) async {
+    if (!mounted) return;
     setState(() {
       _isCreatingVideo = true;
       _statusMessage = 'Menyiapkan audio lagu & kartu lirik...';
     });
     try {
       final pngFile = await _renderCardPngToFile();
-      if (pngFile == null) return;
+      if (pngFile == null || !mounted) return;
 
       final audioPath = await player.prepareAudioFileForStory(widget.song);
       if (audioPath == null) {
-        await _exportAndShareCard();
+        if (mounted) await _exportAndShareCard();
         return;
       }
 
@@ -177,11 +179,14 @@ class _ShareCardModalState extends State<ShareCardModal> {
         setState(() => _statusMessage = 'Merender Video Story + Musik (.mp4)...');
       }
 
+      final safeDurMs = widget.song.duration.inMilliseconds > 0
+          ? widget.song.duration.inMilliseconds
+          : 0;
       int startMs = 0;
       if (chosenLines.isNotEmpty &&
           chosenLines.first.timestamp.inMilliseconds > 0) {
         startMs = (chosenLines.first.timestamp.inMilliseconds - 800)
-            .clamp(0, widget.song.duration.inMilliseconds);
+            .clamp(0, safeDurMs);
       } else if (player.currentSong?.videoId == widget.song.videoId) {
         startMs = player.audioPlayer.position.inMilliseconds;
       }
@@ -216,10 +221,10 @@ class _ShareCardModalState extends State<ShareCardModal> {
               '🎧 "${widget.song.title}" - ${widget.song.artist} • Zunify Music',
         );
       } else {
-        await _exportAndShareCard();
+        if (mounted) await _exportAndShareCard();
       }
     } catch (_) {
-      await _exportAndShareCard();
+      if (mounted) await _exportAndShareCard();
     } finally {
       if (mounted) {
         setState(() {

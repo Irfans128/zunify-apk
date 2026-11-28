@@ -819,31 +819,47 @@ class _IpodClassicPlayerState extends State<IpodClassicPlayer> {
       final bottomLen = bottomWords.join(' ').length;
 
       if (topLen <= 24 && bottomLen <= 22) {
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: topWords
-                  .map((w) => Text(w, style: style))
-                  .toList(),
-            ),
-            const SizedBox(height: 1.5),
-            if (bottomWords.length == 1)
-              Text(
-                bottomWords.first,
-                textAlign: TextAlign.left,
-                style: style,
-              )
-            else
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: bottomWords
-                    .map((w) => Text(w, style: style))
-                    .toList(),
-              ),
-          ],
+        return LayoutBuilder(
+          builder: (ctx, box) {
+            final minW = box.maxWidth.isFinite ? box.maxWidth : 0.0;
+            Widget buildSpreadRow(List<String> rowWords) {
+              return FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.center,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minWidth: minW),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: rowWords
+                        .map(
+                          (w) => Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: Text(w, style: style),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              );
+            }
+
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                buildSpreadRow(topWords),
+                const SizedBox(height: 1.5),
+                if (bottomWords.length == 1)
+                  Text(
+                    bottomWords.first,
+                    textAlign: TextAlign.left,
+                    style: style,
+                  )
+                else
+                  buildSpreadRow(bottomWords),
+              ],
+            );
+          },
         );
       }
     }

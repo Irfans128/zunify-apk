@@ -143,7 +143,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          NOTES="- Baru: Zunify Built-In Launcher 100% Native ringan + Dynamic Capsule musik & lirik live anti-nabrak\n- Tema Baru: Classic iPod (Click Wheel & layar lirik putih minimalis), Studio Tema, Liquid Glass micro-grain optik & Neo-Brutalism\n- Transisi Hero sampul halus ala Apple Music dari Mini-Player ke Now Playing\n- Lirik Duet 2 Sisi (kiri/kanan ala Spotify) & bersih dari teks/kredit acak\n- Crossfade S-Curve, Grid Playlist 2 kolom, Unduh 1 Playlist sekaligus & Share Card Minimalist/Polaroid\n- Rilis perdana ZunifyG (Versi Super Ringan HP Kentang/Gaming)\n- Spesial Ulang Tahun Zidny 🎉"
+          NOTES="- Tema Baru: Classic iPod (Click Wheel & layar lirik putih minimalis), Studio Tema, Liquid Glass micro-grain optik & Neo-Brutalism\n- Transisi Hero sampul halus ala Apple Music dari Mini-Player ke Now Playing\n- Lirik Duet 2 Sisi (kiri/kanan ala Spotify) & bersih dari teks/kredit acak\n- Crossfade S-Curve, Grid Playlist 2 kolom, Unduh 1 Playlist sekaligus & Share Card Minimalist/Polaroid\n- Rilis perdana ZunifyG (Versi Super Ringan HP Kentang/Gaming)\n- Spesial Ulang Tahun Zidny 🎉"
           gh release delete "v3.0.0" --yes || true
           gh release create "v3.0.0" \
             dist/*.apk \

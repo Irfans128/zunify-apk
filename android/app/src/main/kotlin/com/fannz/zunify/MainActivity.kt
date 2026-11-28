@@ -54,7 +54,6 @@ import java.nio.ByteBuffer
  */
 class MainActivity : AudioServiceFragmentActivity() {
     private val CHANNEL = "com.fannz.zunify/equalizer"
-    private val LAUNCHER_CHANNEL = "com.fannz.zunify/launcher"
 
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
@@ -62,7 +61,6 @@ class MainActivity : AudioServiceFragmentActivity() {
     private var currentSessionId: Int = -1
     private val mainHandler = Handler(Looper.getMainLooper())
     private var methodChannel: MethodChannel? = null
-    private var launcherChannel: MethodChannel? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var lastPartialTranscript: String = ""
     private var pendingVoiceLang: String = "auto"
@@ -384,68 +382,6 @@ class MainActivity : AudioServiceFragmentActivity() {
                 else -> result.notImplemented()
             }
         }
-
-        // Dedicated channel for Zunify Built-In Native Launcher (never collides with voice search)
-        val lChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, LAUNCHER_CHANNEL)
-        launcherChannel = lChannel
-        ZunifyLauncherBridge.onActionFromLauncher = { action ->
-            mainHandler.post {
-                try {
-                    launcherChannel?.invokeMethod("launcherAction", action)
-                } catch (_: Exception) {}
-            }
-        }
-        lChannel.setMethodCallHandler { call, result ->
-            when (call.method) {
-                "syncLauncherState" -> {
-                    val state = LauncherMusicState(
-                        title = call.argument<String>("title") ?: "",
-                        artist = call.argument<String>("artist") ?: "",
-                        artUrl = call.argument<String>("artUrl") ?: "",
-                        liveLyric = call.argument<String>("liveLyric") ?: "",
-                        isPlaying = call.argument<Boolean>("isPlaying") ?: false,
-                        isFavorite = call.argument<Boolean>("isFavorite") ?: false,
-                        positionMs = call.argument<Number>("positionMs")?.toLong() ?: 0L,
-                        durationMs = call.argument<Number>("durationMs")?.toLong() ?: 0L,
-                        ambientColor = call.argument<Number>("ambientColor")?.toLong()?.toInt()
-                            ?: 0xFF1A2238.toInt(),
-                        accentColor = call.argument<Number>("accentColor")?.toLong()?.toInt()
-                            ?: 0xFF5EEAD4.toInt(),
-                        themeMode = call.argument<String>("themeMode") ?: "liquid_glass",
-                        isLightCanvas = call.argument<Boolean>("isLightCanvas") ?: false,
-                    )
-                    ZunifyLauncherBridge.updateState(state)
-                    result.success(true)
-                }
-                "isZunifyLauncherEnabled" -> {
-                    result.success(ZunifyLauncherBridge.isLauncherComponentEnabled(this))
-                }
-                "setZunifyLauncherEnabled" -> {
-                    val enabled = call.argument<Boolean>("enabled") ?: false
-                    val openPicker = call.argument<Boolean>("openPicker") ?: false
-                    val ok = ZunifyLauncherBridge.setLauncherComponentEnabled(this, enabled)
-                    if (ok && enabled && openPicker) {
-                        ZunifyLauncherBridge.openHomeSettingsPicker(this)
-                    }
-                    result.success(ok && enabled)
-                }
-                "openHomeSettingsPicker" -> {
-                    result.success(ZunifyLauncherBridge.openHomeSettingsPicker(this))
-                }
-                "openZunifyLauncherPreview" -> {
-                    try {
-                        val previewIntent = Intent(this, ZunifyLauncherActivity::class.java).apply {
-                            putExtra("zunify_preview_mode", true)
-                        }
-                        startActivity(previewIntent)
-                        result.success(true)
-                    } catch (e: Exception) {
-                        result.error("LAUNCHER_PREVIEW_ERR", e.message, null)
-                    }
-                }
-                else -> result.notImplemented()
-            }
-        }
     }
 
     private fun getPermissionsStatusMap(): Map<String, Boolean> {
@@ -727,12 +663,15 @@ class MainActivity : AudioServiceFragmentActivity() {
                         val ratio = maxDim.toFloat() / maxOf(rawBmp.width, rawBmp.height).toFloat()
                         val nw = (rawBmp.width * ratio).toInt().coerceAtLeast(1)
                         val nh = (rawBmp.height * ratio).toInt().coerceAtLeast(1)
-                        Bitmap.createScaledBitmap(rawBmp, nw, nh, true)
+                        Bitmap.createScaledBitmap(rawBmp, nw, nh, true).also {
+                            if (it != rawBmp) rawBmp.recycle()
+                        }
                     } else {
                         rawBmp
                     }
                     val baos = ByteArrayOutputStream()
                     scaledBmp.compress(Bitmap.CompressFormat.JPEG, 82, baos)
+                    scaledBmp.recycle()
                     val jpgBytes = baos.toByteArray()
                     val outFile = File(cacheDir, "notif_picked_${System.currentTimeMillis()}.jpg")
                     outFile.writeBytes(jpgBytes)
@@ -1083,8 +1022,6 @@ class MainActivity : AudioServiceFragmentActivity() {
 
     override fun onDestroy() {
         destroySpeechRecognizer()
-        ZunifyLauncherBridge.onActionFromLauncher = null
-        launcherChannel = null
         methodChannel = null
         releaseEffects()
         super.onDestroy()

@@ -122,7 +122,9 @@ object ZunifyFcmHelper {
                 val ratio = maxDim.toFloat() / maxOf(decoded.width, decoded.height).toFloat()
                 val nw = (decoded.width * ratio).toInt().coerceAtLeast(1)
                 val nh = (decoded.height * ratio).toInt().coerceAtLeast(1)
-                Bitmap.createScaledBitmap(decoded, nw, nh, true)
+                val scaled = Bitmap.createScaledBitmap(decoded, nw, nh, true)
+                if (scaled != decoded) decoded.recycle()
+                scaled
             } else {
                 decoded
             }
@@ -274,23 +276,30 @@ object ZunifyFcmSender {
         val jwt = "$unsignedJwt.${base64Url(sigBytes)}"
 
         val conn = URL("https://oauth2.googleapis.com/token").openConnection() as HttpURLConnection
-        conn.requestMethod = "POST"
-        conn.doOutput = true
-        conn.connectTimeout = 7000
-        conn.readTimeout = 7000
-        conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
-        val postData = "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=$jwt"
-        conn.outputStream.use { it.write(postData.toByteArray(Charsets.UTF_8)) }
-        if (conn.responseCode != 200) return null
-        val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-        val json = JSONObject(responseText)
-        return json.optString("access_token", null)
+        return try {
+            conn.requestMethod = "POST"
+            conn.doOutput = true
+            conn.connectTimeout = 7000
+            conn.readTimeout = 7000
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            val postData = "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=$jwt"
+            conn.outputStream.use { it.write(postData.toByteArray(Charsets.UTF_8)) }
+            if (conn.responseCode != 200) return null
+            val responseText = conn.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+            val json = JSONObject(responseText)
+            json.optString("access_token", null)
+        } finally {
+            try {
+                conn.disconnect()
+            } catch (_: Exception) {}
+        }
     }
 
     fun sendBroadcast(title: String, body: String, imageUrl: String = ""): Boolean {
+        var conn: HttpURLConnection? = null
         return try {
             val token = getOAuth2AccessToken() ?: return false
-            val conn = URL("https://fcm.googleapis.com/v1/projects/$PROJECT_ID/messages:send").openConnection() as HttpURLConnection
+            conn = URL("https://fcm.googleapis.com/v1/projects/$PROJECT_ID/messages:send").openConnection() as HttpURLConnection
             conn.requestMethod = "POST"
             conn.doOutput = true
             conn.connectTimeout = 8000
@@ -329,6 +338,10 @@ object ZunifyFcmSender {
             conn.responseCode == 200
         } catch (_: Exception) {
             false
+        } finally {
+            try {
+                conn?.disconnect()
+            } catch (_: Exception) {}
         }
     }
 }

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,8 +8,6 @@ import '../screens/theme_studio_screen.dart';
 import 'liquid_background_widget.dart';
 
 const String _kWhatsNewV300ShownKey = 'whats_new_v3_0_0_shown';
-const MethodChannel _kLauncherPreviewChannel =
-    MethodChannel('com.fannz.zunify/launcher');
 
 /// Shows the one-time "Apa yang Baru di v3.0.0" showcase sheet after updating.
 Future<void> showWhatsNewV3IfNeeded(BuildContext context) async {
@@ -41,21 +38,21 @@ class _WhatsNewV3Sheet extends StatelessWidget {
       color: Color(0xFF38BDF8),
       title: 'Studio Tema & Liquid Glass Optik',
       subtitle:
-          '3 tema penuh (Liquid Glass micro-grain, Neo-Brutalism, & Classic iPod) plus transisi Hero sampul halus.',
+          '3 tema penuh (Liquid Glass micro-grain, Neo-Brutalism, & Classic iPod) dengan tampilan pencarian kaca optik baru.',
     ),
     (
-      icon: Icons.dashboard_customize_rounded,
+      icon: Icons.animation_rounded,
       color: Color(0xFFA78BFA),
-      title: 'Zunify Built-In Launcher & Dynamic Capsule',
+      title: 'Transisi Hero Sampul & Now Playing Bersih',
       subtitle:
-          'Home Screen 100% Native ringan di dalam 1 APK dengan Dynamic Capsule musik + lirik live anti-nabrak.',
+          'Sampul album melayang mulus dari Mini-Player ke Now Playing dengan kontrol minimalis & elegan.',
     ),
     (
       icon: Icons.lyrics_rounded,
       color: Color(0xFF34D399),
       title: 'Lirik Duet 2 Sisi & Mode iPod Minimalis',
       subtitle:
-          'Penyanyi bergantian rata kiri/kanan ala Spotify, bebas kredit acak, dan layar lirik putih bersih di iPod.',
+          'Penyanyi bergantian rata kiri/kanan ala Spotify, bebas teks acak, plus layar lirik putih bersih di Classic iPod.',
     ),
     (
       icon: Icons.graphic_eq_rounded,
@@ -145,7 +142,7 @@ class _WhatsNewV3Sheet extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              'Pembaruan terbesar untuk tampilan, lirik, pemutaran, dan Home Screen bawaan.',
+              'Pembaruan terbesar untuk tampilan, lirik, pemutaran, dan koleksi musikmu.',
               style: TextStyle(
                 color: theme.textSecondary,
                 fontSize: 12.6,
@@ -226,9 +223,9 @@ class _WhatsNewV3Sheet extends StatelessWidget {
                   child: IosGlassPillButton(
                     icon: Icons.palette_rounded,
                     label: 'Studio Tema',
-                    height: 40,
+                    height: 44,
                     expand: true,
-                    fontSize: 12.2,
+                    fontSize: 12.6,
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -242,52 +239,34 @@ class _WhatsNewV3Sheet extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: IosGlassPillButton(
-                    icon: Icons.rocket_launch_rounded,
-                    label: 'Pratinjau Launcher',
-                    height: 40,
-                    expand: true,
-                    fontSize: 12.2,
-                    onTap: () async {
-                      Navigator.pop(context);
-                      try {
-                        await _kLauncherPreviewChannel
-                            .invokeMethod('openZunifyLauncherPreview');
-                      } catch (_) {}
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: IosSpringButton(
-                onTap: () => Navigator.pop(context),
-                borderRadius: isBrutal ? 12 : 16,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: accent,
-                    borderRadius: BorderRadius.circular(isBrutal ? 12 : 16),
-                    border: isBrutal
-                        ? Border.all(
-                            color: theme.brutalBorderColor,
-                            width: 1.8,
-                          )
-                        : null,
-                  ),
-                  child: const Text(
-                    'Mulai Dengarkan Musik',
-                    style: TextStyle(
-                      color: Color(0xFF111111),
-                      fontSize: 13.8,
-                      fontWeight: FontWeight.w900,
+                  child: IosSpringButton(
+                    onTap: () => Navigator.pop(context),
+                    borderRadius: isBrutal ? 12 : 22,
+                    child: Container(
+                      height: 44,
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: BorderRadius.circular(isBrutal ? 12 : 22),
+                        border: isBrutal
+                            ? Border.all(
+                                color: theme.brutalBorderColor,
+                                width: 1.8,
+                              )
+                            : null,
+                      ),
+                      child: const Text(
+                        'Mulai Dengarkan',
+                        style: TextStyle(
+                          color: Color(0xFF111111),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ),

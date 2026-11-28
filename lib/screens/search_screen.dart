@@ -451,7 +451,7 @@ class _SearchScreenState extends State<SearchScreen> {
         (item) => item.toLowerCase() != clean.toLowerCase(),
       ),
     ].take(15).toList();
-    setState(() => _searchHistory = updated);
+    if (mounted) setState(() => _searchHistory = updated);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(_kSearchHistoryKey, updated);
@@ -460,7 +460,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Future<void> _removeHistoryItem(String query) async {
     final updated = _searchHistory.where((item) => item != query).toList();
-    setState(() => _searchHistory = updated);
+    if (mounted) setState(() => _searchHistory = updated);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList(_kSearchHistoryKey, updated);
@@ -468,7 +468,7 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Future<void> _clearAllHistory() async {
-    setState(() => _searchHistory = []);
+    if (mounted) setState(() => _searchHistory = []);
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kSearchHistoryKey);
@@ -1784,8 +1784,6 @@ class _SearchScreenState extends State<SearchScreen> {
               );
             }
 
-            final darkerTone =
-                Color.lerp(cardColor, const Color(0xFF090D16), 0.34)!;
             final tileRadius = isBrutal ? 13.0 : 16.0;
 
             return IosSpringButton(
@@ -1797,16 +1795,7 @@ class _SearchScreenState extends State<SearchScreen> {
               },
               child: Container(
                 decoration: BoxDecoration(
-                  gradient: (isBrutal || isIpod)
-                      ? null
-                      : LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [cardColor, darkerTone],
-                        ),
-                  color: isBrutal
-                      ? cardColor
-                      : (isIpod ? theme.cardBgColor : null),
+                  color: isBrutal ? cardColor : theme.cardBgColor,
                   borderRadius: BorderRadius.circular(tileRadius),
                   border: Border.all(
                     color: isBrutal

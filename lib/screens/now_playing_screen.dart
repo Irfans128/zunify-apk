@@ -407,12 +407,17 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                             },
                             child: LayoutBuilder(
                               builder: (context, constraints) {
-                                final availableForArt = math
-                                    .min(
+                                final isVinyl =
+                                    theme.playerCoverStyle == 'vinyl';
+                                final vinylRingReserve = isVinyl ? 44.0 : 0.0;
+                                final maxFit = math.min(
                                       constraints.maxWidth - 4,
                                       constraints.maxHeight - 12,
-                                    )
-                                    .clamp(224.0, 356.0);
+                                    ) -
+                                    vinylRingReserve;
+                                final double availableForArt = maxFit <= 120.0
+                                    ? math.max(80.0, maxFit)
+                                    : maxFit.clamp(120.0, 356.0);
                                 return Center(
                                   child: Stack(
                                     alignment: Alignment.topRight,
@@ -1872,9 +1877,16 @@ class _NowPlayingScreenState extends State<NowPlayingScreen> {
                                     ? Alignment.centerRight
                                     : Alignment.centerLeft);
 
+                            final double safeViewportW =
+                                math.max(80.0, viewportW);
+                            final double minLineW =
+                                math.min(180.0, safeViewportW);
                             final double maxLineWidth = isDuetSong && !isCenterLine
-                                ? (viewportW - 24).clamp(180.0, viewportW) * 0.86
-                                : (viewportW - 20).clamp(180.0, viewportW);
+                                ? (safeViewportW - 24)
+                                        .clamp(minLineW, safeViewportW) *
+                                    0.86
+                                : (safeViewportW - 20)
+                                    .clamp(minLineW, safeViewportW);
 
                             final Widget lineBody = isInterlude
                                 ? _buildInterludeIndicator(
