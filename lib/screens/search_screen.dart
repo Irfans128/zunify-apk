@@ -1037,6 +1037,7 @@ class _SearchScreenState extends State<SearchScreen> {
   Widget build(BuildContext context) {
     final theme = context.watch<ThemeProvider>();
     final accent = theme.accentColor;
+    final isBrutal = theme.isNeoBrutalism;
 
     return Scaffold(
       backgroundColor: Colors.transparent,

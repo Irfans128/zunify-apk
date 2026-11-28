@@ -454,7 +454,6 @@ class _LibraryScreenState extends State<LibraryScreen>
     final library = context.watch<LibraryProvider>();
     final player = context.watch<PlayerProvider>();
     final accent = theme.accentColor;
-    final isBrutal = theme.isNeoBrutalism;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
